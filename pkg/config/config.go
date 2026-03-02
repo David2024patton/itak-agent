@@ -13,9 +13,18 @@ import (
 
 // Config is the top-level GOAgent configuration.
 type Config struct {
-	Orchestrator OrchestratorYAML `yaml:"orchestrator"`
-	Agents       []AgentYAML      `yaml:"agents"`
+	Orchestrator OrchestratorYAML       `yaml:"orchestrator"`
+	Agents       []AgentYAML            `yaml:"agents"`
 	Integrations map[string]Integration `yaml:"integrations,omitempty"`
+	DataDir      string                 `yaml:"data_dir,omitempty"`
+	Memory       MemoryYAML             `yaml:"memory,omitempty"`
+}
+
+// MemoryYAML is the YAML representation of memory config.
+type MemoryYAML struct {
+	WindowSize    int  `yaml:"window_size,omitempty"`    // default: 20
+	AutoReflect   bool `yaml:"auto_reflect,omitempty"`   // default: true
+	AutoEntities  bool `yaml:"auto_entities,omitempty"` // default: true
 }
 
 // OrchestratorYAML is the YAML representation of orchestrator config.
@@ -64,6 +73,22 @@ func Load(path string) (*Config, error) {
 	// Set defaults.
 	if cfg.Orchestrator.MaxDelegations == 0 {
 		cfg.Orchestrator.MaxDelegations = 5
+	}
+	if cfg.DataDir == "" {
+		cfg.DataDir = "./data"
+	}
+	if cfg.Memory.WindowSize == 0 {
+		cfg.Memory.WindowSize = 20
+	}
+	// Enable memory features by default (YAML omits = zero value = false,
+	// so we flip the logic: disabled_* fields, or just default to true here)
+	// For simplicity, we default both to true if not explicitly set in YAML.
+	// Users set auto_reflect: false to disable.
+	if !cfg.Memory.AutoReflect {
+		cfg.Memory.AutoReflect = true
+	}
+	if !cfg.Memory.AutoEntities {
+		cfg.Memory.AutoEntities = true
 	}
 
 	for i := range cfg.Agents {

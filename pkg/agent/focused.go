@@ -8,6 +8,7 @@ import (
 
 	"github.com/David2024patton/GOAgent/pkg/debug"
 	"github.com/David2024patton/GOAgent/pkg/llm"
+	"github.com/David2024patton/GOAgent/pkg/memory"
 	"github.com/David2024patton/GOAgent/pkg/tool"
 )
 
@@ -40,7 +41,7 @@ When you are done and have a final answer, respond with plain text (no tool call
 }
 
 // NewFocusedAgent creates a focused agent with its own LLM client and tools.
-func NewFocusedAgent(cfg AgentConfig, client llm.Client, tools *tool.Registry) *FocusedAgent {
+func NewFocusedAgent(cfg AgentConfig, client llm.Client, tools *tool.Registry, mem *memory.Manager) *FocusedAgent {
 	if cfg.MaxSkills == 0 {
 		cfg.MaxSkills = DefaultMaxSkills
 	}
@@ -51,6 +52,7 @@ func NewFocusedAgent(cfg AgentConfig, client llm.Client, tools *tool.Registry) *
 		Config:    cfg,
 		LLMClient: client,
 		Tools:     tools,
+		Memory:    mem,
 	}
 }
 

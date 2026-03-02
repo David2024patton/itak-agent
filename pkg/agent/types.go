@@ -2,6 +2,7 @@ package agent
 
 import (
 	"github.com/David2024patton/GOAgent/pkg/llm"
+	"github.com/David2024patton/GOAgent/pkg/memory"
 	"github.com/David2024patton/GOAgent/pkg/tool"
 )
 
@@ -50,18 +51,26 @@ type Result struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// MemoryConfig holds memory-related settings for the orchestrator.
+type MemoryConfig struct {
+	AutoReflect  bool
+	AutoEntities bool
+}
+
 // OrchestratorConfig defines the orchestrator's settings.
 type OrchestratorConfig struct {
-	LLM             llm.ProviderConfig `yaml:"llm" json:"llm"`
-	SystemPrompt    string             `yaml:"system_prompt" json:"system_prompt,omitempty"`
-	MaxDelegations  int                `yaml:"max_delegations" json:"max_delegations"`
+	LLM            llm.ProviderConfig `yaml:"llm" json:"llm"`
+	SystemPrompt   string             `yaml:"system_prompt" json:"system_prompt,omitempty"`
+	MaxDelegations int                `yaml:"max_delegations" json:"max_delegations"`
+	Memory         MemoryConfig
 }
 
 // Orchestrator coordinates focused agents without using tools itself.
 type Orchestrator struct {
-	Config      OrchestratorConfig
-	LLMClient   llm.Client
-	Agents      map[string]*FocusedAgent
+	Config    OrchestratorConfig
+	LLMClient llm.Client
+	Agents    map[string]*FocusedAgent
+	Memory    *memory.Manager
 }
 
 // FocusedAgent executes tasks using tools and skills.
@@ -69,4 +78,6 @@ type FocusedAgent struct {
 	Config    AgentConfig
 	LLMClient llm.Client
 	Tools     *tool.Registry
+	Memory    *memory.Manager
 }
+

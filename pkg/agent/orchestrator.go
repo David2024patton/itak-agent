@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/David2024patton/GOAgent/pkg/debug"
 	"github.com/David2024patton/GOAgent/pkg/llm"
+	"github.com/David2024patton/GOAgent/pkg/memory"
 )
 
 // delegationSystemPrompt is the baked-in system prompt for the orchestrator.
@@ -49,12 +51,13 @@ Given the original user request and the results from your focused agents, create
 Be concise. Present the information naturally — don't mention agents or delegation mechanics to the user.`
 
 // NewOrchestrator creates an orchestrator with its LLM client and registered agents.
-func NewOrchestrator(cfg OrchestratorConfig, agents map[string]*FocusedAgent) *Orchestrator {
+func NewOrchestrator(cfg OrchestratorConfig, agents map[string]*FocusedAgent, mem *memory.Manager) *Orchestrator {
 	client := llm.NewOpenAIClient(cfg.LLM)
 	return &Orchestrator{
 		Config:    cfg,
 		LLMClient: client,
 		Agents:    agents,
+		Memory:    mem,
 	}
 }
 
@@ -67,6 +70,21 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 	debug.Info("orchestrator", "Processing: %s", truncate(userMessage, 80))
 	debug.Separator("orchestrator")
 
+	// Log user message to session memory and archive.
+	if o.Memory != nil {
+		userMsg := llm.Message{Role: llm.RoleUser, Content: userMessage}
+		o.Memory.Session.Add(userMsg)
+		o.Memory.Archive.LogMessage(memory.LogMessage{
+			Role:      string(llm.RoleUser),
+			Content:   userMessage,
+			Timestamp: time.Now(),
+		})
+
+		// Auto-track entities in user messages.
+		if o.Config.Memory.AutoEntities {
+			o.Memory.Entities.Track(userMessage, o.Memory.Archive.NextID())
+		}
+	}
 	// Build the agent descriptions for the system prompt.
 	agentDescs := o.buildAgentDescriptions()
 	sysPrompt := fmt.Sprintf(delegationSystemPrompt, agentDescs)
