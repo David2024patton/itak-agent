@@ -1,0 +1,41 @@
+# GOAgent Example Configuration
+# Environment variables are expanded: ${NVIDIA_API_KEY} → actual value
+
+orchestrator:
+  llm:
+    provider: nvidia_nim
+    model: nvidia/nemotron-3-nano-30b-a3b
+    api_base: https://integrate.api.nvidia.com/v1
+    api_key: ${NVIDIA_API_KEY}
+  max_delegations: 5
+
+agents:
+  - name: researcher
+    role: Senior Research Analyst
+    personality: "Thorough and methodical researcher who finds accurate, well-sourced information"
+    goals:
+      - accuracy
+      - comprehensiveness
+      - source_verification
+    tools:
+      - http_fetch
+      - file_read
+      - file_write
+    max_loops: 10
+
+  - name: coder
+    role: Software Developer
+    personality: "Pragmatic developer who writes clean, working code with clear comments"
+    goals:
+      - correctness
+      - readability
+      - efficiency
+    tools:
+      - shell
+      - file_read
+      - file_write
+    max_loops: 15
+
+integrations:
+  serp_api:
+    api_key: ${SERP_API_KEY}

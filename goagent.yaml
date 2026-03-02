@@ -1,0 +1,34 @@
+# GOAgent Test Configuration — NVIDIA Nemotron
+
+orchestrator:
+  llm:
+    provider: nvidia_nim
+    model: nvidia/nemotron-3-nano-30b-a3b
+    api_base: https://integrate.api.nvidia.com/v1
+    api_key: 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
+  max_delegations: 5
+
+agents:
+  - name: researcher
+    role: Research Analyst
+    personality: "Thorough researcher who finds accurate information and summarizes clearly"
+    goals:
+      - accuracy
+      - clarity
+    tools:
+      - http_fetch
+      - file_read
+      - file_write
+    max_loops: 8
+
+  - name: coder
+    role: Software Developer
+    personality: "Pragmatic developer who writes clean, working code"
+    goals:
+      - correctness
+      - readability
+    tools:
+      - shell
+      - file_read
+      - file_write
+    max_loops: 10
