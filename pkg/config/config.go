@@ -18,13 +18,21 @@ type Config struct {
 	Integrations map[string]Integration `yaml:"integrations,omitempty"`
 	DataDir      string                 `yaml:"data_dir,omitempty"`
 	Memory       MemoryYAML             `yaml:"memory,omitempty"`
+	ShellSafety  ShellSafetyYAML        `yaml:"shell_safety,omitempty"`
 }
 
 // MemoryYAML is the YAML representation of memory config.
 type MemoryYAML struct {
-	WindowSize    int  `yaml:"window_size,omitempty"`    // default: 20
-	AutoReflect   bool `yaml:"auto_reflect,omitempty"`   // default: true
-	AutoEntities  bool `yaml:"auto_entities,omitempty"` // default: true
+	WindowSize       int  `yaml:"window_size,omitempty"`       // default: 20
+	AutoReflect      bool `yaml:"auto_reflect,omitempty"`      // default: true
+	AutoEntities     bool `yaml:"auto_entities,omitempty"`     // default: true
+	SessionWorkspace bool `yaml:"session_workspace,omitempty"` // default: true
+}
+
+// ShellSafetyYAML holds shell security settings.
+type ShellSafetyYAML struct {
+	DeniedCommands []string `yaml:"denied_cmds,omitempty"`    // additional blocked commands
+	SandboxEnabled bool     `yaml:"sandbox_enabled,omitempty"` // future: Docker sandbox
 }
 
 // OrchestratorYAML is the YAML representation of orchestrator config.
