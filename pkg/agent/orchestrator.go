@@ -51,13 +51,15 @@ Given the original user request and the results from your focused agents, create
 Be concise. Present the information naturally — don't mention agents or delegation mechanics to the user.`
 
 // NewOrchestrator creates an orchestrator with its LLM client and registered agents.
-func NewOrchestrator(cfg OrchestratorConfig, agents map[string]*FocusedAgent, mem *memory.Manager) *Orchestrator {
+func NewOrchestrator(cfg OrchestratorConfig, agents map[string]*FocusedAgent, mem *memory.Manager, trace *debug.StepLogger, tokens *llm.TokenTracker) *Orchestrator {
 	client := llm.NewOpenAIClient(cfg.LLM)
 	return &Orchestrator{
 		Config:    cfg,
 		LLMClient: client,
 		Agents:    agents,
 		Memory:    mem,
+		Trace:     trace,
+		Tokens:    tokens,
 	}
 }
 

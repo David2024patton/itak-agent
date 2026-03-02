@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"github.com/David2024patton/GOAgent/pkg/debug"
 	"github.com/David2024patton/GOAgent/pkg/llm"
 	"github.com/David2024patton/GOAgent/pkg/memory"
 	"github.com/David2024patton/GOAgent/pkg/tool"
@@ -71,6 +72,8 @@ type Orchestrator struct {
 	LLMClient llm.Client
 	Agents    map[string]*FocusedAgent
 	Memory    *memory.Manager
+	Trace     *debug.StepLogger
+	Tokens    *llm.TokenTracker
 }
 
 // FocusedAgent executes tasks using tools and skills.
@@ -79,5 +82,9 @@ type FocusedAgent struct {
 	LLMClient llm.Client
 	Tools     *tool.Registry
 	Memory    *memory.Manager
+	Trace     *debug.StepLogger
+	Tokens    *llm.TokenTracker
+	SessionID string
 }
+
 

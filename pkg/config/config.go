@@ -37,9 +37,19 @@ type ShellSafetyYAML struct {
 
 // OrchestratorYAML is the YAML representation of orchestrator config.
 type OrchestratorYAML struct {
-	LLM            llm.ProviderConfig `yaml:"llm"`
-	SystemPrompt   string             `yaml:"system_prompt,omitempty"`
-	MaxDelegations int                `yaml:"max_delegations,omitempty"`
+	LLM            llm.ProviderConfig   `yaml:"llm"`
+	SystemPrompt   string               `yaml:"system_prompt,omitempty"`
+	MaxDelegations int                  `yaml:"max_delegations,omitempty"`
+	Providers      []llm.ProviderConfig `yaml:"providers,omitempty"`  // failover providers in priority order
+	Failover       FailoverYAML         `yaml:"failover,omitempty"`
+	TokenBudget    int64                `yaml:"token_budget,omitempty"` // max tokens per session (0 = unlimited)
+	FallbackModel  llm.ProviderConfig   `yaml:"fallback_model,omitempty"` // cheaper model for budget fallback
+}
+
+// FailoverYAML holds LLM failover settings.
+type FailoverYAML struct {
+	Enabled  bool   `yaml:"enabled,omitempty"`
+	Strategy string `yaml:"strategy,omitempty"` // "priority" (default) or "round_robin"
 }
 
 // AgentYAML is the YAML representation of a focused agent.

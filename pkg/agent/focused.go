@@ -41,7 +41,7 @@ When you are done and have a final answer, respond with plain text (no tool call
 }
 
 // NewFocusedAgent creates a focused agent with its own LLM client and tools.
-func NewFocusedAgent(cfg AgentConfig, client llm.Client, tools *tool.Registry, mem *memory.Manager) *FocusedAgent {
+func NewFocusedAgent(cfg AgentConfig, client llm.Client, tools *tool.Registry, mem *memory.Manager, trace *debug.StepLogger, tokens *llm.TokenTracker, sessionID string) *FocusedAgent {
 	if cfg.MaxSkills == 0 {
 		cfg.MaxSkills = DefaultMaxSkills
 	}
@@ -53,6 +53,9 @@ func NewFocusedAgent(cfg AgentConfig, client llm.Client, tools *tool.Registry, m
 		LLMClient: client,
 		Tools:     tools,
 		Memory:    mem,
+		Trace:     trace,
+		Tokens:    tokens,
+		SessionID: sessionID,
 	}
 }
 
