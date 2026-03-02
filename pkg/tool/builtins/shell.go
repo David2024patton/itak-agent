@@ -49,11 +49,18 @@ func (s *ShellTool) Execute(ctx context.Context, args map[string]interface{}) (s
 	cmdCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer cancel()
 
-	// Auto-detect OS: cmd /C on Windows, sh -c on Unix.
+	// Auto-detect OS and pick the right shell interpreter.
 	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
+	switch runtime.GOOS {
+	case "windows":
 		cmd = exec.CommandContext(cmdCtx, "cmd", "/C", command)
-	} else {
+	case "darwin":
+		// macOS defaults to zsh since Catalina (10.15+).
+		cmd = exec.CommandContext(cmdCtx, "zsh", "-c", command)
+	case "linux", "android", "freebsd", "openbsd", "netbsd":
+		cmd = exec.CommandContext(cmdCtx, "sh", "-c", command)
+	default:
+		// Safe fallback for any other GOOS (plan9, solaris, etc.)
 		cmd = exec.CommandContext(cmdCtx, "sh", "-c", command)
 	}
 
