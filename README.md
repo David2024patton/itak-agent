@@ -51,12 +51,12 @@ The key insight: **keep the orchestrator dumb and the agents focused.**
               │  • Decides WHO to ask   │
               │  • Sends focused tasks  │
               │                         │
-              │  ⛔ NO tools            │
-              │  ⛔ NO file access      │
-              │  ⛔ NO shell access     │
+              │  ⛔ NO tools           │
+              │  ⛔ NO file access     │
+              │  ⛔ NO shell access    │
               └───┬──────────┬──────────┘
                   │          │
-         ┌────────▼──┐  ┌───▼────────┐
+         ┌────────▼───┐  ┌───▼────────┐
          │ RESEARCHER │  │   CODER    │
          │            │  │            │
          │ Tools:     │  │ Tools:     │
