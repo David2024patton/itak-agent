@@ -37,6 +37,14 @@ func InitBrowserDataDir(dataDir string) {
 	globalSession.SetDataDir(dataDir)
 }
 
+// CleanupBrowser saves cookies and kills any browser processes.
+// Called during graceful shutdown to prevent orphan Chrome instances.
+func CleanupBrowser() {
+	if globalSession.IsActive() {
+		globalSession.Close()
+	}
+}
+
 func (s *BrowserSession) SetDataDir(dir string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
