@@ -15,54 +15,48 @@ import (
 )
 
 // ──────────────────────────────────────────────────────────────────
-// BrowserSession — persistent, stealth browser for AI agents
+// BrowserSession — persistent, stealth, multi-tab browser for AI agents
 // ──────────────────────────────────────────────────────────────────
 
-// BrowserSession holds a persistent browser + page across tool calls.
-// Features:
-//   - Stealth mode: bypasses navigator.webdriver, plugin checks, etc.
-//   - Persistent profile: cookies/localStorage survive restarts.
-//   - Headed mode: visible browser for 2FA flows.
-//   - Cookie management: save/load cookies to disk.
 type BrowserSession struct {
 	mu       sync.Mutex
 	browser  *rod.Browser
-	page     *rod.Page
+	page     *rod.Page   // active tab
+	pages    []*rod.Page // all open tabs
+	activeTab int        // index into pages
 	url      string
-	dataDir  string // GOAgent data directory
-	headed   bool   // true = visible browser window
+	dataDir  string
+	headed   bool
 }
 
-// Global singleton session — shared by all browser tools.
+// Global singleton session.
 var globalSession = &BrowserSession{}
 
 // InitBrowserDataDir sets the data directory for browser profile and cookie persistence.
-// Called once at startup from main.go.
 func InitBrowserDataDir(dataDir string) {
 	globalSession.SetDataDir(dataDir)
 }
 
-// SetDataDir configures where browser data lives (profiles, cookies, etc).
 func (s *BrowserSession) SetDataDir(dir string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.dataDir = dir
 }
 
-// SetHeaded controls whether the browser is visible (for 2FA).
 func (s *BrowserSession) SetHeaded(headed bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// If changing mode, close existing session so it relaunches.
 	if s.browser != nil && s.headed != headed {
+		s.saveCookiesLocked()
 		_ = s.browser.Close()
 		s.browser = nil
 		s.page = nil
+		s.pages = nil
+		s.activeTab = 0
 	}
 	s.headed = headed
 }
 
-// profileDir returns the persistent Chrome profile directory.
 func (s *BrowserSession) profileDir() string {
 	base := s.dataDir
 	if base == "" {
@@ -73,7 +67,6 @@ func (s *BrowserSession) profileDir() string {
 	return dir
 }
 
-// cookieFile returns the path to the cookie storage file.
 func (s *BrowserSession) cookieFile() string {
 	base := s.dataDir
 	if base == "" {
@@ -85,7 +78,6 @@ func (s *BrowserSession) cookieFile() string {
 }
 
 // GetSession returns the current browser session, creating one if needed.
-// Uses stealth mode and persistent profile by default.
 func (s *BrowserSession) GetSession() (*rod.Browser, *rod.Page, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -94,13 +86,10 @@ func (s *BrowserSession) GetSession() (*rod.Browser, *rod.Page, error) {
 		return s.browser, s.page, nil
 	}
 
-	// Build launcher with anti-detection flags.
 	l := launcher.New().
 		Headless(!s.headed).
 		Leakless(false).
-		// Persistent user profile — keeps cookies, localStorage, sessions.
 		UserDataDir(s.profileDir()).
-		// Anti-detection flags.
 		Set("disable-blink-features", "AutomationControlled").
 		Set("disable-infobars").
 		Set("no-first-run").
@@ -116,31 +105,27 @@ func (s *BrowserSession) GetSession() (*rod.Browser, *rod.Page, error) {
 		return nil, nil, fmt.Errorf("connect to browser: %w", err)
 	}
 
-	// Use stealth to create the page — bypasses most bot detection.
 	page, err := stealth.Page(browser)
 	if err != nil {
 		_ = browser.Close()
 		return nil, nil, fmt.Errorf("create stealth page: %w", err)
 	}
 
-	// Inject additional anti-detection overrides.
 	page.MustEvalOnNewDocument(antiDetectionJS)
-
-	// Set a realistic viewport.
 	page.SetViewport(&proto.EmulationSetDeviceMetricsOverride{
 		Width:  1920,
 		Height: 1080,
 	})
 
-	// Load saved cookies if they exist.
 	s.loadCookies(browser)
-
 	s.browser = browser
 	s.page = page
+	s.pages = []*rod.Page{page}
+	s.activeTab = 0
 	return browser, page, nil
 }
 
-// Navigate goes to a URL in the current session.
+// Navigate goes to a URL in the active tab.
 func (s *BrowserSession) Navigate(url string) (*rod.Page, error) {
 	_, page, err := s.GetSession()
 	if err != nil {
@@ -161,21 +146,18 @@ func (s *BrowserSession) Navigate(url string) (*rod.Page, error) {
 	return page, nil
 }
 
-// Page returns the current page (nil if no session).
 func (s *BrowserSession) Page() *rod.Page {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.page
 }
 
-// URL returns the last navigated URL.
 func (s *BrowserSession) URL() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.url
 }
 
-// Close shuts down the browser session, saving cookies first.
 func (s *BrowserSession) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -185,21 +167,154 @@ func (s *BrowserSession) Close() {
 	}
 	s.browser = nil
 	s.page = nil
+	s.pages = nil
+	s.activeTab = 0
 	s.url = ""
 }
 
-// IsActive returns whether a browser session is currently running.
 func (s *BrowserSession) IsActive() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.browser != nil
 }
 
-// IsHeaded returns whether the browser is in visible mode.
 func (s *BrowserSession) IsHeaded() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.headed
+}
+
+// ── Tab Management ───────────────────────────────────────────────
+
+// NewTab opens a new browser tab. Returns the tab index.
+func (s *BrowserSession) NewTab(url string) (int, *rod.Page, error) {
+	_, _, err := s.GetSession()
+	if err != nil {
+		return -1, nil, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	page, err := stealth.Page(s.browser)
+	if err != nil {
+		return -1, nil, fmt.Errorf("new tab: %w", err)
+	}
+
+	page.MustEvalOnNewDocument(antiDetectionJS)
+	page.SetViewport(&proto.EmulationSetDeviceMetricsOverride{
+		Width:  1920,
+		Height: 1080,
+	})
+
+	s.pages = append(s.pages, page)
+	idx := len(s.pages) - 1
+	s.activeTab = idx
+	s.page = page
+
+	if url != "" {
+		s.mu.Unlock()
+		err = page.Timeout(15 * time.Second).Navigate(url)
+		if err == nil {
+			_ = page.Timeout(5 * time.Second).WaitStable(300 * time.Millisecond)
+		}
+		s.mu.Lock()
+		s.url = url
+	}
+
+	return idx, page, nil
+}
+
+// SwitchTab activates a tab by index.
+func (s *BrowserSession) SwitchTab(idx int) (*rod.Page, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.browser == nil {
+		return nil, fmt.Errorf("no browser session")
+	}
+	if idx < 0 || idx >= len(s.pages) {
+		return nil, fmt.Errorf("tab index %d out of range (0-%d)", idx, len(s.pages)-1)
+	}
+
+	s.activeTab = idx
+	s.page = s.pages[idx]
+
+	// Bring the tab to focus.
+	s.page.Activate()
+
+	return s.page, nil
+}
+
+// CloseTab closes a tab by index. Cannot close the last tab.
+func (s *BrowserSession) CloseTab(idx int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.browser == nil {
+		return fmt.Errorf("no browser session")
+	}
+	if len(s.pages) <= 1 {
+		return fmt.Errorf("cannot close the last tab — use web_close to end the session")
+	}
+	if idx < 0 || idx >= len(s.pages) {
+		return fmt.Errorf("tab index %d out of range (0-%d)", idx, len(s.pages)-1)
+	}
+
+	_ = s.pages[idx].Close()
+
+	// Remove from slice.
+	s.pages = append(s.pages[:idx], s.pages[idx+1:]...)
+
+	// Adjust active tab.
+	if s.activeTab >= len(s.pages) {
+		s.activeTab = len(s.pages) - 1
+	}
+	if idx == s.activeTab || s.activeTab >= len(s.pages) {
+		s.activeTab = len(s.pages) - 1
+	}
+	s.page = s.pages[s.activeTab]
+
+	return nil
+}
+
+// ListTabs returns info about all open tabs.
+func (s *BrowserSession) ListTabs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.browser == nil {
+		return nil
+	}
+
+	tabs := make([]string, 0, len(s.pages))
+	for i, p := range s.pages {
+		info, _ := p.Info()
+		title := "untitled"
+		url := "about:blank"
+		if info != nil {
+			title = info.Title
+			url = info.URL
+		}
+		marker := "  "
+		if i == s.activeTab {
+			marker = "→ "
+		}
+		tabs = append(tabs, fmt.Sprintf("%s[%d] %s (%s)", marker, i, title, url))
+	}
+	return tabs
+}
+
+func (s *BrowserSession) TabCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pages)
+}
+
+func (s *BrowserSession) ActiveTabIndex() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.activeTab
 }
 
 // ── Cookie Persistence ───────────────────────────────────────────
@@ -215,7 +330,6 @@ type savedCookie struct {
 	SameSite string  `json:"sameSite,omitempty"`
 }
 
-// SaveCookies saves all browser cookies to disk (thread-safe).
 func (s *BrowserSession) SaveCookies() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -260,7 +374,7 @@ func (s *BrowserSession) saveCookiesLocked() error {
 func (s *BrowserSession) loadCookies(browser *rod.Browser) {
 	data, err := os.ReadFile(s.cookieFile())
 	if err != nil {
-		return // no saved cookies yet
+		return
 	}
 
 	var cookies []savedCookie
@@ -292,36 +406,22 @@ func (s *BrowserSession) loadCookies(browser *rod.Browser) {
 
 // ── Anti-Detection JavaScript ────────────────────────────────────
 
-// This JS runs on every new document to patch detectable browser properties.
-// Combined with rod/stealth, this covers the major bot-detection vectors.
 const antiDetectionJS = `() => {
-	// Override navigator.webdriver (primary detection method).
 	Object.defineProperty(navigator, 'webdriver', {
 		get: () => undefined,
 	});
-
-	// Fix Chrome runtime — headless Chrome is missing window.chrome.
 	if (!window.chrome) {
 		window.chrome = { runtime: {} };
 	}
-
-	// Override permissions query for notifications.
-	const origQuery = window.Notification && Notification.permission;
 	if (window.Notification) {
 		Notification.permission = 'default';
 	}
-
-	// Fix navigator.plugins — headless has empty array.
 	Object.defineProperty(navigator, 'plugins', {
 		get: () => [1, 2, 3, 4, 5],
 	});
-
-	// Fix navigator.languages — headless sometimes returns empty.
 	Object.defineProperty(navigator, 'languages', {
 		get: () => ['en-US', 'en'],
 	});
-
-	// Spoof WebGL vendor and renderer.
 	const getParameter = WebGLRenderingContext.prototype.getParameter;
 	WebGLRenderingContext.prototype.getParameter = function(parameter) {
 		if (parameter === 37445) return 'Intel Inc.';

@@ -78,17 +78,20 @@ agents:
   - name: browser
     role: Web Browser
     personality: |
-      You are a browser agent with a persistent session — the browser stays open between tool calls.
-      WORKFLOW: Use web_navigate to visit a page and see interactive elements labeled [@e1], [@e2], etc.
-      Then use web_click/@ref to click, web_type/@ref to type, web_wait to pause for 2FA or loading.
-      Use web_snapshot to re-read the page after changes. Use web_close when done.
-      For research: web_search does Google searches. web_pdf saves pages as PDF.
-      Always report what you found clearly and concisely.
+      You are a stealth browser agent — always undetectable to bot-detection sites.
+      The browser stays open between calls with persistent cookies and sessions.
+      WORKFLOW: web_navigate → see [@e1] refs → web_click/web_type/web_hover to interact.
+      KEYS: web_keys for Enter, Tab, Escape, Ctrl+A etc. web_focus to focus without clicking.
+      TABS: web_tab_new to open tabs, web_tab_switch to change, web_tab_list to see all.
+      2FA: web_headed on → visible browser → web_wait for user → continue.
+      COOKIES: web_cookies save/load for persistent login across sessions.
+      Always report what you found. Use web_close when completely done.
     goals:
       - web_research
       - data_extraction
       - form_interaction
       - authentication
+      - multi_tab_workflows
     tools:
       - web_navigate
       - web_click
@@ -105,8 +108,16 @@ agents:
       - web_snapshot
       - web_cookies
       - web_headed
+      - web_hover
+      - web_double_click
+      - web_focus
+      - web_keys
+      - web_tab_new
+      - web_tab_switch
+      - web_tab_close
+      - web_tab_list
       - memory_save
-    max_loops: 15
+    max_loops: 20
 
   - name: researcher
     role: Research Analyst

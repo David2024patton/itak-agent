@@ -827,6 +827,309 @@ func (w *WebHeadedTool) Execute(ctx context.Context, args map[string]interface{}
 }
 
 // ══════════════════════════════════════════════════════════════════
+// web_hover — hover over an element
+// ══════════════════════════════════════════════════════════════════
+
+type WebHoverTool struct{}
+
+func (w *WebHoverTool) Name() string        { return "web_hover" }
+func (w *WebHoverTool) Description() string {
+	return "Hover over an element by @e ref or CSS selector. Triggers hover menus, tooltips, and dropdown reveals."
+}
+func (w *WebHoverTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"ref": prop("string", "Element ref like @e3 or CSS selector"),
+		},
+		"required": []string{"ref"},
+	}
+}
+
+func (w *WebHoverTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+	page := globalSession.Page()
+	if page == nil {
+		return "", fmt.Errorf("no browser session — use web_navigate first")
+	}
+
+	ref := argStr(args, "ref")
+	selector := resolveRef(ref)
+	el, err := page.Timeout(5 * time.Second).Element(selector)
+	if err != nil {
+		return "", fmt.Errorf("element %q not found: %w", ref, err)
+	}
+
+	el.Hover()
+	time.Sleep(300 * time.Millisecond)
+
+	return fmt.Sprintf("Hovering over %s\n\n%s", ref, getPageSnapshot(page)), nil
+}
+
+// ══════════════════════════════════════════════════════════════════
+// web_double_click — double-click an element
+// ══════════════════════════════════════════════════════════════════
+
+type WebDoubleClickTool struct{}
+
+func (w *WebDoubleClickTool) Name() string        { return "web_double_click" }
+func (w *WebDoubleClickTool) Description() string {
+	return "Double-click an element by @e ref or CSS selector. Use for text selection, edit-in-place, or double-click actions."
+}
+func (w *WebDoubleClickTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"ref": prop("string", "Element ref like @e3 or CSS selector"),
+		},
+		"required": []string{"ref"},
+	}
+}
+
+func (w *WebDoubleClickTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+	page := globalSession.Page()
+	if page == nil {
+		return "", fmt.Errorf("no browser session — use web_navigate first")
+	}
+
+	ref := argStr(args, "ref")
+	selector := resolveRef(ref)
+	el, err := page.Timeout(5 * time.Second).Element(selector)
+	if err != nil {
+		return "", fmt.Errorf("element %q not found: %w", ref, err)
+	}
+
+	el.Click(proto.InputMouseButtonLeft, 2)
+	_ = page.Timeout(3 * time.Second).WaitStable(300 * time.Millisecond)
+
+	return getPageSnapshot(page), nil
+}
+
+// ══════════════════════════════════════════════════════════════════
+// web_focus — focus an element (without clicking)
+// ══════════════════════════════════════════════════════════════════
+
+type WebFocusTool struct{}
+
+func (w *WebFocusTool) Name() string        { return "web_focus" }
+func (w *WebFocusTool) Description() string {
+	return "Focus an element without clicking. Use for form fields, contenteditable elements, or triggering focus events."
+}
+func (w *WebFocusTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"ref": prop("string", "Element ref like @e2 or CSS selector"),
+		},
+		"required": []string{"ref"},
+	}
+}
+
+func (w *WebFocusTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+	page := globalSession.Page()
+	if page == nil {
+		return "", fmt.Errorf("no browser session — use web_navigate first")
+	}
+
+	ref := argStr(args, "ref")
+	selector := resolveRef(ref)
+	el, err := page.Timeout(5 * time.Second).Element(selector)
+	if err != nil {
+		return "", fmt.Errorf("element %q not found: %w", ref, err)
+	}
+
+	el.Focus()
+	return fmt.Sprintf("Focused %s", ref), nil
+}
+
+// ══════════════════════════════════════════════════════════════════
+// web_keys — send keyboard keys (Enter, Tab, Escape, shortcuts)
+// ══════════════════════════════════════════════════════════════════
+
+type WebKeysTool struct{}
+
+func (w *WebKeysTool) Name() string        { return "web_keys" }
+func (w *WebKeysTool) Description() string {
+	return "Send keyboard keys to the page. Supports: Enter, Tab, Escape, Backspace, Delete, ArrowUp/Down/Left/Right, Home, End, PageUp, PageDown, Space, Ctrl+A, Ctrl+C, Ctrl+V."
+}
+func (w *WebKeysTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"keys": prop("string", "Key(s) to send, e.g. 'Enter', 'Tab', 'Escape', 'Ctrl+A'"),
+		},
+		"required": []string{"keys"},
+	}
+}
+
+func (w *WebKeysTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+	page := globalSession.Page()
+	if page == nil {
+		return "", fmt.Errorf("no browser session — use web_navigate first")
+	}
+
+	keys := argStr(args, "keys")
+	if keys == "" {
+		return "", fmt.Errorf("missing required argument: keys")
+	}
+
+	keyMap := map[string]input.Key{
+		"enter":      input.Enter,
+		"tab":        input.Tab,
+		"escape":     input.Escape,
+		"backspace":  input.Backspace,
+		"delete":     input.Delete,
+		"arrowup":    input.ArrowUp,
+		"arrowdown":  input.ArrowDown,
+		"arrowleft":  input.ArrowLeft,
+		"arrowright": input.ArrowRight,
+		"home":       input.Home,
+		"end":        input.End,
+		"pageup":     input.PageUp,
+		"pagedown":   input.PageDown,
+		"space":      input.Space,
+	}
+
+	lower := strings.ToLower(strings.TrimSpace(keys))
+
+	// Handle Ctrl+ combos.
+	if strings.HasPrefix(lower, "ctrl+") {
+		char := strings.TrimPrefix(lower, "ctrl+")
+		page.KeyActions().Press(input.ControlLeft).Type(input.Key(strings.ToUpper(char)[0])).Release(input.ControlLeft).MustDo()
+		return fmt.Sprintf("Sent Ctrl+%s", strings.ToUpper(char)), nil
+	}
+
+	if k, ok := keyMap[lower]; ok {
+		page.Keyboard.MustType(k)
+		_ = page.Timeout(2 * time.Second).WaitStable(200 * time.Millisecond)
+		return fmt.Sprintf("Sent key: %s", keys), nil
+	}
+
+	// If not a special key, type as text.
+	page.Keyboard.MustType([]input.Key(keys)...)
+	return fmt.Sprintf("Typed: %s", keys), nil
+}
+
+// ══════════════════════════════════════════════════════════════════
+// web_tab_new — open a new tab
+// ══════════════════════════════════════════════════════════════════
+
+type WebTabNewTool struct{}
+
+func (w *WebTabNewTool) Name() string        { return "web_tab_new" }
+func (w *WebTabNewTool) Description() string {
+	return "Open a new browser tab, optionally navigating to a URL. Returns the tab index."
+}
+func (w *WebTabNewTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"url": prop("string", "Optional URL to open in the new tab"),
+		},
+	}
+}
+
+func (w *WebTabNewTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+	url := argStr(args, "url")
+	if url != "" {
+		url = ensureScheme(url)
+	}
+
+	idx, page, err := globalSession.NewTab(url)
+	if err != nil {
+		return "", err
+	}
+
+	result := fmt.Sprintf("Opened new tab [%d]", idx)
+	if url != "" {
+		result += fmt.Sprintf(" → %s\n\n%s", url, getPageSnapshot(page))
+	}
+	return result, nil
+}
+
+// ══════════════════════════════════════════════════════════════════
+// web_tab_switch — switch to a tab by index
+// ══════════════════════════════════════════════════════════════════
+
+type WebTabSwitchTool struct{}
+
+func (w *WebTabSwitchTool) Name() string        { return "web_tab_switch" }
+func (w *WebTabSwitchTool) Description() string {
+	return "Switch to a different browser tab by index. Use web_tab_list to see available tabs."
+}
+func (w *WebTabSwitchTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"index": propNum("Tab index to switch to (0-based)"),
+		},
+		"required": []string{"index"},
+	}
+}
+
+func (w *WebTabSwitchTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+	idx := int(argFloat(args, "index"))
+
+	page, err := globalSession.SwitchTab(idx)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("Switched to tab [%d]\n\n%s", idx, getPageSnapshot(page)), nil
+}
+
+// ══════════════════════════════════════════════════════════════════
+// web_tab_close — close a tab by index
+// ══════════════════════════════════════════════════════════════════
+
+type WebTabCloseTool struct{}
+
+func (w *WebTabCloseTool) Name() string        { return "web_tab_close" }
+func (w *WebTabCloseTool) Description() string {
+	return "Close a browser tab by index. Cannot close the last tab."
+}
+func (w *WebTabCloseTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"index": propNum("Tab index to close (0-based)"),
+		},
+		"required": []string{"index"},
+	}
+}
+
+func (w *WebTabCloseTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+	idx := int(argFloat(args, "index"))
+
+	if err := globalSession.CloseTab(idx); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("Closed tab [%d]. %d tab(s) remaining. Active: [%d]",
+		idx, globalSession.TabCount(), globalSession.ActiveTabIndex()), nil
+}
+
+// ══════════════════════════════════════════════════════════════════
+// web_tab_list — list all open tabs
+// ══════════════════════════════════════════════════════════════════
+
+type WebTabListTool struct{}
+
+func (w *WebTabListTool) Name() string        { return "web_tab_list" }
+func (w *WebTabListTool) Description() string { return "List all open browser tabs with their titles and URLs." }
+func (w *WebTabListTool) Schema() map[string]interface{} {
+	return map[string]interface{}{"type": "object", "properties": map[string]interface{}{}}
+}
+
+func (w *WebTabListTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+	tabs := globalSession.ListTabs()
+	if len(tabs) == 0 {
+		return "No browser session. Use web_navigate first.", nil
+	}
+
+	return fmt.Sprintf("Open tabs (%d):\n%s", len(tabs), strings.Join(tabs, "\n")), nil
+}
+
+// ══════════════════════════════════════════════════════════════════
 // Helpers
 // ══════════════════════════════════════════════════════════════════
 
