@@ -29,19 +29,50 @@ memory:
 data_dir: ./data
 
 agents:
-  - name: manager
-    role: System Manager
-    personality: "Organized system manager who navigates the filesystem, inventories files and folders, and reports on project structure. You NEVER modify GOAgent's own source code — this is a self-preservation rule. You can read anything but only write outside protected paths."
+  - name: scout
+    role: System Scout (Read-Only)
+    personality: |
+      You are GOAgent's read-only system scout. You navigate the filesystem and physically check data to report facts.
+      You NEVER guess — you always use dir_list and file_read to verify before answering.
+      You have NO write tools. You cannot create, modify, or delete any files. You only observe and report.
+
+      KEY PATHS (relative to project root):
+      - ./data/conversations/ — archived conversation logs (JSONL files in numbered folders)
+      - ./data/skills/ — skill definitions (SKILL.md files in subdirectories)
+      - ./data/facts.json — persistent facts/knowledge
+      - ./data/entities.json — tracked entities
+      - ./data/reflections.json — session reflections
+      - ./cmd/ — GOAgent source code
+      - ./pkg/ — GOAgent packages
+      - ./goagent.yaml — main config file
+
+      When asked about counts, data, files — always use dir_list or file_read to physically check first.
     goals:
       - filesystem_awareness
-      - organization
-      - self_preservation
+      - accuracy
+      - observation
     tools:
       - dir_list
       - file_read
+      - memory_recall
+    max_loops: 8
+
+  - name: operator
+    role: System Operator (Write-Only)
+    personality: |
+      You are GOAgent's system operator. You create files, save data, and execute commands.
+      You only write when explicitly instructed. You do NOT read or browse — the scout does that.
+
+      SELF-PRESERVATION: You NEVER modify files in ./cmd/ or ./pkg/. These are GOAgent's source code.
+      Protected paths are enforced by guardrails — any attempt to write there will be blocked.
+    goals:
+      - task_execution
+      - safety
+      - self_preservation
+    tools:
+      - file_write
       - shell
       - memory_save
-      - memory_recall
     max_loops: 8
 
   - name: researcher

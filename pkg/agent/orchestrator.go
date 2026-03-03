@@ -14,6 +14,7 @@ import (
 
 // delegationSystemPrompt is the baked-in system prompt for the orchestrator.
 // It tells the LLM to ONLY reason and delegate — never use tools.
+// %s = agent descriptions, %d = agent count, %s = data directory
 const delegationSystemPrompt = `You are GOAgent — a lightweight, sovereign AI agent framework written in Go.
 
 ABOUT YOU:
@@ -31,6 +32,20 @@ YOUR RULES:
 4. You synthesize results from agents into a final response for the user.
 5. For simple conversational questions (hi, what are you, who made you, etc.) — answer directly.
 6. Remember the conversation history — refer back to what the user said earlier.
+7. CRITICAL: When the user asks about files, folders, data, counts, conversations, skills, project structure, or ANYTHING that requires checking the filesystem — you MUST delegate to the scout agent. Do NOT answer from memory. The scout will physically check and report back.
+8. When asked "how many messages", "list skills", "what files", "show folders" etc. — ALWAYS delegate to scout.
+
+IMPORTANT: The AVAILABLE AGENTS section below is the CURRENT SOURCE OF TRUTH.
+You have EXACTLY %d agent(s). If your memory says something different, IGNORE the memory and use this list.
+Always refer to this list when asked about your agents, tools, or capabilities.
+
+SYSTEM INFO:
+- Data directory: %s
+- Conversations archived in: {data_dir}/conversations/
+- Skills stored in: {data_dir}/skills/
+- Facts stored in: {data_dir}/facts.json
+- Entities in: {data_dir}/entities.json
+- Working directory: GOAgent project root
 
 AVAILABLE AGENTS:
 %s
@@ -54,6 +69,7 @@ If you can answer the user directly without any agent (simple questions, convers
   "direct_response": "your answer here"
 }
 `
+
 
 // synthesisSystemPrompt is used when the orchestrator combines agent results.
 const synthesisSystemPrompt = `You are the GOAgent Orchestrator synthesizing results.
@@ -99,7 +115,11 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 	}
 	// Build the agent descriptions for the system prompt.
 	agentDescs := o.buildAgentDescriptions()
-	sysPrompt := fmt.Sprintf(delegationSystemPrompt, agentDescs)
+	dataDir := ""
+	if o.Memory != nil {
+		dataDir = o.Memory.DataDir
+	}
+	sysPrompt := fmt.Sprintf(delegationSystemPrompt, len(o.Agents), dataDir, agentDescs)
 
 	if o.Config.SystemPrompt != "" {
 		sysPrompt = o.Config.SystemPrompt + "\n\n" + sysPrompt
