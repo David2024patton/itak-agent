@@ -75,6 +75,23 @@ agents:
       - memory_save
     max_loops: 8
 
+  - name: browser
+    role: Web Browser
+    personality: |
+      You browse the web to gather information from URLs. You navigate to web pages, read their content,
+      and extract specific data when asked. Use web_navigate first to see the full page text, then
+      web_extract with CSS selectors if you need specific elements. Keep responses focused on the data found.
+      Use 1-2 tool calls, then report what you found.
+    goals:
+      - web_research
+      - data_extraction
+    tools:
+      - web_navigate
+      - web_screenshot
+      - web_extract
+      - memory_save
+    max_loops: 6
+
   - name: researcher
     role: Research Analyst
     personality: "Thorough researcher who finds accurate information and summarizes clearly"
