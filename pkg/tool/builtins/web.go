@@ -59,7 +59,7 @@ func (w *WebNavigateTool) Execute(ctx context.Context, args map[string]interface
 		return "", fmt.Errorf("navigate to %s: %w", url, err)
 	}
 
-	// Wait for page to settle (ignore timeout — some pages never fully stabilize).
+	// Wait for page to settle.
 	_ = page.Timeout(5 * time.Second).WaitStable(300 * time.Millisecond)
 
 	title, _ := page.Eval(`() => document.title`)
@@ -71,10 +71,63 @@ func (w *WebNavigateTool) Execute(ctx context.Context, args map[string]interface
 	}
 	if body != nil {
 		text := body.Value.Str()
-		if len(text) > 4000 {
-			text = text[:4000] + "\n\n... (truncated, page has more content)"
+		// Cap text to leave room for the annotated element map.
+		if len(text) > 3000 {
+			text = text[:3000] + "\n... (truncated)"
 		}
 		result.WriteString(text)
+	}
+
+	// ── Annotated Snapshot: list interactive elements with refs ──
+	elementsJS := `() => {
+		const els = document.querySelectorAll('a, button, input, textarea, select, [role="button"], [onclick]');
+		const items = [];
+		let id = 1;
+		for (const el of els) {
+			if (id > 30) break;
+			const tag = el.tagName.toLowerCase();
+			const type = el.getAttribute('type') || '';
+			const role = el.getAttribute('role') || '';
+			const href = el.getAttribute('href') || '';
+			const placeholder = el.getAttribute('placeholder') || '';
+			const ariaLabel = el.getAttribute('aria-label') || '';
+			let label = (el.innerText || '').trim().substring(0, 60);
+			if (!label) label = ariaLabel || placeholder || el.getAttribute('name') || el.getAttribute('id') || '';
+
+			let desc = '';
+			if (tag === 'a') {
+				desc = 'link "' + label + '"';
+				if (href && href !== '#') desc += ' → ' + href.substring(0, 80);
+			} else if (tag === 'button' || role === 'button') {
+				desc = 'button "' + label + '"';
+			} else if (tag === 'input') {
+				desc = 'input[' + (type || 'text') + ']';
+				if (placeholder) desc += ' placeholder="' + placeholder + '"';
+				if (label) desc += ' "' + label + '"';
+			} else if (tag === 'textarea') {
+				desc = 'textarea';
+				if (placeholder) desc += ' placeholder="' + placeholder + '"';
+			} else if (tag === 'select') {
+				desc = 'select "' + label + '"';
+			} else {
+				desc = tag + ' "' + label + '"';
+			}
+
+			if (desc && label !== '') {
+				items.push('[@e' + id + '] ' + desc);
+				id++;
+			}
+		}
+		return items.join('\n');
+	}`
+
+	elements, _ := page.Eval(elementsJS)
+	if elements != nil {
+		elemText := elements.Value.Str()
+		if elemText != "" {
+			result.WriteString("\n\n─── Interactive Elements ───\n")
+			result.WriteString(elemText)
+		}
 	}
 
 	return result.String(), nil
