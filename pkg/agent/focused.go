@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/David2024patton/GOAgent/pkg/debug"
 	"github.com/David2024patton/GOAgent/pkg/llm"
@@ -128,8 +129,19 @@ func (a *FocusedAgent) Run(ctx context.Context, task TaskPayload) Result {
 			debug.Info(tag, "Calling tool %q (id: %s)", tc.Function.Name, tc.ID)
 			debug.Debug(tag, "Tool args: %s", truncate(tc.Function.Arguments, 200))
 
+			// Trace: tool invoked.
+			if a.Trace != nil {
+				a.Trace.Record(debug.StepToolInvoked, tag, tc.Function.Name, tc.Function.Arguments, "", nil)
+			}
+
+			toolStart := time.Now()
 			toolResult := a.executeTool(ctx, tc)
 			debug.Debug(tag, "Tool result: %s", truncate(toolResult, 300))
+
+			// Trace: tool result.
+			if a.Trace != nil {
+				a.Trace.RecordTimed(debug.StepToolResult, tag, tc.Function.Name, tc.Function.Arguments, toolStart, truncate(toolResult, 500))
+			}
 
 			messages = append(messages, llm.Message{
 				Role:       llm.RoleTool,

@@ -109,6 +109,11 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 	debug.Info("orchestrator", "Processing: %s", truncate(userMessage, 80))
 	debug.Separator("orchestrator")
 
+	// Trace: user message received.
+	if o.Trace != nil {
+		o.Trace.Record(debug.StepUserMessage, "orchestrator", "", userMessage, "", nil)
+	}
+
 	// Log user message to session memory and archive.
 	if o.Memory != nil {
 		userMsg := llm.Message{Role: llm.RoleUser, Content: userMessage}
@@ -189,6 +194,13 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 	debug.Info("orchestrator", "Reasoning: %s", truncate(delegation.Reasoning, 150))
 	debug.Info("orchestrator", "Delegating to %d agent(s)", len(delegation.Delegations))
 
+	// Trace: delegation decision.
+	if o.Trace != nil {
+		o.Trace.Record(debug.StepDelegation, "orchestrator", "", delegation.Reasoning, "", map[string]interface{}{
+			"agent_count": len(delegation.Delegations),
+		})
+	}
+
 	// Step 3: Execute delegations.
 	results := make([]Result, 0, len(delegation.Delegations))
 	for i, task := range delegation.Delegations {
@@ -209,6 +221,13 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 		debug.Separator(task.Agent)
 		debug.Info("orchestrator", "→ Delegating [%d/%d] to %q: %s",
 			i+1, len(delegation.Delegations), task.Agent, truncate(task.Task, 100))
+
+		// Trace: agent start.
+		if o.Trace != nil {
+			o.Trace.Record(debug.StepAgentStart, task.Agent, "", task.Task, "", nil)
+		}
+
+		startTime := time.Now()
 		result := agent.Run(ctx, task)
 
 		if result.Success {
@@ -217,6 +236,30 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 			debug.Error("orchestrator", "← %q failed: %s", task.Agent, result.Error)
 		}
 		results = append(results, result)
+
+		// Trace: agent complete.
+		if o.Trace != nil {
+			output := result.Output
+			if !result.Success {
+				output = result.Error
+			}
+			o.Trace.RecordTimed(debug.StepAgentComplete, task.Agent, "", task.Task, startTime, truncate(output, 500))
+		}
+
+		// Auto-reflect: record what the agent learned from this task.
+		if o.Config.Memory.AutoReflect && o.Memory != nil {
+			outcome := "success"
+			lessons := truncate(result.Output, 200)
+			if !result.Success {
+				outcome = "failure"
+				lessons = result.Error
+			}
+			if err := o.Memory.Reflections.Add(task.Agent, task.Task, outcome, lessons); err != nil {
+				debug.Warn("orchestrator", "Auto-reflect save failed: %v", err)
+			} else {
+				debug.Debug("orchestrator", "Auto-reflected for %q: %s → %s", task.Agent, outcome, truncate(lessons, 80))
+			}
+		}
 	}
 
 	// Step 4: Synthesize results.
@@ -226,6 +269,11 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 	finalResponse, err := o.synthesize(ctx, userMessage, results)
 	if err != nil {
 		return "", err
+	}
+
+	// Trace: final response.
+	if o.Trace != nil {
+		o.Trace.Record(debug.StepFinalResponse, "orchestrator", "", userMessage, truncate(finalResponse, 500), nil)
 	}
 
 	// Log the synthesized response.
