@@ -288,7 +288,14 @@ type rawTaskPayload struct {
 func parseDelegation(raw string) (*Delegation, string, error) {
 	jsonStr := extractJSON(raw)
 	if jsonStr == "" {
-		return nil, "", fmt.Errorf("no JSON found in response:\n%s", raw)
+		// No JSON found — the LLM responded conversationally.
+		// Treat the entire response as a direct answer (common with 30B models).
+		cleaned := strings.TrimSpace(raw)
+		if cleaned != "" {
+			debug.Debug("orchestrator", "No JSON in response — treating as direct reply")
+			return nil, cleaned, nil
+		}
+		return nil, "", fmt.Errorf("empty response from LLM")
 	}
 
 	var d rawDelegation
