@@ -255,7 +255,8 @@ func (w *WebExtractTool) Execute(ctx context.Context, args map[string]interface{
 
 func launchBrowser() (*rod.Browser, *rod.Page, error) {
 	// Launch Chromium (auto-downloads if needed).
-	u, err := launcher.New().Headless(true).Launch()
+	// Leakless(false) avoids Windows Defender blocking leakless.exe.
+	u, err := launcher.New().Headless(true).Leakless(false).Launch()
 	if err != nil {
 		return nil, nil, fmt.Errorf("launch browser: %w", err)
 	}
