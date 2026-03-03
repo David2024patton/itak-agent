@@ -56,6 +56,9 @@ func (d *DirListTool) Execute(ctx context.Context, args map[string]interface{}) 
 
 	err = listDir(absPath, "", 0, maxDepth, &result)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Sprintf("Directory not found: %s (this directory does not exist)", absPath), nil
+		}
 		return "", fmt.Errorf("list directory: %w", err)
 	}
 

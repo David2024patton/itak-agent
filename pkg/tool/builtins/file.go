@@ -43,6 +43,9 @@ func (f *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 
 	data, err := os.ReadFile(absPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Sprintf("File not found: %s (this file does not exist yet)", absPath), nil
+		}
 		return "", fmt.Errorf("read file: %w", err)
 	}
 
