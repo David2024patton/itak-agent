@@ -27,10 +27,10 @@ var levelNames = map[Level]string{
 }
 
 var levelColors = map[Level]string{
-	LevelError: "\033[31m", // red
-	LevelWarn:  "\033[33m", // yellow
-	LevelInfo:  "\033[36m", // cyan
-	LevelDebug: "\033[90m", // gray
+	LevelError: "\033[31m",         // red
+	LevelWarn:  "\033[33m",         // yellow
+	LevelInfo:  "\033[36m",         // cyan
+	LevelDebug: "\033[38;5;208m",   // orange (256-color)
 }
 
 const colorReset = "\033[0m"

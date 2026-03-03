@@ -56,7 +56,7 @@ var (
 	ColorWarning   = BrightYellow
 	ColorInfo      = BrightBlue
 	ColorDim       = BrightBlack
-	ColorResponse  = White
+	ColorResponse  = BrightGreen
 	ColorAccent    = BrightCyan
 	ColorHighlight = Bold + BrightWhite
 )
@@ -204,7 +204,7 @@ func Response(text string) {
 	// Print each line with a subtle left border.
 	lines := strings.Split(text, "\n")
 	for _, line := range lines {
-		fmt.Printf("  %s│%s %s\n", ColorDim, Reset, line)
+		fmt.Printf("  %s│%s %s%s%s\n", ColorAccent, Reset, ColorResponse, line, Reset)
 	}
 	fmt.Println()
 }
