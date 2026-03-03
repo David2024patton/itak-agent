@@ -44,24 +44,23 @@ func (w *WebNavigateTool) Execute(ctx context.Context, args map[string]interface
 		return "", fmt.Errorf("missing required argument: url")
 	}
 
-	// Ensure URL has a scheme.
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "https://" + url
 	}
 
-	browser, page, err := launchBrowser(ctx)
+	browser, page, err := launchBrowser()
 	if err != nil {
 		return "", err
 	}
-	defer browser.MustClose()
+	defer closeBrowser(browser)
 
 	err = page.Timeout(15 * time.Second).Navigate(url)
 	if err != nil {
 		return "", fmt.Errorf("navigate to %s: %w", url, err)
 	}
 
-	// Wait for page to be ready.
-	page.MustWaitStable()
+	// Wait for page to settle (ignore timeout — some pages never fully stabilize).
+	_ = page.Timeout(5 * time.Second).WaitStable(300 * time.Millisecond)
 
 	title, _ := page.Eval(`() => document.title`)
 	body, _ := page.Eval(`() => document.body.innerText`)
@@ -72,7 +71,6 @@ func (w *WebNavigateTool) Execute(ctx context.Context, args map[string]interface
 	}
 	if body != nil {
 		text := body.Value.Str()
-		// Truncate to ~4000 chars to fit LLM context.
 		if len(text) > 4000 {
 			text = text[:4000] + "\n\n... (truncated, page has more content)"
 		}
@@ -123,7 +121,6 @@ func (w *WebScreenshotTool) Execute(ctx context.Context, args map[string]interfa
 		url = "https://" + url
 	}
 
-	// Determine output path.
 	screenshotDir := filepath.Join(w.DataDir, "screenshots")
 	os.MkdirAll(screenshotDir, 0o755)
 
@@ -136,20 +133,19 @@ func (w *WebScreenshotTool) Execute(ctx context.Context, args map[string]interfa
 	}
 	outPath := filepath.Join(screenshotDir, filename)
 
-	browser, page, err := launchBrowser(ctx)
+	browser, page, err := launchBrowser()
 	if err != nil {
 		return "", err
 	}
-	defer browser.MustClose()
+	defer closeBrowser(browser)
 
 	err = page.Timeout(15 * time.Second).Navigate(url)
 	if err != nil {
 		return "", fmt.Errorf("navigate to %s: %w", url, err)
 	}
 
-	page.MustWaitStable()
+	_ = page.Timeout(5 * time.Second).WaitStable(300 * time.Millisecond)
 
-	// Full page screenshot.
 	screenshot, err := page.Screenshot(true, &proto.PageCaptureScreenshot{
 		Format:  proto.PageCaptureScreenshotFormatPng,
 		Quality: nil,
@@ -209,18 +205,18 @@ func (w *WebExtractTool) Execute(ctx context.Context, args map[string]interface{
 		url = "https://" + url
 	}
 
-	browser, page, err := launchBrowser(ctx)
+	browser, page, err := launchBrowser()
 	if err != nil {
 		return "", err
 	}
-	defer browser.MustClose()
+	defer closeBrowser(browser)
 
 	err = page.Timeout(15 * time.Second).Navigate(url)
 	if err != nil {
 		return "", fmt.Errorf("navigate to %s: %w", url, err)
 	}
 
-	page.MustWaitStable()
+	_ = page.Timeout(5 * time.Second).WaitStable(300 * time.Millisecond)
 
 	elements, err := page.Elements(selector)
 	if err != nil {
@@ -257,11 +253,12 @@ func (w *WebExtractTool) Execute(ctx context.Context, args map[string]interface{
 // launchBrowser — shared helper to launch headless Chrome via rod
 // ──────────────────────────────────────────────────────────────────
 
-func launchBrowser(ctx context.Context) (*rod.Browser, *rod.Page, error) {
-	// Auto-download and launch Chromium.
-	u := launcher.New().
-		Headless(true).
-		MustLaunch()
+func launchBrowser() (*rod.Browser, *rod.Page, error) {
+	// Launch Chromium (auto-downloads if needed).
+	u, err := launcher.New().Headless(true).Launch()
+	if err != nil {
+		return nil, nil, fmt.Errorf("launch browser: %w", err)
+	}
 
 	browser := rod.New().ControlURL(u)
 	if err := browser.Connect(); err != nil {
@@ -270,9 +267,16 @@ func launchBrowser(ctx context.Context) (*rod.Browser, *rod.Page, error) {
 
 	page, err := browser.Page(proto.TargetCreateTarget{URL: "about:blank"})
 	if err != nil {
-		browser.MustClose()
+		closeBrowser(browser)
 		return nil, nil, fmt.Errorf("create page: %w", err)
 	}
 
 	return browser, page, nil
+}
+
+// closeBrowser safely closes a rod browser instance (never panics).
+func closeBrowser(browser *rod.Browser) {
+	if browser != nil {
+		_ = browser.Close()
+	}
 }
