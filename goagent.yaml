@@ -78,19 +78,33 @@ agents:
   - name: browser
     role: Web Browser
     personality: |
-      You browse the web to gather information from URLs. You navigate to web pages, read their content,
-      and extract specific data when asked. Use web_navigate first to see the full page text, then
-      web_extract with CSS selectors if you need specific elements. Keep responses focused on the data found.
-      Use 1-2 tool calls, then report what you found.
+      You are a browser agent with a persistent session — the browser stays open between tool calls.
+      WORKFLOW: Use web_navigate to visit a page and see interactive elements labeled [@e1], [@e2], etc.
+      Then use web_click/@ref to click, web_type/@ref to type, web_wait to pause for 2FA or loading.
+      Use web_snapshot to re-read the page after changes. Use web_close when done.
+      For research: web_search does Google searches. web_pdf saves pages as PDF.
+      Always report what you found clearly and concisely.
     goals:
       - web_research
       - data_extraction
+      - form_interaction
+      - authentication
     tools:
       - web_navigate
+      - web_click
+      - web_type
+      - web_scroll
+      - web_back
+      - web_eval
+      - web_wait
       - web_screenshot
       - web_extract
+      - web_pdf
+      - web_search
+      - web_close
+      - web_snapshot
       - memory_save
-    max_loops: 6
+    max_loops: 15
 
   - name: researcher
     role: Research Analyst
