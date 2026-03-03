@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // FileReadTool reads file contents.
@@ -49,7 +50,9 @@ func (f *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 }
 
 // FileWriteTool writes content to a file, creating directories as needed.
-type FileWriteTool struct{}
+type FileWriteTool struct {
+	ProtectedPaths []string // paths the agent is NOT allowed to write to (self-preservation)
+}
 
 func (f *FileWriteTool) Name() string { return "file_write" }
 
@@ -88,6 +91,15 @@ func (f *FileWriteTool) Execute(ctx context.Context, args map[string]interface{}
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return "", fmt.Errorf("resolve path: %w", err)
+	}
+
+	// ─── Self-preservation: block writes to protected paths ───
+	for _, protected := range f.ProtectedPaths {
+		protAbs, _ := filepath.Abs(protected)
+		if protAbs != "" && strings.HasPrefix(strings.ToLower(absPath), strings.ToLower(protAbs)) {
+			return fmt.Sprintf("BLOCKED: Cannot write to protected path %q. "+
+				"This path is part of GOAgent's core and is protected by self-preservation guardrails.", protAbs), nil
+		}
 	}
 
 	dir := filepath.Dir(absPath)

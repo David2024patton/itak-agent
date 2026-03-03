@@ -31,7 +31,8 @@ type MemoryYAML struct {
 
 // ShellSafetyYAML holds shell security settings.
 type ShellSafetyYAML struct {
-	DeniedCommands []string `yaml:"denied_cmds,omitempty"`    // additional blocked commands
+	DeniedCommands []string `yaml:"denied_cmds,omitempty"`     // additional blocked commands
+	ProtectedPaths []string `yaml:"protected_paths,omitempty"` // paths agents cannot write to (self-preservation)
 	SandboxEnabled bool     `yaml:"sandbox_enabled,omitempty"` // future: Docker sandbox
 }
 
