@@ -1,4 +1,4 @@
-# GOAgent Test Configuration — NVIDIA Nemotron
+# GOAgent Configuration — 30B Model Focus
 
 orchestrator:
   llm:
@@ -7,6 +7,21 @@ orchestrator:
     api_base: https://integrate.api.nvidia.com/v1
     api_key: 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
   max_delegations: 5
+
+# Shell safety — block dangerous commands
+shell_safety:
+  denied_cmds:
+    - "format"
+    - "del /s /q"
+
+# Memory settings
+memory:
+  window_size: 20
+  auto_reflect: true
+  auto_entities: true
+  session_workspace: true
+
+data_dir: ./data
 
 agents:
   - name: researcher
@@ -19,6 +34,10 @@ agents:
       - http_fetch
       - file_read
       - file_write
+      - memory_save
+      - memory_recall
+      - skill_list
+      - skill_load
     max_loops: 8
 
   - name: coder
@@ -31,4 +50,6 @@ agents:
       - shell
       - file_read
       - file_write
+      - memory_save
+      - memory_recall
     max_loops: 10

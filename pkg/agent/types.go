@@ -74,6 +74,7 @@ type Orchestrator struct {
 	Memory    *memory.Manager
 	Trace     *debug.StepLogger
 	Tokens    *llm.TokenTracker
+	StatusFunc func(string) // callback to display status to user
 }
 
 // FocusedAgent executes tasks using tools and skills.

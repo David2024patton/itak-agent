@@ -14,13 +14,23 @@ import (
 
 // delegationSystemPrompt is the baked-in system prompt for the orchestrator.
 // It tells the LLM to ONLY reason and delegate — never use tools.
-const delegationSystemPrompt = `You are the GOAgent Orchestrator.
+const delegationSystemPrompt = `You are GOAgent — a lightweight, sovereign AI agent framework written in Go.
+
+ABOUT YOU:
+- You are GOAgent v0.2.0, created by David Patton
+- GitHub: https://github.com/David2024patton/GOAgent
+- You are purpose-built for 30B-parameter models and smaller (like NVIDIA Nemotron)
+- You prove that small, focused models can do real agentic work when given the right architecture
+- Your architecture: Orchestrator-Delegate pattern — you reason and route, focused agents execute with tools
+- You have built-in memory (session + persistent + archive), skills, guardrails, and time-travel debugging
 
 YOUR RULES:
 1. You NEVER use tools directly. You have NO tools.
-2. You ONLY reason about the user's request and delegate tasks to focused agents.
+2. You reason about the user's request and delegate tasks to your focused agents.
 3. You give each agent ONLY the information it needs — nothing more.
 4. You synthesize results from agents into a final response for the user.
+5. For simple conversational questions (hi, what are you, who made you, etc.) — answer directly.
+6. Remember the conversation history — refer back to what the user said earlier.
 
 AVAILABLE AGENTS:
 %s
@@ -37,7 +47,7 @@ RESPOND IN THIS EXACT JSON FORMAT:
   ]
 }
 
-If you can answer the user directly without any agent (simple questions), respond:
+If you can answer the user directly without any agent (simple questions, conversations), respond:
 {
   "reasoning": "this is a simple question I can answer directly",
   "delegations": [],
@@ -97,11 +107,19 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 
 	debug.Debug("orchestrator", "System prompt length: %d chars, %d agents available", len(sysPrompt), len(o.Agents))
 
-	// Step 1: Ask the LLM what to delegate.
-	messages := []llm.Message{
-		{Role: llm.RoleSystem, Content: sysPrompt},
-		{Role: llm.RoleUser, Content: userMessage},
+	// Build messages WITH conversation history from session memory.
+	messages := []llm.Message{{Role: llm.RoleSystem, Content: sysPrompt}}
+	if o.Memory != nil {
+		history := o.Memory.Session.GetContext()
+		messages = append(messages, history...)
+		debug.Debug("orchestrator", "Including %d messages of conversation history", len(history))
+	} else {
+		// Fallback if no memory: just use the current message.
+		messages = append(messages, llm.Message{Role: llm.RoleUser, Content: userMessage})
 	}
+
+	// Status: Thinking
+	o.status("GOAgent Thinking...")
 
 	debug.Info("orchestrator", "Calling LLM for delegation decision...")
 	resp, err := o.LLMClient.Chat(ctx, messages, nil) // no tools for orchestrator
@@ -123,15 +141,18 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 		return "", fmt.Errorf("parse delegation: %w", err)
 	}
 
-	// If the orchestrator answered directly, return it.
+	// If the orchestrator answered directly, log and return it.
 	if directResponse != "" {
 		debug.Info("orchestrator", "Direct response (no delegation): %s", truncate(directResponse, 100))
+		o.logAssistantResponse(directResponse)
 		return directResponse, nil
 	}
 
 	if len(delegation.Delegations) == 0 {
 		debug.Warn("orchestrator", "No delegations and no direct response — unclear request")
-		return "I wasn't sure how to help with that. Could you rephrase?", nil
+		fallback := "I wasn't sure how to help with that. Could you rephrase?"
+		o.logAssistantResponse(fallback)
+		return fallback, nil
 	}
 
 	debug.Info("orchestrator", "Reasoning: %s", truncate(delegation.Reasoning, 150))
@@ -151,6 +172,9 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 			continue
 		}
 
+		// Status: Delegating
+		o.status(fmt.Sprintf("GOAgent Delegating to %s...", task.Agent))
+
 		debug.Separator(task.Agent)
 		debug.Info("orchestrator", "→ Delegating [%d/%d] to %q: %s",
 			i+1, len(delegation.Delegations), task.Agent, truncate(task.Task, 100))
@@ -166,8 +190,41 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 
 	// Step 4: Synthesize results.
 	debug.Separator("orchestrator")
+	o.status("GOAgent Synthesizing...")
 	debug.Info("orchestrator", "Synthesizing %d result(s)...", len(results))
-	return o.synthesize(ctx, userMessage, results)
+	finalResponse, err := o.synthesize(ctx, userMessage, results)
+	if err != nil {
+		return "", err
+	}
+
+	// Log the synthesized response.
+	o.logAssistantResponse(finalResponse)
+	return finalResponse, nil
+}
+
+// logAssistantResponse saves the assistant's response to session + archive.
+func (o *Orchestrator) logAssistantResponse(response string) {
+	if o.Memory == nil {
+		return
+	}
+	o.Memory.Session.Add(llm.Message{Role: llm.RoleAssistant, Content: response})
+	o.Memory.Archive.LogMessage(memory.LogMessage{
+		Role:      string(llm.RoleAssistant),
+		Content:   response,
+		Timestamp: time.Now(),
+	})
+
+	// Auto-track entities in responses.
+	if o.Config.Memory.AutoEntities {
+		o.Memory.Entities.Track(response, o.Memory.Archive.NextID())
+	}
+}
+
+// status fires the status callback if set.
+func (o *Orchestrator) status(msg string) {
+	if o.StatusFunc != nil {
+		o.StatusFunc(msg)
+	}
 }
 
 // buildAgentDescriptions generates the agent list for the system prompt.
