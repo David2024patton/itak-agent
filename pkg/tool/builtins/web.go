@@ -723,6 +723,108 @@ func (w *WebSnapshotTool) Execute(ctx context.Context, args map[string]interface
 	}
 	return getPageSnapshot(page), nil
 }
+// ══════════════════════════════════════════════════════════════════
+// web_cookies — manage cookies for persistent auth
+// ══════════════════════════════════════════════════════════════════
+
+type WebCookiesTool struct{}
+
+func (w *WebCookiesTool) Name() string        { return "web_cookies" }
+func (w *WebCookiesTool) Description() string {
+	return "Manage browser cookies. Actions: 'save' persists to disk, 'load' restores from disk, 'list' shows current cookies, 'clear' deletes all. Saved cookies survive browser restarts for persistent login sessions."
+}
+func (w *WebCookiesTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"action": prop("string", "Action: save, load, list, or clear"),
+		},
+		"required": []string{"action"},
+	}
+}
+
+func (w *WebCookiesTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+	action := strings.ToLower(argStr(args, "action"))
+
+	switch action {
+	case "save":
+		if err := globalSession.SaveCookies(); err != nil {
+			return "", fmt.Errorf("save cookies: %w", err)
+		}
+		return "Cookies saved to disk. They will persist across browser restarts.", nil
+
+	case "load":
+		// Close and relaunch to reload cookies from profile + saved file.
+		if globalSession.IsActive() {
+			globalSession.Close()
+		}
+		_, _, err := globalSession.GetSession()
+		if err != nil {
+			return "", err
+		}
+		return "Cookies reloaded from disk.", nil
+
+	case "list":
+		if !globalSession.IsActive() {
+			return "No active session. Navigate first.", nil
+		}
+		page := globalSession.Page()
+		result, _ := page.Eval(`() => document.cookie`)
+		if result != nil && result.Value.Str() != "" {
+			return fmt.Sprintf("Current cookies:\n%s", result.Value.Str()), nil
+		}
+		return "No cookies set on current page (or they are HttpOnly).", nil
+
+	case "clear":
+		if !globalSession.IsActive() {
+			return "No active session.", nil
+		}
+		page := globalSession.Page()
+		page.Eval(`() => {
+			document.cookie.split(";").forEach(c => {
+				document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+			});
+		}`)
+		return "Cookies cleared.", nil
+
+	default:
+		return "", fmt.Errorf("unknown action %q — use save, load, list, or clear", action)
+	}
+}
+
+// ══════════════════════════════════════════════════════════════════
+// web_headed — toggle visible browser for 2FA
+// ══════════════════════════════════════════════════════════════════
+
+type WebHeadedTool struct{}
+
+func (w *WebHeadedTool) Name() string        { return "web_headed" }
+func (w *WebHeadedTool) Description() string {
+	return "Toggle headed mode (visible browser window). Use 'on' when user needs to see the browser for 2FA, CAPTCHAs, or manual steps. Use 'off' to go back to headless. This restarts the browser session."
+}
+func (w *WebHeadedTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"mode": prop("string", "'on' for visible browser, 'off' for headless"),
+		},
+		"required": []string{"mode"},
+	}
+}
+
+func (w *WebHeadedTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+	mode := strings.ToLower(argStr(args, "mode"))
+	switch mode {
+	case "on", "true", "yes", "headed":
+		globalSession.SetHeaded(true)
+		return "Browser switched to HEADED mode — a visible window will appear on next navigation. Use this for 2FA or CAPTCHA flows.", nil
+	case "off", "false", "no", "headless":
+		globalSession.SetHeaded(false)
+		return "Browser switched to HEADLESS mode.", nil
+	default:
+		return "", fmt.Errorf("unknown mode %q — use 'on' or 'off'", mode)
+	}
+}
 
 // ══════════════════════════════════════════════════════════════════
 // Helpers

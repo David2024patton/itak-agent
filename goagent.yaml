@@ -103,6 +103,8 @@ agents:
       - web_search
       - web_close
       - web_snapshot
+      - web_cookies
+      - web_headed
       - memory_save
     max_loops: 15
 
