@@ -169,13 +169,13 @@ func (s *Spinner) StopWith(icon, color, message string) {
 // Banner prints the startup banner with ASCII art.
 func Banner(version, model string, agentCount, skillCount, restoredMsgs int) {
 	fmt.Println()
-	fmt.Printf("  %s%s", ColorAccent, Bold)
+	fmt.Printf("%s%s", ColorAccent, Bold)
 	fmt.Println("   ____  ___    _                    _")
 	fmt.Println("  / ___|/ _ \\  / \\   __ _  ___ _ __ | |_")
 	fmt.Println(" | |  _| | | |/ _ \\ / _` |/ _ \\ '_ \\| __|")
 	fmt.Println(" | |_| | |_| / ___ \\ (_| |  __/ | | | |_")
 	fmt.Printf("  \\____|\\___/_/   \\_\\__, |\\___|_| |_|\\__|%s\n", Reset)
-	fmt.Printf("  %s%s              |___/ v%s%s\n", ColorDim, Bold, version, Reset)
+	fmt.Printf(" %s%s              |___/ v%s%s\n", ColorDim, Bold, version, Reset)
 	fmt.Println()
 	fmt.Printf("  %s%s Model:%s  %s\n", ColorDim, IconInfo, Reset, model)
 	fmt.Printf("  %s%s Agents:%s %d ready\n", ColorDim, IconInfo, Reset, agentCount)
