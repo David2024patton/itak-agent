@@ -666,6 +666,97 @@ Features identified by asking: "If everything above was built, what would still 
 - [ ] **Anonymous Usage Stats** - Opt-in telemetry: which features are used, error rates, performance metrics. For improving GOAgent. *(Recommendation)*
 - [ ] **Crash Reporting** - Automatic crash reports with stack traces. Opt-in only. *(Recommendation)*
 
+## 26. Autonomy Engine (GOPilot)
+
+The core differentiator. GOAgent should run unattended for hours, fix its own problems, and only bother the user when it genuinely can't proceed. This section covers everything needed to make that real.
+
+### Self-Correction & Error Recovery
+- [ ] **Retry with Escalation** - On tool failure: retry same model 2x, then try a bigger model, then try a different approach, then finally ask the user. Configurable escalation chain. *(Original)*
+- [ ] **Output Validation Loop** - After every tool call, validate the result. Did the file actually save? Did the API return 200? Did the code compile? Re-run if not. *(Original)*
+- [ ] **Code Compile Check** - After writing code, auto-compile/lint. If errors, fix them in a loop (max 5 attempts) before reporting success. *(Original)*
+- [ ] **Rollback on Failure** - If an agent breaks something (corrupted file, crashed service), auto-rollback to last known good state via git/snapshot. *(Original)*
+- [ ] **Error Pattern Database** - Structured database of error signatures to fix patterns. Error X seen before = instant fix from memory. Grows over time. *(Original)*
+- [ ] **Self-Debug Mode** - When agent gets stuck, it dumps its own state (last N messages, tool results, memory) and feeds it to a fresh agent instance for diagnosis. *(Original)*
+
+### Confidence & Escalation
+- [ ] **Confidence Scoring** - Every agent response includes a self-rated confidence score (0-100). Low confidence = auto-escalate to bigger model or human review. *(Original)*
+- [ ] **Uncertainty Detection** - Detect hedging language ("I think", "maybe", "probably") and auto-flag for verification. *(Original)*
+- [ ] **Human-in-the-Loop Threshold** - Configurable confidence threshold. Below it, pause and ask user. Default: 30%. Power users can set to 0% (full autopilot). *(Original)*
+- [ ] **Escalation Routing** - Route difficult tasks to stronger models automatically. Simple tasks stay on cheap/fast models. Based on task complexity classification. *(Original)*
+
+### Process Watchdogs
+- [ ] **Watchdog Process** - Separate lightweight process monitors GOAgent. Detects freezes, infinite loops, memory leaks. Auto-restart with state recovery. *(Original)*
+- [ ] **Deadlock Detection** - Detect when agents are waiting on each other circularly. Auto-break the cycle by killing the youngest task. *(Original)*
+- [ ] **Stale Task Cleanup** - Tasks running beyond expected time with no progress get auto-killed. Configurable timeout per task type. *(Original)*
+- [ ] **Memory Leak Detection** - Monitor per-agent RAM usage over time. If growing without bound, restart that agent's process. *(Original)*
+- [ ] **Zombie Agent Cleanup** - Detect agents that are alive but not doing anything. Terminate and reclaim resources. *(Original)*
+
+### Dependency & Environment Healing
+- [ ] **Dependency Doctor** - On startup and on error, check all external deps (git, ffmpeg, node, python, go). Auto-install missing ones. *(Original)*
+- [ ] **Config Validator** - On startup, validate entire goagent.yaml. Fix common misconfigs automatically (wrong paths, invalid ports, missing fields). *(Original)*
+- [ ] **Port Conflict Resolution** - If a port is in use, auto-pick next available. No manual intervention. *(Original)*
+- [ ] **Disk Space Monitor** - Alert and auto-clean (temp files, old logs, cached models) if disk space is low. *(Original)*
+- [ ] **Network Health Check** - Continuously verify internet connectivity and API reachability. Auto-switch to offline mode if connection drops, switch back when restored. *(Original)*
+
+### Self-Improvement
+- [ ] **Self-Benchmarking** - Periodically run standardized tasks and measure quality/speed. Detect quality degradation after model swaps or config changes. *(Original)*
+- [ ] **Prompt Effectiveness Tracking** - Track which prompts produce good results per model. Auto-retire underperforming prompts. *(Original)*
+- [ ] **Task Success Rate** - Track completion rates per agent and task type. Flag agents with declining success for retraining or prompt revision. *(Original)*
+- [ ] **Learning from Corrections** - When user corrects agent output, store the correction as a training example. Future similar tasks reference corrections. *(Original)*
+
+### Autonomy Levels
+User-configurable autonomy from fully supervised to fully autonomous:
+
+| Level | Name | Behavior |
+|-------|------|----------|
+| 0 | **Supervised** | Ask before every action. Training mode. |
+| 1 | **Guided** | Ask before destructive actions (delete, deploy, send). Read-only ops are auto-approved. |
+| 2 | **Collaborative** | Only ask when confidence < 50% or task is novel. Default for new installs. |
+| 3 | **Autonomous** | Only ask when confidence < 20% or facing a genuinely unknown situation. |
+| 4 | **Full Autopilot** | Never ask. Handle everything. Report results only. For trusted, well-tested setups. |
+
+- [ ] **Autonomy Level Setting** - Global and per-agent autonomy levels. Boss at Level 2, trusted agents at Level 3, new agents at Level 1. *(Original)*
+- [ ] **Autonomy Promotion** - Agent earns higher autonomy over time based on success rate. Demoted on failure. *(Original)*
+
+## 27. Small LLM Optimization Engine (GOSqueeze)
+
+Everything needed to make 1B-8B parameter models perform like 70B+ models. This is how GOAgent runs on a Dell OptiPlex with no GPU.
+
+### Prompt Engineering for Small Models
+- [ ] **Prompt Compression** - Auto-compress context before sending to LLM. Summarize long tool outputs, trim irrelevant history, keep only what matters. *(Original)*
+- [ ] **Instruction Distillation** - Break complex instructions into atomic micro-instructions. Instead of "build a website", send "create index.html", then "add header section", etc. This is how small models succeed. *(Original)*
+- [ ] **Model-Specific Prompt Templates** - Different prompt formats per model family. Qwen needs ChatML, Llama needs [INST], Mistral needs its own format. Auto-detect and apply. *(Original)*
+- [ ] **Few-Shot Example Library** - Curated examples per tool/task type. Small models need 2-3 examples to understand the task. Library grows as agent learns. *(Original)*
+- [ ] **System Prompt Optimization** - Auto-tune system prompts per model. Test variations, measure output quality, keep the best. DSPy-inspired. *(DSPy, Original)*
+- [ ] **Negative Examples** - Show models what NOT to do. "Don't output markdown when I ask for JSON." Small models benefit heavily from explicit don'ts. *(Original)*
+
+### Context Window Management
+- [ ] **Smart Sliding Window** - Prioritize recent messages + relevant older context. Not just "last N messages" but relevance-scored selection. *(Original)*
+- [ ] **Tool Output Summarization** - Before feeding tool results back to LLM, summarize them. A 500-line file listing becomes "47 Go files, 3 test files, main entry at cmd/main.go". *(Original)*
+- [ ] **Context Budget Allocation** - Allocate tokens per section: 20% system prompt, 30% conversation, 30% tool results, 20% response. Enforce limits. *(Original)*
+- [ ] **Progressive Detail** - First pass: high-level overview. If model needs more detail, second pass with deeper context. Don't front-load everything. *(Original)*
+- [ ] **Memory Offloading** - Move older context to vector store. Pull back only when relevant via similarity search. Infinite effective context. *(Original)*
+
+### Structured Output Enforcement
+- [ ] **Grammar-Constrained Decoding** - Force LLM output to conform to a JSON/YAML schema via GBNF grammars (llama.cpp feature). No more broken JSON. *(llama.cpp)*
+- [ ] **Response Validation** - Parse every LLM response. If it's supposed to be JSON and it's not, auto-retry with a simpler prompt + explicit format instructions. Max 3 retries. *(Original)*
+- [ ] **Output Repair** - Before retrying, attempt to fix common issues: strip markdown code fences, fix missing closing braces, unescape characters. *(Original)*
+- [ ] **Schema Library** - Pre-built JSON schemas for every tool call format. Models know exactly what structure to produce. *(Original)*
+
+### Execution Optimization
+- [ ] **Speculative Execution** - Run cheap/fast model first. If result passes validation, use it. If not, escalate to expensive model. Saves 80% of tokens on easy tasks. *(Original)*
+- [ ] **Batch Reasoning** - Combine multiple small questions into one LLM call. "Answer these 5 questions:" instead of 5 separate calls. *(Original)*
+- [ ] **Cached Responses** - Identical or near-identical prompts return cached results. Semantic cache using embeddings for fuzzy matching. *(Original)*
+- [ ] **Pre-computed Decisions** - For common routing decisions (which agent handles this?), use a tiny classifier model instead of the full LLM. *(Original)*
+- [ ] **Pipeline Pipelining** - While model A is generating tokens for task 1, prepare the prompt for task 2. Overlap inference with prompt construction. *(Original)*
+
+### Model Quality Compensation
+- [ ] **Verification Agents** - Pair a small "doer" model with a small "checker" model. Cheaper than one big model, often better quality. Two 4B models > one 8B model. *(Original)*
+- [ ] **Consensus Voting** - For critical decisions, run the same prompt through 3 small models. Majority vote wins. *(Original)*
+- [ ] **Chain of Verification (CoVe)** - After generating an answer, generate verification questions, answer them independently, then revise. Dramatically improves accuracy on small models. *(Research - Meta CoVe)*
+- [ ] **Tool-Augmented Reasoning** - Instead of asking the model to calculate, give it a calculator. Instead of asking it to search, give it search. Offload what small models are bad at. *(Original)*
+- [ ] **Scratchpad Reasoning** - Give models an explicit thinking/scratchpad section before the final answer. Small models produce much better outputs when they can "think out loud". *(Research - Chain of Thought)*
+
 ---
 
 ## Research Queue
