@@ -474,6 +474,38 @@ User says: "Create a YouTube tutorial on how to deploy a Next.js app to Vercel"
 - [ ] **Content Calendar** - Schedule content production. "Create 3 tutorials per week on React topics." Agent handles the entire pipeline on schedule. *(Original)*
 - [ ] **Analytics Feedback Loop** - Track video performance (views, engagement, retention). Agent learns which topics/styles perform best and adjusts future content. *(Original)*
 
+### Human Realism Mode (No AI Look)
+Videos should look like a human recorded them, not a robot. Two modes:
+- **Interactive Mode** = DOM highlights, tooltips, overlays (for live tutorials where user is learning)
+- **Production Mode** = Clean, natural recording (for YouTube/social media content)
+
+- [ ] **Natural Mouse Movement** - Bezier curve mouse paths, slight overshoot, random micro-pauses. Not pixel-perfect straight lines. *(Original)*
+- [ ] **Realistic Typing Speed** - Variable WPM (50-80), occasional brief pauses between words, natural rhythm. Not uniform machine-gun typing. *(Original)*
+- [ ] **No Overlay in Production** - DOM highlights, tooltips, and glowing borders are OFF in production mode. Clean screen recording only. *(Original)*
+- [ ] **Human Scroll Patterns** - Scroll at natural speed. Sometimes overshoot and scroll back slightly. Read-pause behavior. *(Original)*
+- [ ] **Natural Pacing** - Pause before clicking (like a human reading the button). Vary timing between actions. Not perfectly metronomic. *(Original)*
+- [ ] **Cursor Warmth** - Slight cursor wobble. Humans don't hold the mouse perfectly still. *(Original)*
+
+### AI Avatar & Digital Twin (GOAvatar)
+Appear in your own videos without recording yourself. AI-generated talking head using your face and voice.
+
+| Technology | What It Does | Open Source Options |
+|-----------|-------------|-------------------|
+| **Face Generation** | Create realistic avatar from a single photo | SadTalker, LivePortrait, MuseTalk |
+| **Lip Sync** | Sync avatar's mouth to narration audio | Wav2Lip, SyncTalk, MuseTalk |
+| **Voice Clone** | Clone your voice from 1-min audio sample | Coqui TTS, OpenVoice, Fish Speech |
+| **Full Body** | Generate full presenter with gestures | HeyGen patterns, D-ID patterns |
+
+- [ ] **Avatar from Photo** - Upload one photo of yourself. GOAvatar generates a realistic talking head video. Lip-synced to narration. *(Original, SadTalker/LivePortrait)*
+- [ ] **Voice Clone Integration** - Record 60 seconds of your voice. GOVoice clones it. All future tutorials sound like you. *(Original, OpenVoice/Coqui)*
+- [ ] **Picture-in-Picture** - Avatar appears in corner of screen recording, like a webcam. Standard YouTube tutorial layout. *(Original)*
+- [ ] **Full-Screen Presenter** - Avatar appears full-screen for intro/outro segments. Switches to screen recording for the tutorial steps. *(Original)*
+- [ ] **Gesture Generation** - Avatar uses natural hand gestures while speaking. Not a frozen head. *(Original)*
+- [ ] **Multiple Avatars** - Create different presenter personas for different channels/brands. *(Original)*
+- [ ] **Green Screen Mode** - Generate avatar with transparent background. Composite onto any scene. *(Original)*
+- [ ] **Local Processing (Default)** - Avatar generation runs locally via GOTorch + open-source models (SadTalker, Wav2Lip). No cloud dependency. *(Original)*
+- [ ] **Cloud Fallback** - For higher quality, route to HeyGen or D-ID APIs. *(Original)*
+
 ## 12. GOForge (Live Preview + Container Runtime)
 
 Go-native live preview server and lightweight container runtime for agent workloads. Every project built by GOAgent gets a live URL instantly. Separate repo (`GOForge`) but embeddable into GOAgent as a library.
