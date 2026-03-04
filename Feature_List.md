@@ -429,6 +429,18 @@ Expanded to match OpenClaw's 15+ chat provider coverage:
 - [ ] **Zero Data Retention** - Never store user data beyond session. Never train on user data. More secure than using OpenAI/Gemini directly. *(ClickUp Super Agents)*
 - [ ] **Agentic User Security** - Permission model: implicit access, explicit access, custom permissions. Agents inherit user permissions. Full audit trail of every action. *(ClickUp Super Agents)*
 
+### GOAuth (Cross-Service Ecosystem Authentication)
+When GO* services run independently (GOTorch on one box, GOMedia as a CLI, GODashboard remotely), they need mutual authentication.
+
+- [ ] **Service Identity** - Each GO* service generates a unique service ID + secret on first run. Stored encrypted in `~/.goagent/auth/`. *(Original)*
+- [ ] **Bearer Token Auth** - All GO* HTTP APIs accept `Authorization: Bearer <token>` headers. Tokens issued by GOAgent master or generated per-service. *(Original)*
+- [ ] **Service-to-Service JWT** - GO* services authenticate to each other using short-lived JWTs signed with shared HMAC secret. Auto-refresh. *(Original)*
+- [ ] **Auto-Pairing (Local)** - When services run on the same machine, auto-discover and trust each other via shared local secret file. Zero config. *(Original)*
+- [ ] **Remote Pairing** - For cross-machine setups: `goagent pair <service-url>` exchanges keys via one-time code (like Bluetooth pairing). *(Original)*
+- [ ] **API Key Management** - Generate/revoke API keys per service or per external client. Scoped permissions (read-only, full, admin). *(Original)*
+- [ ] **Mutual TLS (mTLS)** - Optional certificate-based auth for production deployments. Each service gets its own cert signed by GOAgent CA. *(Original)*
+- [ ] **Auth Middleware** - Shared Go package (`pkg/auth/`) that any GO* service imports for consistent auth enforcement. *(Original)*
+
 ## 19. Integrations & Skills
 
 - [ ] **Figma** - Design-to-code pipeline. *(Original)*
