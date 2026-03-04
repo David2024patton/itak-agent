@@ -113,6 +113,9 @@ Feature checklist for the entire GOAgent ecosystem. Each feature has its source,
 - [ ] **Pen Testing Agent** - White hat security testing, vulnerability scanning. *(Agent Zero profile, Original - notes.md)*
 - [ ] **ECAM/Security Systems Agent** - Perimeter cameras, access control, MSU trailers, Morningstar, Cradlepoint, Ubiquiti, Zabbix, Axis, GeoVision, Avigilon. *(Original - notes.md, ECAM specific)*
 
+### Media & Transcription Agents
+- [ ] **Social Media Transcription Agent** - Transcribes videos from any social media platform. Uses GOMedia for subtitle extraction, falls back to Whisper for videos without subs. Outputs clean formatted transcripts with timestamps. *(Original)*
+
 ### Automation & Platform Agents
 - [ ] **Automation Platform Agent (APA)** - Build workflows between apps/APIs. Skills for: Zapier, Make, n8n, Node-RED, IFTTT, UiPath, Power Automate, ServiceNow, Tray.ai, Workato, Gumloop, Lindy AI, Relevance AI, Relay.app, Integrately, Stack AI. *(Original - notes.md)*
 - [ ] **Google Products Agent** - Gmail, Drive, Docs, Sheets, Calendar, Meet, Cloud Console, YouTube Studio, Search Console, Ads. *(Original)*
@@ -474,14 +477,86 @@ Custom Go-native LLM inference runtime. No dependency on Ollama or any external 
 - [ ] **Inference Metrics** - Tokens/second, memory usage, model load time. Feed into GODashboard. *(Original)*
 - [ ] **Research**: Study `go-skynet/LocalAI`, `mudler/go-llama.cpp`, `ggml-org/llama.cpp` CGo patterns, and `ollama/ollama` internals for architecture inspiration. *(Research)*
 
-## 22. API Server
+### Pure Go Backend (from GoMLX)
+- [ ] **GoMLX SimpleGo Fork** - Fork GoMLX's `backends/simplego/` pure Go tensor engine into `pkg/torch/native/`. AVX-512 optimized matmul, convolutions, packed GEMM. Zero CGo deps. *(GoMLX)*
+- [ ] **Native Inference Engine** - Run tiny models (<1B params) entirely in pure Go. No shared libraries needed at all. *(GoMLX, Original)*
+
+### LLM Provider System (from LangChainGo)
+- [ ] **Unified Model Interface** - Fork LangChainGo's `Model` interface with `GenerateContent()` and `ReasoningModel` support. *(LangChainGo)*
+- [ ] **Cloud Provider Clients** - Fork provider implementations: OpenAI, Anthropic, Ollama, Gemini, Mistral, HuggingFace, Cloudflare, Cohere. *(LangChainGo)*
+- [ ] **Response Cache Layer** - Wrap any provider with disk/memory cache. Don't re-call identical prompts. *(LangChainGo)*
+- [ ] **Error Mapping** - Maps provider-specific errors to common error types. *(LangChainGo)*
+- [ ] **Token Counting** - Count tokens without loading a model. *(LangChainGo)*
+
+### Agent Tools (from LangChainGo)
+- [ ] **DuckDuckGo Search** - Free web search, no API key. *(LangChainGo)*
+- [ ] **Wikipedia Lookup** - Article search and retrieval. *(LangChainGo)*
+- [ ] **Web Scraper** - Extract content from web pages. *(LangChainGo)*
+- [ ] **SQL Database Tool** - Execute SQL queries against any database. *(LangChainGo)*
+- [ ] **Calculator** - Math expression evaluation. *(LangChainGo)*
+- [ ] **Perplexity Search** - AI-powered search. *(LangChainGo)*
+
+### Agent Patterns (from Eino)
+- [ ] **Stream Processing** - Auto-manage token streams between agent components. Concatenating, boxing, merging streams. *(Eino/ByteDance)*
+- [ ] **Interrupt/Resume** - Pause agent execution for human approval, resume from checkpoint. State persistence. *(Eino/ByteDance)*
+- [ ] **Callback Aspects** - Inject logging/tracing/metrics at OnStart/OnEnd/OnError hooks across all components. *(Eino/ByteDance)*
+
+### ONNX Support (from Hugot)
+- [ ] **ONNX Model Runner** - Run HuggingFace ONNX models for embeddings, classification, text generation. *(Hugot)*
+- [ ] **Local Embedding Pipeline** - Generate embeddings locally without API calls using ONNX models. *(Hugot)*
+
+## 22. GOMedia (Go-Native Media Downloader & Transcriber)
+
+Go-native alternative to yt-dlp targeting the top 15 social media platforms. Single binary, no Python dependency. Fork base from `kkdai/youtube` (Go YouTube library) and `horiagug/youtube-transcript-api-go`.
+
+### Core Engine
+- [ ] **Platform Abstraction** - Unified `Extractor` interface per platform. Each implements: resolve URL, get metadata, get streams, get subtitles. *(Original)*
+- [ ] **Stream Downloader** - HTTP, HLS (m3u8), DASH stream downloading with resume support. Goroutine-based parallel chunk downloads. *(Original)*
+- [ ] **Subtitle Extractor** - Pull auto-generated and manual subtitles/captions. Multi-language. VTT/SRT/JSON output. *(Original)*
+- [ ] **Audio Extractor** - Download audio-only streams for Whisper fallback transcription. *(Original)*
+- [ ] **Whisper Integration** - For videos without subtitles: download audio, transcribe via local Whisper model or Whisper API. *(Original)*
+- [ ] **FFmpeg Bridge** - Merge audio+video streams, convert formats. Optional dep for advanced use. *(Original)*
+- [ ] **Clean Transcript Output** - Strip timestamps, dedupe repeated lines, format as readable text or structured JSON. *(Original)*
+
+### Platform Extractors (Top 15)
+| # | Platform | Auth | Notes |
+|---|----------|------|-------|
+| 1 | **YouTube** | Cookie/OAuth | Fork `kkdai/youtube`. Subtitles via transcript API |
+| 2 | **TikTok** | Cookie | Video + captions extraction |
+| 3 | **Instagram** | Cookie/Session | Reels, Stories, IGTV. Login required for private |
+| 4 | **X/Twitter** | Cookie/Bearer | Spaces audio, video tweets |
+| 5 | **Reddit** | API/Cookie | v.redd.it video extraction |
+| 6 | **Facebook** | Cookie | **Private video support via session cookies** |
+| 7 | **Twitch** | API | VODs, clips, live streams |
+| 8 | **Vimeo** | API/Cookie | Public + private (password-protected) |
+| 9 | **LinkedIn** | Cookie | Learning videos, feed videos |
+| 10 | **Threads** | Cookie | Meta's Threads platform |
+| 11 | **Bluesky** | API | AT Protocol video |
+| 12 | **SoundCloud** | API | Audio tracks, podcasts |
+| 13 | **Spotify** | Cookie | Podcast episodes (audio) |
+| 14 | **Rumble** | Public | Video extraction |
+| 15 | **Kick** | API/Cookie | VODs and clips |
+
+### Authentication / Private Content
+- [ ] **Cookie Import** - Import browser cookies for authenticated access. Read from Chrome/Firefox/Edge cookie stores. *(yt-dlp pattern)*
+- [ ] **Session Token Auth** - Store and reuse session tokens per platform. Encrypted at rest. *(Original)*
+- [ ] **Browser Profile Bridge** - Use GOBrowser's dedicated profile for authenticated downloads. Handles 2FA, CAPTCHA. *(Original)*
+- [ ] **OAuth Flows** - Where platforms support it (YouTube, Twitch), use proper OAuth for stable access. *(Original)*
+- [ ] **Private Video Support** - Facebook private videos, Instagram private accounts, unlisted YouTube via auth cookies. *(Original)*
+
+### CLI & Library
+- [ ] **Standalone CLI** - `gomedia download URL`, `gomedia transcript URL`, `gomedia info URL`. *(Original)*
+- [ ] **Go Library** - Import as `pkg/media/` in GOAgent. Agents call it directly, no shell-out. *(Original)*
+- [ ] **yt-dlp Fallback** - If GOMedia doesn't support a platform, shell out to yt-dlp if installed. Graceful degradation. *(Original)*
+
+## 23. API Server
 
 - [ ] **REST API** - Standalone HTTP API for external apps to interact with GOAgent. Send tasks, query agents, get results. *(Recommendation)*
 - [ ] **gRPC API** - High-performance binary protocol for Go-to-Go and mobile app integration. *(Recommendation)*
 - [ ] **API Key Auth** - Secure API access with generated API keys. Rate limiting per key. *(Recommendation)*
 - [ ] **Webhook Callbacks** - Register webhook URLs. GOAgent calls back when tasks complete. *(Recommendation)*
 
-## 23. Observability & Export
+## 24. Observability & Export
 
 - [ ] **Log Export** - Export structured logs to Grafana/Loki, ELK stack, or plain JSON files. *(Recommendation)*
 - [ ] **Trace Export** - OpenTelemetry-compatible traces. Full request lifecycle from user input to agent response. *(Recommendation)*
@@ -503,6 +578,13 @@ Items to investigate before implementation:
 - [ ] **Go container runtimes** - Study containerd, runc, Podman internals for Tier 2 container implementation. All written in Go. *(https://github.com/containerd/containerd, https://github.com/opencontainers/runc)*
 - [ ] **gogs/gogs** - Self-hosted Git service in Go. Reference for Git hosting patterns (we'll use GitHub API instead). *(https://github.com/gogs/gogs)*
 - [ ] **go-gitea/gitea** - Gogs fork, more active. Reference for Go-based Git server patterns. *(https://github.com/go-gitea/gitea)*
+- [ ] **gomlx/gomlx** - Accelerated ML framework for Go. Fork `backends/simplego/` for pure Go tensor engine. *(https://github.com/gomlx/gomlx)*
+- [ ] **tmc/langchaingo** - LangChain for Go. Fork LLM provider interface, tools, and cache layer. *(https://github.com/tmc/langchaingo)*
+- [ ] **cloudwego/eino** - ByteDance LLM agent framework. Study streaming, interrupt/resume, callback patterns. *(https://github.com/cloudwego/eino)*
+- [ ] **knights-analytics/hugot** - ONNX transformer pipelines in Go. Fork for ONNX model support + local embeddings. *(https://github.com/knights-analytics/hugot)*
+- [ ] **kkdai/youtube** - Go YouTube downloader. Fork as base for GOMedia YouTube extractor. *(https://github.com/kkdai/youtube)*
+- [ ] **horiagug/youtube-transcript-api-go** - Go YouTube transcript extractor. Fork for GOMedia subtitle pipeline. *(https://github.com/horiagug/youtube-transcript-api-go)*
+- [ ] **gonum/gonum** - Go numeric libraries (matrices, stats, optimization). Potential dep for tensor math. *(https://github.com/gonum/gonum)*
 
 ---
 
@@ -532,3 +614,10 @@ Items to investigate before implementation:
 | Canvas (Go) | https://github.com/steipete/canvas | Visual workspace in Go |
 | wacli (Go) | https://github.com/steipete/wacli | WhatsApp CLI in Go |
 | Vercel Browser | (research needed) | Agent browser engine |
+| GoMLX | https://github.com/gomlx/gomlx | Pure Go tensor engine, XLA GPU backend |
+| LangChainGo | https://github.com/tmc/langchaingo | LLM providers, tools, cache |
+| Eino | https://github.com/cloudwego/eino | ByteDance agent framework, streaming, interrupt/resume |
+| Hugot | https://github.com/knights-analytics/hugot | ONNX transformer pipelines in Go |
+| Gonum | https://github.com/gonum/gonum | Go numeric/matrix libraries |
+| kkdai/youtube | https://github.com/kkdai/youtube | Go YouTube downloader (GOMedia base) |
+| yt-transcript-api-go | https://github.com/horiagug/youtube-transcript-api-go | Go YouTube transcript extraction |
