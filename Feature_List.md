@@ -43,118 +43,172 @@ Feature checklist for the entire GOAgent ecosystem. Each feature has its source,
 - [ ] **Extension Versioning** - Semantic versioning for extensions. Auto-update, rollback, dependency resolution. *(VS Code, npm)*
 - [ ] **Extension Templates** - Starter templates for creating new extensions: skill pack, tool adapter, integration plugin, agent profile. *(Original)*
 
-## 3. Agent Types
+## 3. Agent Architecture
 
-### Core Agents (Built-in)
-- [x] **Scout** - Read-only filesystem agent. *(Original)*
-- [x] **Operator** - Write + shell agent. *(Original)*
-- [x] **Browser** - Playwright web automation. *(Agent Zero)*
-- [x] **Researcher** - HTTP + memory + skills. *(Original)*
-- [x] **Coder** - Shell + file read/write. *(Original)*
-- [ ] **Doctor (GOBeat)** - Self-healing. 30-min health loop, error-triggered, lint/security scripts per language, fix memory. *(OpenClaw "doctor", Original)*
-- [ ] **Builder** - Creates new agents, skills, and tools. On the ignore list. *(Original)*
-- [ ] **Embedder** - Dedicated embedding agent. Ships with tiny CPU-only model. *(Original)*
-- [ ] **Git Agent** - Commit, push, pull, branch, merge, PRs. GitHub, GitLab, Bitbucket. *(Original)*
-- [ ] **Database Agent** - DB operations, migrations, queries, schema. *(Original)*
-- [ ] **Teacher Agent** - Uses DOM to show users how to do things: coding, Figma, browser, databases, social media. Interactive tutorials. *(Original - notes.md)*
-- [ ] **Research Agent** - Deep research with SearXNG, web scraping, analysis, source handling, comparison tables, guardrails for thin evidence. Structured reports with executive summaries. *(Original, ClickUp Super Agents)*
+GOAgent has **8 core agents** - distinct execution engines with unique tool access. Everything else is an **Agent Persona** - a skill pack loaded onto a core agent that specializes its behavior. Installing the "Sales" skill pack on a Researcher turns it into a "Sales Agent." Same engine, different knowledge and tools.
 
-### Personal Productivity Agents
-- [ ] **Note Taking Agent** - Persistent notes with tagging, search, and categorization. Daily journal, idea catcher, memory recall, weekly digest. Accessible from chat, dashboard, and CLI. Links notes to projects and agents. *(Original, ClickUp Super Agents)*
-- [ ] **Reminder Agent** - Scheduled reminders delivered via ALL communication plugins (Discord, Telegram, WhatsApp, Email, Slack). Context-aware, habit tracking, smart rescheduling. Recurring reminders, snooze, priority levels. Syncs with calendar if available. *(Original, ClickUp Super Agents)*
-- [ ] **Daily Briefer Agent** - Summarizes today's priorities, flags overdue items, compiles mentions waiting on you. Morning Coffee mode for executives. *(ClickUp Super Agents)*
-- [ ] **Meeting Agent** - Schedules meetings, drafts agendas, compiles relevant tasks, captures notes, extracts action items into tasks with due dates. End-of-day recap. *(ClickUp Super Agents)*
-- [ ] **Personal Assistant Agent** - Reminders, emails, meetings, tasks. Does the work you don't want to do. Write-Like-Me voice matching. *(ClickUp Super Agents)*
+```
+Core Agent (Researcher) + Skill Pack (Sales)         = "Sales Agent"
+Core Agent (Operator)   + Skill Pack (DevOps)         = "DevOps Agent"
+Core Agent (Browser)    + Skill Pack (Social Media)   = "Social Media Manager"
+Core Agent (Coder)      + Skill Pack (Game Dev)       = "Gamer Agent"
+```
 
-### Business & Marketing Agents
-- [ ] **Social Media Manager** - Facebook, Instagram, Twitter/X, TikTok, LinkedIn, YouTube. Content planning, draft composition, scheduling, publishing reminders, engagement tracking, keyword watching. *(Original - notes.md, ClickUp Super Agents)*
-- [ ] **Marketing Agent** - Campaign management, SEO, content strategy, competitive intel research. *(Original - notes.md, ClickUp Super Agents)*
-- [ ] **Sales Agent** - Lead qualification/scoring, outreach, pipeline management, contract renewal, deal desk, demo scheduling + prep + follow-up. *(Original - notes.md, ClickUp Super Agents)*
-- [ ] **Customer Service Agent** - Support tickets, FAQ, chat responses, SLA monitoring, customer onboarding, IT service management. AI-drafted support responses. *(Original - notes.md, ClickUp Super Agents)*
-- [ ] **Customer Engagement Agent** - Lead/inquiry detection, fast reply drafting, appointment/booking flow, keyword/intent watching across social platforms, conversation tracking, follow-up summaries. *(ClickUp Super Agents)*
-- [ ] **Domain Agent** - Enterprise integrations via skill packs: Odoo, GoHighLevel, Zoho, HubSpot, Salesforce, QuickBooks, SAP, Oracle NetSuite, Microsoft Dynamics 365, Freshsales, Insightly, Pipedrive, Keap, ERPNext, Dolibarr, SuiteCRM, Bitrix24, Brevo, Hostinger, Order.co, Acumatica, Jestor, Sage Intacct, Infor SyteLine, Epicor Kinetic, IFS Cloud, Workday. *(Original)*
+### 8 Core Agents
 
-### Project Management Agents
-- [ ] **Project Manager Agent** - Captures goals and scope, tracks project health, generates status reports with progress/blockers/next steps. *(ClickUp Super Agents)*
-- [ ] **Sprint Planner Agent** - Organizes backlogs, drafts sprint goals based on team capacity. *(ClickUp Super Agents)*
-- [ ] **Task Triage Agent** - Reviews incoming tasks to prioritize, schedule, and auto-fill details. Work breakdown into subtasks with assignees and due dates. *(ClickUp Super Agents)*
-- [ ] **Priorities Manager Agent** - Continuously manages priorities, escalating and identifying urgent tasks. Deadline tracking with timely reminders. *(ClickUp Super Agents)*
-- [ ] **Follow-Up Agent** - Tracks delegated requests, drafts follow-ups for overdue items, reports back. Ensures nothing slips through. *(ClickUp Super Agents)*
+| Agent | Access Level | Tools | Purpose |
+|-------|-------------|-------|---------|
+| **Scout** | Read-only | File search, grep, tree, diff | Explore without modifying |
+| **Operator** | Read + Write + Shell | File CRUD, shell exec, process mgmt | System changes |
+| **Browser** | Web | GOBrowser CDP, Snapshot+Refs, DOM | Web automation |
+| **Researcher** | HTTP + Memory | Web search, API calls, knowledge graph | Research & analysis |
+| **Coder** | Code + Shell | Code gen, refactor, lint, test | Software development |
+| **Doctor** | Health + Fix | Lint, security scan, fix memory | Self-healing |
+| **Builder** | Meta-agent | Agent scaffold, skill create, tool adapt | Create new agents/skills |
+| **Embedder** | Vector | Embed, index, similarity search | Semantic search engine |
 
-### Operations & Management Agents
-- [ ] **Process Automator Agent** - Identifies repetitive behavior and automates it. Invoice routing, approval workflows, procurement. *(ClickUp Super Agents)*
-- [ ] **Goal Manager Agent** - Sets OKRs, tracks progress, generates status updates across teams. *(ClickUp Super Agents)*
-- [ ] **StandUp Runner Agent** - Collects async updates, summarizes blockers for the team. Retro facilitation. *(ClickUp Super Agents)*
-- [ ] **Sentiment Scout Agent** - Aggregates feedback tone from interactions to track satisfaction. Pulse surveys. *(ClickUp Super Agents)*
-- [ ] **Workspace Audit Agent** - Identifies unused resources, duplicate items, stale data for cleanup or archiving. *(ClickUp Super Agents)*
+- [x] **Scout** - Read-only filesystem agent. Directory listing, file reading, code search, pattern matching. Never writes, never deletes. Safe for exploration. *(Original)*
+  - File search with glob patterns, regex grep, tree view
+  - Code structure analysis (functions, classes, imports)
+  - Dependency graph visualization, diff comparison
 
-### Intelligence & Knowledge Agents
-- [ ] **Wiki Upkeep Agent** - Scans and flags outdated docs to keep knowledge fresh. Auto-updates documentation. *(ClickUp Super Agents)*
-- [ ] **Project Intelligence Agent** - Builds context on a specific project for generating updates and content. *(ClickUp Super Agents)*
-- [ ] **Topic Intelligence Agent** - Builds comprehensive context on a chosen topic to generate summaries, content, and deep insights. *(ClickUp Super Agents)*
-- [ ] **Fact Checker Agent** - Verifies claims against trusted web sources. Flags when evidence is thin or conflicting. *(ClickUp Super Agents)*
-- [ ] **Competitive Intel Agent** - Tracks competitors and surfaces strategic insights without manual work. *(ClickUp Super Agents)*
+- [x] **Operator** - Write + shell agent. File creation/modification, shell command execution, process management. The workhorse. *(Original)*
+  - File CRUD with rollback support
+  - Shell execution with output capture and error handling
+  - Process management (start, stop, restart, monitor)
+  - Environment variable management
 
-### Writing & Content Agents
-- [ ] **Copywriter Agent** - Creates tailored, on-brand content for every channel. Brand voice matching. *(ClickUp Super Agents)*
-- [ ] **Proofreader Agent** - Cleans typos, tightens sentences, ensures everything reads perfectly. *(ClickUp Super Agents)*
-- [ ] **Release Notes Agent** - Transforms tickets/PRs into brand-voiced, user-facing release notes. *(ClickUp Super Agents)*
-- [ ] **PRD Writer Agent** - Generates complete product requirement docs from brief ideas and team input. *(ClickUp Super Agents)*
-- [ ] **Translator Agent** - Auto-translates task descriptions, comments, and content. *(ClickUp Super Agents)*
+- [x] **Browser** - GOBrowser web automation. Navigate, click, fill, extract, screenshot. Uses Snapshot+Refs for 93% token reduction. *(Agent Zero, agent-browser)*
 
-### Creative & Dev Agents
-- [ ] **Image Agent** - ComfyUI, Stable Diffusion, DALL-E, Adobe Photoshop, Blender, Krita. Concept art pipelines, style bibles, 3D-to-2D bridging, multi-channel asset adaptation, prompt iteration coaching. *(Original, ClickUp Super Agents)*
-- [ ] **Diagram Agent** - Draw.io integration via MCP server. Generates flowcharts, architecture diagrams, ERDs, sequence diagrams. Replaces/supplements Mermaid with visual draw.io output. *(Original - tasks.md, draw.io MCP)*
-- [ ] **Gamer Agent** - Unreal Engine, Unity, Godot, Roblox, Flax Engine, Defold. Android/iOS/web/browser games. *(Original - notes.md)*
-- [ ] **Streaming Agent** - Stream to Twitch, YouTube, Facebook, TikTok, Instagram. *(Original - notes.md)*
-- [ ] **Coding Agent** - Website/app builder. Triggers doctor for lint-check after each build. *(Original)*
+- [x] **Researcher** - HTTP + memory + skills. Web requests, API calls, data analysis. Stores findings in knowledge graph for future recall. *(Original)*
 
-### Security & Infrastructure
-- [ ] **Pen Testing Agent** - White hat security testing, vulnerability scanning. *(Agent Zero profile, Original - notes.md)*
-- [ ] **ECAM/Security Systems Agent** - Perimeter cameras, access control, MSU trailers, Morningstar, Cradlepoint, Ubiquiti, Zabbix, Axis, GeoVision, Avigilon. *(Original - notes.md, ECAM specific)*
+- [x] **Coder** - Code generation, refactoring, debugging. Language-aware with syntax validation. Auto-triggers Doctor for lint after changes. *(Original)*
 
-### Media & Transcription Agents
-- [ ] **Social Media Transcription Agent** - Transcribes videos from any social media platform. Uses GOMedia for subtitle extraction, falls back to Whisper for videos without subs. Outputs clean formatted transcripts with timestamps. *(Original)*
+- [ ] **Doctor (GOBeat)** - Self-healing framework guardian. *(OpenClaw "doctor", Original)*
+  - 30-minute health loop: checks all services, agents, connections, disk/memory
+  - Error-triggered activation: log error auto-triggers doctor instead of waiting for loop
+  - Per-language lint: golangci-lint (Go), eslint (JS/TS), pylint (Python), clippy (Rust)
+  - Security scanning: dependency vulnerabilities, exposed secrets detection
+  - Fix memory: logs every fix. Same error = instant recall, no re-diagnosis
+  - Post-fix validation: re-runs failing command to confirm fix worked
 
-### Automation & Platform Agents
-- [ ] **Automation Platform Agent (APA)** - Build workflows between apps/APIs. Skills for: Zapier, Make, n8n, Node-RED, IFTTT, UiPath, Power Automate, ServiceNow, Tray.ai, Workato, Gumloop, Lindy AI, Relevance AI, Relay.app, Integrately, Stack AI. *(Original - notes.md)*
-- [ ] **Google Products Agent** - Gmail, Drive, Docs, Sheets, Calendar, Meet, Cloud Console, YouTube Studio, Search Console, Ads. *(Original)*
-- [ ] **Microsoft Products Agent** - Office 365, Teams, Azure, Outlook, OneDrive, SharePoint, Power BI, Dynamics 365. *(Original)*
-- [ ] **Apple Products Agent** - macOS system control, Shortcuts, iCloud, Notes, Reminders, Calendar, Xcode integration. *(Original)*
-- [ ] **Android Products Agent** - ADB control, app management, notification relay, file transfer, screen mirroring. Bridges with GOVision. *(Original)*
-- [ ] **Windows Products Agent** - PowerShell automation, Windows services, Registry, Task Scheduler, WSL management, Active Directory. *(Original)*
-- [ ] **Chromebook Products Agent** - Chrome OS management, Android app sideloading, Linux container (Crostini) control. *(Original)*
-- [ ] **Linux Agent** - System administration, package management, service control, cron, systemd, log analysis. *(Original)*
+- [ ] **Builder** - Creates new agents, skills, and tools on-the-fly. On the ignore list (can't edit itself). *(Original)*
+  - Agent scaffolding: generates YAML config, system prompt, tool assignments
+  - Skill creation: packages reusable workflows as GOHub-compatible skill packs
+  - Tool adapters: wraps external APIs/CLIs into GOAgent-compatible tools
+  - Validation: tests newly created agents before activating
 
-### Smart Home & IoT Agents
-- [ ] **Home Automation Agent** - Control smart home devices: Philips Hue (lighting), 8Sleep (mattress), Home Assistant (hub), thermostats, locks, sensors. Voice-controllable. *(OpenClaw integrations)*
-- [ ] **Music & Audio Agent** - Spotify playback control, Sonos multi-room audio, Shazam song recognition. *(OpenClaw integrations)*
+- [ ] **Embedder** - Dedicated embedding agent with CPU-only model for always-available vector search. *(Original)*
+  - Default model: `qwen3-embedding` or `nomic-embed-text-v2-moe` (275MB, no GPU needed)
+  - Batch embedding, incremental indexing, multi-collection support
+  - Similarity search API: query by text, get ranked results with scores
 
-### NEW: Recommended Agents (My Recommendations)
-- [ ] **DevOps Agent** - Docker container management, CI/CD pipelines, Kubernetes, infrastructure as code (Terraform, Pulumi). Monitors deployments, rolls back on failure. *(Recommendation)*
-- [ ] **Data Pipeline Agent** - ETL/ELT workflows, data transformation, scheduled data jobs, CSV/JSON/Parquet processing. Connects to databases, APIs, and file stores. *(Recommendation)*
-- [ ] **Compliance Agent** - Audits codebase for license compliance (SPDX), accessibility (WCAG), GDPR/privacy requirements. Generates compliance reports. *(Recommendation)*
-- [ ] **Incident Response Agent** - Monitors logs/metrics for anomalies, triggers alerts, creates incident timelines, coordinates response across agents. Post-mortem generation. *(Recommendation)*
-- [ ] **Migration Agent** - Database migrations, API version upgrades, framework upgrades, dependency updates. Safely handles breaking changes with rollback support. *(Recommendation)*
-- [ ] **Cost Optimizer Agent** - Monitors LLM token usage, cloud spending, and resource utilization. Recommends cheaper models, batching strategies, caching opportunities. Auto-switches providers based on cost/quality tradeoffs. *(Recommendation)*
-- [ ] **Onboarding Agent** - Walks new users through GOAgent setup, explains agent capabilities, helps configure first project. Interactive tutorial mode. *(Recommendation, ClickUp Super Agents)*
-- [ ] **Canvas Agent** - Visual workspace for agents. Drag-and-drop workflow building, A2UI (Agent-to-UI) rendering, collaborative whiteboarding. Research: `steipete/canvas` (Go-based, by OpenClaw creator). *(OpenClaw Canvas, Original - tasks.md)*
-- [ ] **Voice Agent** - Voice Wake + Talk Mode. Speech-to-text input, text-to-speech output. Hands-free agent interaction. *(OpenClaw integrations)*
-- [ ] **Scheduler Agent** - Cron-style scheduled tasks for agents. "Run this research every Monday at 9am." Time-triggered automation without external tools. *(Recommendation, OpenClaw Cron)*
-- [ ] **Credential Agent** - Secure credential management via 1Password, Bitwarden, or built-in vault. Agents request secrets at runtime, never store them in memory. *(OpenClaw 1Password, Recommendation)*
-- [ ] **Backup/Export Agent** - Backs up GOAgent's own data: knowledge graphs, memories, configs, project history. Export to portable format, import on new machine. Scheduled auto-backups. *(Recommendation)*
+### Agent Personas (Skill Packs on Core Agents)
 
-### Industry Domain Agents (Skill Packs via GOHub)
-Specialized agents for specific industries. Each loads industry-specific knowledge, templates, and workflows on top of the core Marketing/Sales/Customer Service agents.
+Personas are **not separate agents** - they're skill packs installed from GOHub that specialize a core agent with domain knowledge, tools, and prompts. Any persona can be created by combining core agents with the right skills.
 
-- [ ] **Pest Control Agent** - Social media marketing for pest control companies. Post scheduling, seasonal campaign templates (termite season, mosquito season), before/after photo workflows, Google Business review management, local SEO, lead generation landing pages. *(Original)*
-- [ ] **Real Estate Agent** - Property listing management, virtual tour scheduling, open house marketing, MLS integration, neighborhood market reports, client follow-up sequences. *(Recommendation)*
-- [ ] **Restaurant/Food Service Agent** - Menu management, food photography workflows, Yelp/Google review responses, reservation system integration, seasonal menu marketing, health inspection prep checklists. *(Recommendation)*
-- [ ] **Construction/Trades Agent** - Project estimation templates, permit tracking, subcontractor coordination, safety compliance checklists, progress photo documentation, invoice generation. *(Recommendation)*
-- [ ] **Healthcare/Medical Agent** - HIPAA-compliant communication, appointment scheduling, patient follow-up sequences, insurance verification workflows, medical record summaries. *(Recommendation)*
-- [ ] **Legal Agent** - Contract review/drafting, case timeline management, legal research, client intake forms, billing/time tracking, compliance checklists. *(Recommendation)*
-- [ ] **Education/Tutoring Agent** - Curriculum planning, lesson plan generation, student progress tracking, quiz/test creation, parent communication templates, grading assistance. *(Recommendation)*
-- [ ] **Fitness/Wellness Agent** - Workout plan generation, nutrition tracking, client progress photos, class scheduling, social media fitness content, membership management. *(Recommendation)*
+Each persona below shows: **Name** - what it does. *[Core Agent(s) + Key Skills]*
+
+#### Productivity Personas
+- [ ] **Note Taker** - Persistent notes, tagging, search, daily journal, idea catcher, weekly digest. Accessible from chat, dashboard, CLI. Export to Markdown/Obsidian/Notion. *[Researcher + memory skills]* *(Original, ClickUp)*
+- [ ] **Reminder Bot** - Multi-platform reminders (Discord, Telegram, Email, Slack, push). Recurring, habit tracking, snooze, priority levels, calendar sync, natural language input. *[Operator + scheduler skills]* *(Original, ClickUp)*
+- [ ] **Daily Briefer** - Morning intelligence report: priorities, overdue items, waiting-on, agent overnight activity, weather + calendar. Delivered as chat, email, or voice. *[Researcher + aggregation skills]* *(ClickUp)*
+- [ ] **Meeting Manager** - Pre-meeting agenda prep, live transcription, post-meeting action item extraction with owners and due dates, follow-up tracking. Integrates Calendar, Zoom, Teams, Meet. *[Researcher + Browser + meeting skills]* *(ClickUp)*
+- [ ] **Personal Assistant** - Email drafting (Write-Like-Me voice), travel planning, expense tracking, gift suggestions, life admin. The do-everything persona. *[Researcher + Operator + assistant skills]* *(ClickUp)*
+
+#### Business & Marketing Personas
+- [ ] **Social Media Manager** - Content planning, draft composition, visual asset generation, scheduling, engagement tracking, trend detection, analytics across Facebook, Instagram, Twitter/X, TikTok, LinkedIn, YouTube, Threads, Bluesky, Pinterest. *[Browser + Researcher + social skills]* *(Original, ClickUp)*
+- [ ] **Marketing Strategist** - SEO, content strategy, email campaigns, ad management (Google/Meta/LinkedIn Ads), landing pages, competitive intel, ROI reporting. *[Researcher + Browser + marketing skills]* *(Original, ClickUp)*
+- [ ] **Sales Rep** - Lead scoring/enrichment, outreach sequences, pipeline tracking, proposal generation, contract management, CRM sync (Salesforce, HubSpot, Pipedrive), win/loss analysis. *[Researcher + Browser + sales skills]* *(Original, ClickUp)*
+- [ ] **Customer Service Rep** - Ticket management (Zendesk, Freshdesk), AI response drafting, FAQ maintenance, SLA monitoring, sentiment detection, multi-language support. *[Researcher + customer skills]* *(Original, ClickUp)*
+- [ ] **Customer Engagement** - Lead detection, fast reply drafting, booking flows, keyword watching, conversation tracking, churn prediction. *[Browser + Researcher + engagement skills]* *(ClickUp)*
+- [ ] **Domain Connector** - Enterprise SaaS integrations via skill packs for: Odoo, GoHighLevel, Salesforce, HubSpot, SAP, Oracle NetSuite, Dynamics 365, ERPNext, Zoho, QuickBooks, Workday, and 25+ more. *[Operator + Researcher + domain skills]* *(Original)*
+
+#### Project Management Personas
+- [ ] **Project Manager** - Goal/scope capture, health tracking (green/yellow/red), status reports, risk management, resource allocation, milestone tracking, stakeholder updates. *[Researcher + PM skills]* *(ClickUp)*
+- [ ] **Sprint Planner** - Backlog grooming, sprint goal drafting, capacity planning, burndown tracking, retro facilitation. Syncs with Jira, ClickUp, Linear. *[Researcher + agile skills]* *(ClickUp)*
+- [ ] **Task Triage** - Auto-prioritize incoming tasks, work breakdown into subtasks, auto-assign by skills/availability, duplicate detection, template matching. *[Researcher + triage skills]* *(ClickUp)*
+- [ ] **Priorities Manager** - Dynamic reprioritization, urgency escalation, dependency tracking, deadline reminders, focus recommendations. *[Researcher + priority skills]* *(ClickUp)*
+- [ ] **Follow-Up Tracker** - Delegation tracking, auto follow-up at configurable intervals, escalation after N attempts, accountability reports. *[Operator + follow-up skills]* *(ClickUp)*
+
+#### Operations Personas
+- [ ] **Process Automator** - Pattern detection in repetitive behavior, auto-generate automation rules, invoice routing, approval workflows, procurement. *[Operator + automation skills]* *(ClickUp)*
+- [ ] **Goal Manager** - OKR setup, progress tracking linked to tasks, status updates, alignment visualization, quarterly scoring. *[Researcher + OKR skills]* *(ClickUp)*
+- [ ] **StandUp Runner** - Async standup collection, summary generation, blocker alerts, retro facilitation, participation trends. *[Researcher + standup skills]* *(ClickUp)*
+- [ ] **Sentiment Scout** - Tone analysis across interactions, satisfaction trending, pulse surveys, negative trend alerts, competitive sentiment. *[Researcher + sentiment skills]* *(ClickUp)*
+- [ ] **Workspace Auditor** - Stale detection, duplicate finder, storage audit, permission review, archive recommendations, scheduled reports. *[Scout + audit skills]* *(ClickUp)*
+
+#### Intelligence Personas
+- [ ] **Wiki Keeper** - Flag outdated docs, auto-update when code changes, link checking, coverage analysis, style enforcement. *[Scout + Researcher + wiki skills]* *(ClickUp)*
+- [ ] **Research Analyst** - Deep multi-source research (SearXNG, Scholar, arXiv), source validation, comparison tables, evidence scoring, structured reports, real-time monitoring. *[Researcher + research skills]* *(Original, ClickUp)*
+- [ ] **Fact Checker** - Claim extraction, multi-source verification, evidence scoring (strong/weak/conflicting), source credibility assessment, real-time checking in chat. *[Researcher + fact-check skills]* *(ClickUp)*
+- [ ] **Competitive Intel** - Competitor profiles, website change monitoring, social listening, product comparison matrices, news alerts, strategic reports. *[Browser + Researcher + intel skills]* *(ClickUp)*
+
+#### Writing Personas
+- [ ] **Copywriter** - Brand voice matching, channel-adapted content, A/B variants, hooks and CTAs, SEO keyword integration, content library. *[Researcher + copywriting skills]* *(ClickUp)*
+- [ ] **Proofreader** - Grammar/spelling, style guide enforcement, readability scoring, consistency checking, tone matching, track changes. *[Researcher + proofreading skills]* *(ClickUp)*
+- [ ] **Release Notes Writer** - Pull completed tickets/PRs from Jira/GitHub/Linear, categorize, translate to user-friendly language, distribute across channels. *[Researcher + Coder + release skills]* *(ClickUp)*
+- [ ] **PRD Writer** - Brief-to-PRD expansion with user stories, competitive research, technical feasibility flags, stakeholder input synthesis. *[Researcher + product skills]* *(ClickUp)*
+- [ ] **Translator** - 100+ languages via LLM translation, context-aware, per-project glossaries, batch translation, localization beyond words. *[Researcher + translation skills]* *(ClickUp)*
+
+#### Creative & Dev Personas
+- [ ] **Image Creator** - ComfyUI, Stable Diffusion, DALL-E, Flux. Style bibles, multi-channel asset adaptation, batch generation, brand asset management. *[Operator + image skills]* *(Original, ClickUp)*
+- [ ] **Diagram Maker** - Draw.io (MCP), Mermaid, PlantUML, D2. Flowcharts, ERDs, sequence diagrams, architecture diagrams. Code-to-diagram auto-generation. *[Coder + diagram skills]* *(Original)*
+- [ ] **Game Developer** - Unreal, Unity, Godot 4, Roblox, Defold, Bevy. Asset generation, level design, game logic, monetization setup, automated playtesting. *[Coder + game dev skills]* *(Original)*
+- [ ] **Streaming Manager** - Twitch, YouTube Live, TikTok Live. OBS scene config, chat moderation, highlight clipping, VOD processing, analytics. *[Browser + Operator + streaming skills]* *(Original)*
+- [ ] **Full-Stack Developer** - Scaffold projects, generate components, refactor, test. Go, JS/TS, Python, Rust, Java, Swift, Kotlin. Lint-on-save via Doctor. *[Coder + framework skills]* *(Original)*
+
+#### Security Personas
+- [ ] **Pen Tester** - Port scanning (nmap), OWASP Top 10, CVE lookup, XSS/SQLi/CSRF testing, API security, SSL audit, compliance checks (NIST, PCI DSS), scheduled scans. *[Operator + Browser + security skills]* *(Agent Zero, Original)*
+- [ ] **ECAM/Security Systems** - Camera systems (Axis, GeoVision, Avigilon, Ubiquiti), NVR management, access control, MSU trailers (Morningstar, Cradlepoint), Zabbix monitoring, re-IP workflows. *[Operator + Browser + ECAM skills]* *(Original)*
+
+#### Media Personas
+- [ ] **Transcription Agent** - Universal video transcription: YouTube, TikTok, Instagram, Twitter, Facebook, Twitch. Subtitle extraction via GOMedia, Whisper fallback, speaker ID, batch processing. *[Operator + Researcher + transcription skills]* *(Original)*
+
+#### Platform Personas
+- [ ] **Automation Builder** - Build cross-app workflows on: Zapier, Make, n8n, Node-RED, IFTTT, UiPath, Power Automate, ServiceNow, Workato, Gumloop, Lindy AI. Workflow creation, templates, cross-platform migration. *[Browser + Operator + automation skills]* *(Original)*
+- [ ] **Google Workspace** - Gmail, Drive, Docs, Sheets, Calendar, Meet, YouTube Studio, Search Console, Ads. Full CRUD + automation. *[Browser + Operator + Google skills]* *(Original)*
+- [ ] **Microsoft 365** - Outlook, Teams, Office, OneDrive, SharePoint, Azure, Power BI, Dynamics 365, Active Directory. *[Browser + Operator + Microsoft skills]* *(Original)*
+- [ ] **Apple Ecosystem** - macOS control, Shortcuts, iCloud, Xcode, TestFlight, App Store Connect. *[Operator + Apple skills]* *(Original)*
+- [ ] **Android Controller** - ADB control, app management, notification relay, file transfer, screen mirroring (scrcpy), Tasker integration, GOVision bridge. *[Operator + Android skills]* *(Original)*
+- [ ] **Windows Admin** - PowerShell, Registry, Task Scheduler, Services, WSL, Active Directory, Event Log, software management. *[Operator + Windows skills]* *(Original)*
+- [ ] **Chromebook Manager** - Chrome OS, Android app sideloading, Crostini Linux container, extensions, enterprise fleet management. *[Operator + ChromeOS skills]* *(Original)*
+- [ ] **Linux Admin** - Package management (apt/yum/pacman/snap), systemd, cron, user management, firewall, disk management, performance tuning. Auto-detect distro. *[Operator + Linux skills]* *(Original)*
+
+#### Smart Home Personas
+- [ ] **Home Automation** - Home Assistant hub, Philips Hue lighting, thermostat (Nest/Ecobee), 8Sleep, smart locks, sensors, routines ("Good morning", "Goodnight"), energy dashboard. *[Operator + smart home skills]* *(OpenClaw)*
+- [ ] **Music Controller** - Spotify, Apple Music, Sonos multi-room, YouTube Music, Shazam recognition, podcast management, ambient modes (focus, sleep). *[Operator + music skills]* *(OpenClaw)*
+
+#### Infrastructure Personas
+- [ ] **DevOps Engineer** - Docker, Kubernetes, CI/CD (GitHub Actions, GitLab CI), IaC (Terraform, Pulumi, Ansible), cloud provisioning (AWS/GCP/Azure), SSL/DNS, zero-downtime deploys. *[Operator + Coder + devops skills]* *(Recommendation)*
+- [ ] **Data Pipeline Engineer** - ETL/ELT, format conversion (CSV/JSON/Parquet), scheduled pipelines, database connectors (PostgreSQL, BigQuery, DuckDB), data validation, freshness monitoring. *[Operator + Coder + data skills]* *(Recommendation)*
+- [ ] **Compliance Auditor** - License scanning (SPDX), accessibility (WCAG 2.1), GDPR data mapping, SOC 2 controls, auto-generated compliance reports. *[Scout + Researcher + compliance skills]* *(Recommendation)*
+- [ ] **Incident Responder** - Anomaly detection, severity triage, incident channel creation, status page updates, runbook execution, post-mortem generation. *[Operator + Researcher + incident skills]* *(Recommendation)*
+- [ ] **Migration Specialist** - Database migrations, framework upgrades, dependency updates, infrastructure moves, rollback plans, pre/post test verification. *[Coder + Operator + migration skills]* *(Recommendation)*
+- [ ] **Cost Optimizer** - LLM token tracking, cloud spending analysis, unused resource detection, auto-downgrade models for simple tasks, savings recommendations. *[Researcher + cost skills]* *(Recommendation)*
+
+#### Utility Personas
+- [ ] **Onboarding Guide** - First-run setup wizard, capability tour, first project setup, template suggestions, progressive feature disclosure. *[Researcher + onboarding skills]* *(Recommendation)*
+- [ ] **Canvas Designer** - Drag-and-drop workflow building, A2UI rendering, collaborative whiteboarding, export to YAML/Mermaid. *[Browser + canvas skills]* *(OpenClaw Canvas)*
+- [ ] **Voice Assistant** - Wake word, speech-to-text (Whisper), text-to-speech (GOVoice), continuous conversation, voice macros, multi-language. *[Researcher + voice skills]* *(OpenClaw)*
+- [ ] **Scheduler** - Cron-style scheduled tasks, natural language ("every Monday at 9am"), dependency chains, calendar awareness, retry policies. *[Operator + scheduler skills]* *(Recommendation)*
+- [ ] **Credential Manager** - 1Password, Bitwarden, HashiCorp Vault, built-in encrypted store. Runtime injection, rotation, audit, emergency revoke. *[Operator + credential skills]* *(Recommendation)*
+- [ ] **Backup Manager** - Auto-backup knowledge graphs, memories, configs, project history. Scheduled retention, selective restore, machine-to-machine migration. *[Operator + backup skills]* *(Recommendation)*
+- [ ] **Git Operator** - Commit, push, pull, rebase, merge, PRs (GitHub/GitLab/Bitbucket), code review, conflict resolution, changelog generation, git hooks. *[Operator + Coder + git skills]* *(Original)*
+- [ ] **Database Admin** - PostgreSQL, MySQL, SQLite, MongoDB, Redis, Neo4j, DuckDB. Schema management, migrations, natural language to SQL, EXPLAIN analysis, backup/restore, test data seeding. *[Operator + Coder + database skills]* *(Original)*
+
+#### Industry Personas (Skill Packs via GOHub)
+Specialized knowledge and workflows for specific industries. Each builds on top of Marketing + Sales + Customer Service personas.
+
+- [ ] **Pest Control** - Seasonal campaigns (termite/mosquito/rodent), before/after photos, Google Business reviews, local SEO, lead gen landing pages, technician dispatch. *[+ pest control skills]* *(Original)*
+- [ ] **Real Estate** - Property listings, MLS sync, virtual tours, open house marketing, market analysis, client pipeline, closing checklists. *[+ real estate skills]* *(Recommendation)*
+- [ ] **Restaurant** - Menu management, food photography, Yelp/Google reviews, OpenTable reservations, seasonal marketing, health inspection prep. *[+ restaurant skills]* *(Recommendation)*
+- [ ] **Construction** - Project estimation, permit tracking, subcontractor coordination, OSHA safety checklists, progress photos, invoicing. *[+ construction skills]* *(Recommendation)*
+- [ ] **Healthcare** - HIPAA-compliant communication, appointment scheduling, patient follow-up, insurance verification, medical record summaries. *[+ healthcare skills]* *(Recommendation)*
+- [ ] **Legal** - Contract drafting/review, case timeline management, legal research, client intake, billing/time tracking, regulatory monitoring. *[+ legal skills]* *(Recommendation)*
+- [ ] **Education** - Curriculum planning (Common Core aligned), lesson plans, quiz/test creation, auto-grading, student progress, parent communication. *[+ education skills]* *(Recommendation)*
+- [ ] **Fitness** - Workout plans, nutrition tracking, client progress photos, class scheduling, wearable sync (Apple Watch, Fitbit, Garmin). *[+ fitness skills]* *(Recommendation)*
+
 
 ## 4. Agent Scaling & Parallelism
 
