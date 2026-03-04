@@ -115,9 +115,13 @@ Feature checklist for the entire GOAgent ecosystem. Each feature has its source,
 
 ### Automation & Platform Agents
 - [ ] **Automation Platform Agent (APA)** - Build workflows between apps/APIs. Skills for: Zapier, Make, n8n, Node-RED, IFTTT, UiPath, Power Automate, ServiceNow, Tray.ai, Workato, Gumloop, Lindy AI, Relevance AI, Relay.app, Integrately, Stack AI. *(Original - notes.md)*
-- [ ] **Google Products Agent** *(Original)*
-- [ ] **Microsoft Products Agent** *(Original)*
-- [ ] **Linux Agent** *(Original)*
+- [ ] **Google Products Agent** - Gmail, Drive, Docs, Sheets, Calendar, Meet, Cloud Console, YouTube Studio, Search Console, Ads. *(Original)*
+- [ ] **Microsoft Products Agent** - Office 365, Teams, Azure, Outlook, OneDrive, SharePoint, Power BI, Dynamics 365. *(Original)*
+- [ ] **Apple Products Agent** - macOS system control, Shortcuts, iCloud, Notes, Reminders, Calendar, Xcode integration. *(Original)*
+- [ ] **Android Products Agent** - ADB control, app management, notification relay, file transfer, screen mirroring. Bridges with GOVision. *(Original)*
+- [ ] **Windows Products Agent** - PowerShell automation, Windows services, Registry, Task Scheduler, WSL management, Active Directory. *(Original)*
+- [ ] **Chromebook Products Agent** - Chrome OS management, Android app sideloading, Linux container (Crostini) control. *(Original)*
+- [ ] **Linux Agent** - System administration, package management, service control, cron, systemd, log analysis. *(Original)*
 
 ### Smart Home & IoT Agents
 - [ ] **Home Automation Agent** - Control smart home devices: Philips Hue (lighting), 8Sleep (mattress), Home Assistant (hub), thermostats, locks, sensors. Voice-controllable. *(OpenClaw integrations)*
@@ -135,6 +139,19 @@ Feature checklist for the entire GOAgent ecosystem. Each feature has its source,
 - [ ] **Voice Agent** - Voice Wake + Talk Mode. Speech-to-text input, text-to-speech output. Hands-free agent interaction. *(OpenClaw integrations)*
 - [ ] **Scheduler Agent** - Cron-style scheduled tasks for agents. "Run this research every Monday at 9am." Time-triggered automation without external tools. *(Recommendation, OpenClaw Cron)*
 - [ ] **Credential Agent** - Secure credential management via 1Password, Bitwarden, or built-in vault. Agents request secrets at runtime, never store them in memory. *(OpenClaw 1Password, Recommendation)*
+- [ ] **Backup/Export Agent** - Backs up GOAgent's own data: knowledge graphs, memories, configs, project history. Export to portable format, import on new machine. Scheduled auto-backups. *(Recommendation)*
+
+### Industry Domain Agents (Skill Packs via GOHub)
+Specialized agents for specific industries. Each loads industry-specific knowledge, templates, and workflows on top of the core Marketing/Sales/Customer Service agents.
+
+- [ ] **Pest Control Agent** - Social media marketing for pest control companies. Post scheduling, seasonal campaign templates (termite season, mosquito season), before/after photo workflows, Google Business review management, local SEO, lead generation landing pages. *(Original)*
+- [ ] **Real Estate Agent** - Property listing management, virtual tour scheduling, open house marketing, MLS integration, neighborhood market reports, client follow-up sequences. *(Recommendation)*
+- [ ] **Restaurant/Food Service Agent** - Menu management, food photography workflows, Yelp/Google review responses, reservation system integration, seasonal menu marketing, health inspection prep checklists. *(Recommendation)*
+- [ ] **Construction/Trades Agent** - Project estimation templates, permit tracking, subcontractor coordination, safety compliance checklists, progress photo documentation, invoice generation. *(Recommendation)*
+- [ ] **Healthcare/Medical Agent** - HIPAA-compliant communication, appointment scheduling, patient follow-up sequences, insurance verification workflows, medical record summaries. *(Recommendation)*
+- [ ] **Legal Agent** - Contract review/drafting, case timeline management, legal research, client intake forms, billing/time tracking, compliance checklists. *(Recommendation)*
+- [ ] **Education/Tutoring Agent** - Curriculum planning, lesson plan generation, student progress tracking, quiz/test creation, parent communication templates, grading assistance. *(Recommendation)*
+- [ ] **Fitness/Wellness Agent** - Workout plan generation, nutrition tracking, client progress photos, class scheduling, social media fitness content, membership management. *(Recommendation)*
 
 ## 4. Agent Scaling & Parallelism
 
@@ -143,6 +160,7 @@ Feature checklist for the entire GOAgent ecosystem. Each feature has its source,
 - [ ] **Dynamic Agent Creation from Chat** - User creates new agents via chat or dashboard. *(Original)*
 - [ ] **No Permission Required** - Agents don't ask permission. They get the job done and report what they did. *(Original - notes.md)*
 - [ ] **Agent Analytics** - Measure productivity across agents, monitor trends, spot top performers. Usage stats per agent. *(ClickUp Super Agents)*
+- [ ] **Multi-User / Team Mode** - Multiple users on one GOAgent instance. Role-based access, agent ownership (my agents vs shared), shared knowledge graph with per-user privacy boundaries. *(Recommendation)*
 
 ## 5. Memory System
 
@@ -382,6 +400,8 @@ Expanded to match OpenClaw's 15+ chat provider coverage:
 - [ ] **Matrix** - Matrix protocol for decentralized chat. *(OpenClaw)*
 - [ ] **Nostr** - Decentralized DMs via NIP-04. *(OpenClaw)*
 - [ ] **Nextcloud Talk** - Self-hosted Nextcloud chat. *(OpenClaw)*
+- [ ] **Zalo** - Zalo Bot API + personal account via QR login. *(OpenClaw)*
+- [ ] **Tlon Messenger** - P2P ownership-first chat. *(OpenClaw)*
 - [ ] **WebChat** - Browser-based UI for direct agent interaction. *(OpenClaw)*
 
 ## 17. Search Engine
@@ -394,6 +414,11 @@ Expanded to match OpenClaw's 15+ chat provider coverage:
 - [ ] **Outbound PII Scrubbing** - Scramble ALL private info before it leaves the agent: API keys, tokens, addresses, SSNs, phone numbers, credit cards. Nothing leaks to providers. *(Original - notes.md)*
 - [x] **Shell Safety** - Blocked commands, protected paths. *(Original)*
 - [x] **PII Detection** - Guardrails middleware scans for SSN, credit cards. *(GOGateway)*
+- [ ] **Dashboard Login** - Username/password authentication for GODashboard and API access. Bcrypt password hashing. *(Original)*
+- [ ] **2FA / Two-Factor Auth** - TOTP-based second factor using authenticator apps (Google Authenticator, Authy, Microsoft Authenticator). Go-native via `pquerna/otp`. *(Original)*
+- [ ] **QR Code Pairing** - On first 2FA setup, generate a QR code the user scans with their authenticator app. Go-native via `skip2/go-qrcode`. *(Original)*
+- [ ] **Session Management** - JWT or cookie-based sessions with configurable expiry. Auto-logout on inactivity. *(Original)*
+- [ ] **Device Trust** - Remember trusted devices so 2FA isn't needed every login. Revoke trusted devices from dashboard. *(Original)*
 - [ ] **API Key Encryption** - Store keys encrypted, not plaintext. *(Best practice)*
 - [ ] **Database Encryption** - Encrypt all data at rest. *(Original - notes.md)*
 - [ ] **Private Info Manager** - Custom section for secrets stored in .env. Dashboard + CLI can set/view. *(Original - notes.md)*
@@ -414,6 +439,12 @@ Expanded to match OpenClaw's 15+ chat provider coverage:
 - [ ] **Trello** - Kanban board integration. *(OpenClaw)*
 - [ ] **Home Assistant** - Smart home automation hub. *(OpenClaw)*
 - [ ] **Spotify** - Music playback control for ambient agent environments. *(OpenClaw)*
+- [ ] **Sonos** - Multi-room audio control. *(OpenClaw)*
+- [ ] **Shazam** - Song recognition. *(OpenClaw)*
+- [ ] **Weather** - Forecasts and conditions. Location-aware alerts. *(OpenClaw)*
+- [ ] **Camera** - Photo and video capture from connected cameras/webcams. *(OpenClaw)*
+- [ ] **GIF Search** - Find and send the perfect GIF. Integrates into chat and social media agents. *(OpenClaw)*
+- [ ] **Peekaboo** - Quick screen capture and share. Lightweight alternative to full GOVision for simple screenshots. *(OpenClaw)*
 
 ## 20. Platform Support
 
@@ -423,7 +454,38 @@ Expanded to match OpenClaw's 15+ chat provider coverage:
 - [ ] **iOS** - Canvas, camera, Voice Wake companion app. *(OpenClaw)*
 - [ ] **Android** - Canvas, camera, screen companion app. *(OpenClaw)*
 - [ ] **Chromebook** *(Linux layer)*
-- [ ] **Low-spec Hardware** - Target: old i7 mini PC, 8GB RAM. *(Original)*
+- [ ] **Low-spec Hardware** - Target: old i7 mini PC, 16GB RAM (Dell OptiPlex 7060). *(Original)*
+
+## 21. GOTorch (Go-Native Inference Engine)
+
+Custom Go-native LLM inference runtime. No dependency on Ollama or any external tool. GOAgent loads and runs models by itself.
+
+- [ ] **GGUF Model Loader** - Load quantized GGUF models directly via CGo bindings to `llama.cpp`. No Ollama required. *(Original)*
+- [ ] **HuggingFace Model Pull** - Download models directly from HuggingFace Hub. Browse, search, and pull GGUF files by repo name. *(Original)*
+- [ ] **Ollama Registry Pull** - Also pull models from the Ollama registry if users prefer that catalog. Best of both worlds. *(Original)*
+- [ ] **Local File Support** - Point GOTorch at any local `.gguf` file and it just works. *(Original)*
+- [ ] **Model Cache** - Downloaded models stored in `~/.gotorch/models/`. No re-download. Shared across all GOAgent instances on the machine. *(Original)*
+- [ ] **Runtime Model Swapping** - Hot-swap models at runtime. Boss says "switch coder to qwen2.5-coder" and it loads in seconds. *(Original)*
+- [ ] **Multi-Model Concurrent** - Run multiple models simultaneously (embedding + chat + coding). Memory-aware: only loads what fits in RAM. *(Original)*
+- [ ] **CPU Optimized** - AVX2/AVX-512 auto-detection for maximum CPU inference speed. No GPU required. *(Original)*
+- [ ] **GPU Acceleration (Optional)** - CUDA, ROCm, Metal support for users who have a GPU. Auto-detect and use if available. *(Original)*
+- [ ] **OpenAI-Compatible API** - GOTorch exposes a local `/v1/chat/completions` endpoint so GOGateway and all agents can talk to it like any cloud provider. *(Original)*
+- [ ] **Quantization on Download** - Auto-quantize models to Q4_K_M during download if the user's hardware needs it. *(Original)*
+- [ ] **Inference Metrics** - Tokens/second, memory usage, model load time. Feed into GODashboard. *(Original)*
+- [ ] **Research**: Study `go-skynet/LocalAI`, `mudler/go-llama.cpp`, `ggml-org/llama.cpp` CGo patterns, and `ollama/ollama` internals for architecture inspiration. *(Research)*
+
+## 22. API Server
+
+- [ ] **REST API** - Standalone HTTP API for external apps to interact with GOAgent. Send tasks, query agents, get results. *(Recommendation)*
+- [ ] **gRPC API** - High-performance binary protocol for Go-to-Go and mobile app integration. *(Recommendation)*
+- [ ] **API Key Auth** - Secure API access with generated API keys. Rate limiting per key. *(Recommendation)*
+- [ ] **Webhook Callbacks** - Register webhook URLs. GOAgent calls back when tasks complete. *(Recommendation)*
+
+## 23. Observability & Export
+
+- [ ] **Log Export** - Export structured logs to Grafana/Loki, ELK stack, or plain JSON files. *(Recommendation)*
+- [ ] **Trace Export** - OpenTelemetry-compatible traces. Full request lifecycle from user input to agent response. *(Recommendation)*
+- [ ] **Metrics Export** - Prometheus-compatible metrics endpoint. Token usage, response times, agent utilization. *(Recommendation)*
 
 ---
 
