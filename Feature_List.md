@@ -402,6 +402,78 @@ The Teacher Agent doesn't just work in browsers. It teaches across platforms:
 - [ ] **Agent-Generated Docs** - Agent auto-generates documentation for any project it works on. Tutorials for the code it writes. *(Original)*
 - [ ] **Onboarding Packs** - Pre-built tutorial packs for common setups: "New developer onboarding", "DevOps basics", "GOAgent power user". *(Original)*
 
+### Voice & TTS Engine (GOVoice)
+The voice layer that powers narrated tutorials, voice agents, and video content:
+
+| Engine | Type | Quality | Speed | Notes |
+|--------|------|---------|-------|-------|
+| **Piper TTS** | Local | Good | Very Fast | Go-compatible via CLI. Ships with GOAgent. No internet needed. |
+| **Kokoro TTS** | Local | Great | Fast | High-quality neural TTS. Runs on CPU. |
+| **Edge TTS** | Cloud (Free) | Great | Fast | Microsoft's free TTS API. No API key needed. |
+| **ElevenLabs** | Cloud (Paid) | Excellent | Fast | Best voice quality. Voice cloning. |
+| **OpenAI TTS** | Cloud (Paid) | Excellent | Fast | Multiple voices, natural speech. |
+| **Google Cloud TTS** | Cloud (Paid) | Great | Fast | WaveNet voices. |
+
+- [ ] **Local TTS (Default)** - Ship with Piper TTS for zero-dependency voice generation. Works offline. Multiple voices and languages. *(Original)*
+- [ ] **Cloud TTS Fallback** - For higher quality, route to ElevenLabs, OpenAI TTS, or Edge TTS (free). Auto-select based on quality needs. *(Original)*
+- [ ] **Voice Cloning** - Clone a specific voice from a sample. User records 1 minute of audio, GOVoice learns the voice for all future content. Via ElevenLabs or local Coqui. *(Original)*
+- [ ] **Voice Profiles** - Save named voice profiles: "Professional Male", "Friendly Female", "Brand Voice". Switch per project. *(Original)*
+- [ ] **Multi-Language TTS** - Generate narration in 30+ languages. Auto-detect from script language or user preference. *(Original)*
+- [ ] **SSML Support** - Control pacing, emphasis, pauses, and pronunciation via Speech Synthesis Markup Language. *(Standard)*
+- [ ] **Real-time Streaming TTS** - Stream audio as it generates. Don't wait for full generation. For live voice agent interactions. *(Original)*
+
+### Content Production Pipeline (Topic-to-Video Factory)
+Give GOTeach a topic. It researches, builds the tutorial, records it with DOM manipulation, narrates with AI voice, edits the video, and publishes to social media. Full autopilot content creation.
+
+**The Pipeline:**
+```
+User says: "Create a YouTube tutorial on how to deploy a Next.js app to Vercel"
+  │
+  ├── Step 1: RESEARCH
+  │     └── Research Agent gathers current best practices, official docs, common pitfalls
+  │
+  ├── Step 2: SCRIPT
+  │     └── Write a narration script with sections, timestamps, and key points
+  │
+  ├── Step 3: ENVIRONMENT
+  │     └── Open GOBrowser, set up a clean project, install dependencies
+  │
+  ├── Step 4: RECORD
+  │     └── Execute each step in the browser while screen recording
+  │     └── DOM highlighting on key elements (buttons, menus, config fields)
+  │     └── Pause between steps for narration sync
+  │
+  ├── Step 5: NARRATE
+  │     └── GOVoice generates narration from script, synced to video timestamps
+  │
+  ├── Step 6: EDIT
+  │     └── Add intro/outro, chapter markers, captions, transitions
+  │     └── Generate thumbnail via Image Agent
+  │     └── Add background music (royalty-free library)
+  │
+  ├── Step 7: REVIEW
+  │     └── Play back for user approval (or auto-approve at Autonomy Level 4)
+  │
+  └── Step 8: PUBLISH
+        └── Upload to YouTube, TikTok, Instagram, Twitter, LinkedIn
+        └── Auto-generate title, description, tags, chapters, hashtags
+        └── Schedule or publish immediately
+```
+
+- [ ] **Topic-to-Script** - Given a topic, Research Agent gathers info, then generates a structured tutorial script with intro, sections, code examples, and outro. *(Original)*
+- [ ] **Auto-Environment Setup** - Spin up a clean project environment for the tutorial. Install deps, create files, configure settings - all while recording. *(Original)*
+- [ ] **Synchronized Recording** - Record GOBrowser/GOVision screen while executing tutorial steps. DOM highlights sync with narration timestamps. *(Original)*
+- [ ] **AI Narration Sync** - GOVoice generates narration timed to screen actions. Natural pacing with pauses for visual comprehension. *(Original)*
+- [ ] **Video Editing** - Auto-add intro/outro sequences, chapter markers, smooth transitions between sections, lower-third text callouts. *(Original)*
+- [ ] **Auto-Captions** - Generate accurate subtitles/closed captions from the narration. Burn in or attach as .srt file. Multi-language. *(Original)*
+- [ ] **Thumbnail Generation** - Image Agent creates eye-catching thumbnails with title text, screenshots, and branding. Multiple variations to A/B test. *(Original)*
+- [ ] **Background Music** - Add royalty-free background music from a built-in library. Auto-duck under narration. *(Original)*
+- [ ] **SEO Optimization** - Auto-generate YouTube-optimized titles, descriptions, tags, and hashtags. Research trending keywords for the topic. *(Original)*
+- [ ] **Multi-Platform Publishing** - Upload final video to YouTube, TikTok (vertical crop), Instagram Reels, Twitter/X, LinkedIn. Platform-specific formatting. *(Original)*
+- [ ] **Series Generation** - Create multi-part tutorial series. "Part 1: Setup", "Part 2: Authentication", "Part 3: Deployment". Auto-link and playlist. *(Original)*
+- [ ] **Content Calendar** - Schedule content production. "Create 3 tutorials per week on React topics." Agent handles the entire pipeline on schedule. *(Original)*
+- [ ] **Analytics Feedback Loop** - Track video performance (views, engagement, retention). Agent learns which topics/styles perform best and adjusts future content. *(Original)*
+
 ## 12. GOForge (Live Preview + Container Runtime)
 
 Go-native live preview server and lightweight container runtime for agent workloads. Every project built by GOAgent gets a live URL instantly. Separate repo (`GOForge`) but embeddable into GOAgent as a library.
