@@ -46,28 +46,43 @@ flowchart TD
     subgraph Boss["Boss (Orchestrator)"]
         direction TB
         B1["Reads your request"]
-        B2["Thinks about it"]
-        B3["Picks the right agent"]
-        B4["Sends them a task"]
-        B1 --> B2 --> B3 --> B4
+        B2["Creates a task list"]
+        B3["Assigns each task to the right agent"]
+        B1 --> B2 --> B3
     end
 
-    Boss --> Researcher
-    Boss --> Coder
+    Boss -- "Task 1" --> Researcher
+    Boss -- "Task 2" --> Coder
 
-    subgraph Researcher["Researcher Agent"]
-        R1["Tools: http, file_read, file_write"]
-        R2["Job: Find info"]
+    subgraph Researcher["Researcher Manager"]
+        direction TB
+        RM1["Gets task from Boss"]
+        RM2["Breaks it into sub-tasks"]
+        RM3["Spins up Workers in parallel"]
+        RM1 --> RM2 --> RM3
     end
 
-    subgraph Coder["Coder Agent"]
-        C1["Tools: shell, file_read, file_write"]
-        C2["Job: Write code"]
+    subgraph Coder["Coder Manager"]
+        direction TB
+        CM1["Gets task from Boss"]
+        CM2["Breaks it into sub-tasks"]
+        CM3["Spins up Workers in parallel"]
+        CM1 --> CM2 --> CM3
     end
 
-    Researcher --> Result["Results flow back to Boss"]
-    Coder --> Result
-    Result --> Answer["Boss gives you a clean answer"]
+    Researcher --> RW1["Worker 1: http_fetch"]
+    Researcher --> RW2["Worker 2: file_write"]
+
+    Coder --> CW1["Worker 1: shell"]
+    Coder --> CW2["Worker 2: file_read"]
+    Coder --> CW3["Worker 3: file_write"]
+
+    RW1 --> Result["Results flow back up"]
+    RW2 --> Result
+    CW1 --> Result
+    CW2 --> Result
+    CW3 --> Result
+    Result --> Answer["Boss combines everything into a final answer"]
 ```
 
 ### Step by Step
