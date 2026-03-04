@@ -43,6 +43,22 @@ Feature checklist for the entire GOAgent ecosystem. Each feature has its source,
 - [ ] **Extension Versioning** - Semantic versioning for extensions. Auto-update, rollback, dependency resolution. *(VS Code, npm)*
 - [ ] **Extension Templates** - Starter templates for creating new extensions: skill pack, tool adapter, integration plugin, agent profile. *(Original)*
 
+### Skill Security Scanning (Mandatory - No Exceptions)
+Every skill gets scanned before it can execute. Downloaded, user-built, or agent-built. No bypass, no override.
+
+- [ ] **Quarantine Pipeline** - All new skills land in quarantine first. Cannot execute until they pass all scans. Status visible in GODashboard. *(Original)*
+- [ ] **Static Code Analysis** - Scan skill source code for: malicious patterns, obfuscated code, eval/exec calls, network requests to unknown hosts, file system access outside sandbox, crypto miners, data exfiltration patterns. *(Original)*
+- [ ] **Dependency Audit** - Scan all dependencies for known CVEs (Common Vulnerabilities and Exposures). Check against NVD, OSV, GitHub Advisory Database. Block skills with critical/high vulnerabilities. *(Original)*
+- [ ] **Permission Scope Check** - Skills declare required permissions (filesystem, network, shell, etc.) in their manifest. Scanner flags over-permissioned skills. A "note taking" skill requesting shell access = red flag. *(Original)*
+- [ ] **Sandbox Test Execution** - Run the skill in an isolated sandbox (no network, no real filesystem, limited resources). If it tries to escape the sandbox, it's blocked permanently. *(Original)*
+- [ ] **Checksum Verification** - Every skill from GOHub has a SHA-256 checksum. Verify integrity on download. If checksum doesn't match, reject and alert user. *(Original)*
+- [ ] **Signed Packages** - GOHub skills can be cryptographically signed by the author. Verified authors get a trust badge. Unsigned skills show a warning. *(Original)*
+- [ ] **Re-scan on Update** - When a skill updates, the new version goes through the full quarantine pipeline again. Old version stays active until new version passes. *(Original)*
+- [ ] **Agent-Built Skill Scanning** - Skills created by the Builder agent go through the SAME pipeline. No trust escalation for internal builds. *(Original)*
+- [ ] **Scan Report** - Every scan produces a human-readable report: what was checked, what was found, severity ratings, pass/fail. Stored for audit. *(Original)*
+- [ ] **Community Flagging** - GOHub users can flag suspicious skills. Flagged skills get re-scanned and reviewed. Three confirmed flags = skill delisted. *(Original)*
+- [ ] **Auto-Revoke** - If a previously-approved skill is later found to have a vulnerability (new CVE, community flag), auto-disable it across all installations and notify users. *(Original)*
+
 ## 3. Agent Architecture
 
 GOAgent has **8 core agents** - distinct execution engines with unique tool access. Everything else is an **Agent Persona** - a skill pack loaded onto a core agent that specializes its behavior. Installing the "Sales" skill pack on a Researcher turns it into a "Sales Agent." Same engine, different knowledge and tools.
