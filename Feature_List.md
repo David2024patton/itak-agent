@@ -671,11 +671,24 @@ Features identified by asking: "If everything above was built, what would still 
 The core differentiator. GOAgent should run unattended for hours, fix its own problems, and only bother the user when it genuinely can't proceed. This section covers everything needed to make that real.
 
 ### Self-Correction & Error Recovery
-- [ ] **Retry with Escalation** - On tool failure: retry same model 2x, then try a bigger model, then try a different approach, then finally ask the user. Configurable escalation chain. *(Original)*
+- [ ] **7-Step Escalation Chain** - On failure, the agent walks this ladder automatically before EVER asking the user:
+  1. **Retry** - Same model, same approach, 2 attempts
+  2. **Check Error Database** - Has this error been seen before? Apply known fix
+  3. **Escalate Model** - Try a bigger/smarter model on the same task
+  4. **Try Different Approach** - Rephrase the task, use alternative tools
+  5. **Research Online** - Search the web for the error message and apply what it finds *(see below)*
+  6. **Self-Debug** - Dump full state to a fresh agent for diagnosis
+  7. **Ask User** - Only after ALL above steps fail. Include what was tried and what was found online
+- [ ] **Research Before Asking** - When an agent encounters an unknown error, it MUST search the web before asking the user. Uses SearXNG to search Stack Overflow, GitHub Issues, official docs, and forums. Extracts fix candidates, attempts them, and only escalates to user if no fix works. *(Original)*
+- [ ] **Error-to-Search Pipeline** - Auto-extract the error message, strip file paths/line numbers, search for the core error pattern. Parse top 5 results for code fixes. *(Original)*
+- [ ] **GitHub Issues Search** - Search the specific library/tool's GitHub Issues for the exact error. Often the fix is already posted. *(Original)*
+- [ ] **Official Docs Lookup** - Check official documentation for the tool/library/API that threw the error. Use Context7 or direct docs scraping. *(Original)*
+- [ ] **Stack Overflow Extraction** - Parse Stack Overflow answers, extract code blocks from accepted/highest-voted answers, adapt to current context. *(Original)*
+- [ ] **Fix Attempt Loop** - Try each candidate fix from web research. If fix A fails, try fix B. Log what was tried and what worked for the Error Pattern Database. *(Original)*
 - [ ] **Output Validation Loop** - After every tool call, validate the result. Did the file actually save? Did the API return 200? Did the code compile? Re-run if not. *(Original)*
 - [ ] **Code Compile Check** - After writing code, auto-compile/lint. If errors, fix them in a loop (max 5 attempts) before reporting success. *(Original)*
 - [ ] **Rollback on Failure** - If an agent breaks something (corrupted file, crashed service), auto-rollback to last known good state via git/snapshot. *(Original)*
-- [ ] **Error Pattern Database** - Structured database of error signatures to fix patterns. Error X seen before = instant fix from memory. Grows over time. *(Original)*
+- [ ] **Error Pattern Database** - Structured database of error signatures to fix patterns. Error X seen before = instant fix from memory. Grows over time. Includes fixes found via web research. *(Original)*
 - [ ] **Self-Debug Mode** - When agent gets stuck, it dumps its own state (last N messages, tool results, memory) and feeds it to a fresh agent instance for diagnosis. *(Original)*
 
 ### Confidence & Escalation
