@@ -429,17 +429,36 @@ Expanded to match OpenClaw's 15+ chat provider coverage:
 - [ ] **Zero Data Retention** - Never store user data beyond session. Never train on user data. More secure than using OpenAI/Gemini directly. *(ClickUp Super Agents)*
 - [ ] **Agentic User Security** - Permission model: implicit access, explicit access, custom permissions. Agents inherit user permissions. Full audit trail of every action. *(ClickUp Super Agents)*
 
-### GOAuth (Cross-Service Ecosystem Authentication)
-When GO* services run independently (GOTorch on one box, GOMedia as a CLI, GODashboard remotely), they need mutual authentication.
+### GOAuth (Enterprise Identity & Access Management)
 
-- [ ] **Service Identity** - Each GO* service generates a unique service ID + secret on first run. Stored encrypted in `~/.goagent/auth/`. *(Original)*
-- [ ] **Bearer Token Auth** - All GO* HTTP APIs accept `Authorization: Bearer <token>` headers. Tokens issued by GOAgent master or generated per-service. *(Original)*
-- [ ] **Service-to-Service JWT** - GO* services authenticate to each other using short-lived JWTs signed with shared HMAC secret. Auto-refresh. *(Original)*
-- [ ] **Auto-Pairing (Local)** - When services run on the same machine, auto-discover and trust each other via shared local secret file. Zero config. *(Original)*
-- [ ] **Remote Pairing** - For cross-machine setups: `goagent pair <service-url>` exchanges keys via one-time code (like Bluetooth pairing). *(Original)*
-- [ ] **API Key Management** - Generate/revoke API keys per service or per external client. Scoped permissions (read-only, full, admin). *(Original)*
-- [ ] **Mutual TLS (mTLS)** - Optional certificate-based auth for production deployments. Each service gets its own cert signed by GOAgent CA. *(Original)*
-- [ ] **Auth Middleware** - Shared Go package (`pkg/auth/`) that any GO* service imports for consistent auth enforcement. *(Original)*
+Dedicated auth service for the GO* ecosystem. Fork from **Ory Hydra** (OAuth2/OIDC server) + **Ory Kratos** (identity management) - both Go-native, both used by Fortune 500 companies. All GO* services authenticate through GOAuth.
+
+**Core Identity**
+- [ ] **OAuth2 / OIDC Server** - Industry-standard auth. Issues access tokens, refresh tokens, ID tokens. Any corporate client already speaks this protocol. *(Ory Hydra fork)*
+- [ ] **User Management** - Registration, login, password reset, email verification, profile management. *(Ory Kratos fork)*
+- [ ] **Single Sign-On (SSO)** - Log in once, access GOTorch, GOMedia, GODashboard, GOGateway, GOForge. One session across all services. *(Ory Hydra)*
+- [ ] **Service Accounts** - Machine-to-machine auth via client credentials grant. For GO*-to-GO* service communication. *(OAuth2 standard)*
+
+**Security**
+- [ ] **MFA / 2FA** - TOTP (Google Authenticator), WebAuthn/Passkeys (hardware keys, fingerprint), SMS backup. *(Ory Kratos)*
+- [ ] **Session Management** - Short-lived access tokens (15 min), long-lived refresh tokens (7 days). Auto-revoke on suspicious activity. *(OAuth2 standard)*
+- [ ] **Audit Trail** - Every auth event logged: logins, token grants, permission changes, failed attempts. Exportable to SIEM. *(Original)*
+
+**Access Control**
+- [ ] **RBAC (Role-Based Access)** - Roles: `admin`, `operator`, `viewer`, `service`. Per-service permission scopes. *(Original)*
+- [ ] **API Key Management** - Generate/revoke scoped API keys per service or external client. Rate limiting per key. *(Original)*
+- [ ] **Auth Middleware (`pkg/auth/`)** - Shared Go package that any GO* service imports. One-line auth enforcement. *(Original)*
+
+**Federation (Connect to Corporate Systems)**
+- [ ] **External IdP Federation** - Connect to Okta, Azure AD, Google Workspace, Auth0, OneLogin via OIDC/SAML. *(Ory Hydra)*
+- [ ] **LDAP / Active Directory** - Enterprise directory integration for on-prem corporate environments. *(Dex patterns)*
+- [ ] **SCIM Provisioning** - Auto-sync users from corporate directory. When someone joins/leaves the company, GOAuth updates automatically. *(Enterprise standard)*
+
+**Deployment Modes**
+- [ ] **Embedded (Default)** - GOAuth runs as a library inside GOAgent. Zero extra processes. *(Original)*
+- [ ] **Standalone Service** - Run GOAuth as its own process for multi-machine setups. *(Original)*
+- [ ] **Auto-Pairing (Local)** - Services on same machine auto-discover via shared local secret. Zero config. *(Original)*
+- [ ] **Remote Pairing** - Cross-machine: `goagent pair <service-url>` exchanges keys via one-time code. *(Original)*
 
 ## 19. Integrations & Skills
 
