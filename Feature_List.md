@@ -344,7 +344,65 @@ Inspired by [Open-AutoGLM](https://github.com/THUDM/Open-AutoGLM). Rebuilt from 
 - [ ] **ADB Bridge** - Execute actions on Android devices via ADB (Android Debug Bridge). *(Open-AutoGLM)*
 - [ ] **Teaching Mode Integration** - Record action sequences as interactive tutorials for the Teacher Agent. *(Original)*
 
-## 11. GOForge (Live Preview + Container Runtime)
+## 11. GOTeach (Interactive Teaching & Training Platform)
+
+AI-powered teaching system that uses DOM manipulation, screen recording, and interactive overlays to teach users anything - from coding to Figma to database management. The Teacher Agent doesn't just tell you how to do something, it shows you on your actual screen.
+
+### DOM-Based Interactive Walkthroughs
+- [ ] **Element Highlighting** - Inject CSS overlays to highlight specific elements on any web page. Pulsing borders, spotlights, dimming the rest of the page. "Click this button right here." *(Original)*
+- [ ] **Tooltip Overlays** - Inject floating tooltips/popovers next to UI elements with step-by-step instructions. Arrow pointing to the element, text explaining what to do. Like Intro.js but agent-generated. *(Original)*
+- [ ] **Click-Through Tutorials** - Step-by-step guided walkthroughs. User clicks "Next" to advance, or agent waits for user to perform the action. Validates the user did it correctly. *(Original)*
+- [ ] **Form Fill Demos** - Agent fills out forms in slow motion, showing the user what goes where. Then clears and lets the user try. *(Original)*
+- [ ] **Before/After Snapshots** - Capture DOM state before and after an action. Show the user exactly what changed and why. *(Original)*
+
+### Screen Recording & Narration
+- [ ] **Action Recording** - Record agent's browser/desktop actions as video. Every click, scroll, and keypress captured. *(Original)*
+- [ ] **AI Voice Narration** - Generate voice-over narration explaining each step as the agent performs it. Uses GOTorch local TTS or cloud TTS. *(Original)*
+- [ ] **Annotated Recordings** - Overlay mouse cursor highlights, click indicators, and text callouts on recordings. *(Original)*
+- [ ] **GIF Generation** - Auto-generate short GIFs of specific procedures. Perfect for documentation and quick reference. *(Original)*
+- [ ] **Tutorial Export** - Export tutorials as MP4, GIF, interactive HTML, or Markdown with embedded screenshots. Shareable via link. *(Original)*
+
+### Multi-Platform Teaching
+The Teacher Agent doesn't just work in browsers. It teaches across platforms:
+
+| Platform | How It Teaches |
+|----------|---------------|
+| **Browser** | DOM overlays, element highlighting, form fill demos |
+| **Desktop Apps** | GOVision screen capture + annotated screenshots. "Click here on Photoshop's toolbar" |
+| **Mobile** | ADB bridge + screen mirroring. Guides user through phone apps |
+| **CLI/Terminal** | Shows commands with syntax highlighting, explains flags, runs examples in sandbox |
+| **Databases** | Visual query building, schema diagrams, step-by-step migration walkthroughs |
+| **APIs** | Interactive request builder, shows headers/body/response with explanations |
+| **Code** | Pair programming with line-by-line annotations, live code execution |
+
+- [ ] **Platform Detection** - Auto-detect what the user is trying to learn (browser, desktop app, CLI, code) and switch teaching mode. *(Original)*
+- [ ] **Cross-Platform Tutorials** - Tutorials that span multiple platforms. "First, create the database (CLI), then build the API (code), then test it (browser)." *(Original)*
+
+### Adaptive Learning
+- [ ] **Mistake Detection** - When user does something wrong during a tutorial, agent notices and course-corrects. "Almost! You clicked the wrong tab. Try the one to the left." *(Original)*
+- [ ] **Difficulty Adjustment** - If user breezes through steps, speed up. If they struggle, slow down and add more detail. *(Original)*
+- [ ] **Learning Style Detection** - Track whether user learns better from seeing (video), reading (text), or doing (interactive). Adapt tutorial format. *(Original)*
+- [ ] **Progress Tracking** - Track which tutorials completed, skills learned, areas of struggle. Build a learning profile per user. *(Original)*
+
+### Curriculum Generation
+- [ ] **Learning Paths** - Generate full curricula: "Learn React in 2 weeks" with ordered lessons, exercises, and projects. *(Original)*
+- [ ] **Prerequisite Detection** - If user tries an advanced topic, auto-detect prerequisite gaps. "Before learning GraphQL, you should know REST APIs. Want me to teach that first?" *(Original)*
+- [ ] **Project-Based Learning** - Generate real projects that teach concepts incrementally. Each step builds on the last. *(Original)*
+- [ ] **Quiz/Assessment** - After each lesson, generate quiz questions to test understanding. Adaptive difficulty. *(Original)*
+- [ ] **Certification Badges** - Issue skill badges when user completes a learning path. Viewable in GODashboard. *(Original)*
+
+### Pair Programming Mode
+- [ ] **Live Code Watch** - Agent watches user code in real-time. Offers suggestions, catches errors before they happen. *(Original)*
+- [ ] **Rubber Duck Mode** - User explains their code to the agent. Agent asks clarifying questions that help the user find their own bugs. *(Original)*
+- [ ] **Code Review Tutor** - Agent reviews user's code and explains WHY something is wrong, not just WHAT. Teaches principles, not just fixes. *(Original)*
+- [ ] **Refactoring Demonstrations** - Agent takes user's working code and shows them how to improve it step-by-step. *(Original)*
+
+### Tutorial Marketplace (GOHub)
+- [ ] **Community Tutorials** - Users create and share tutorials on GOHub. Rate, review, and fork tutorials. *(Original)*
+- [ ] **Agent-Generated Docs** - Agent auto-generates documentation for any project it works on. Tutorials for the code it writes. *(Original)*
+- [ ] **Onboarding Packs** - Pre-built tutorial packs for common setups: "New developer onboarding", "DevOps basics", "GOAgent power user". *(Original)*
+
+## 12. GOForge (Live Preview + Container Runtime)
 
 Go-native live preview server and lightweight container runtime for agent workloads. Every project built by GOAgent gets a live URL instantly. Separate repo (`GOForge`) but embeddable into GOAgent as a library.
 
@@ -394,7 +452,7 @@ Go-native live preview server and lightweight container runtime for agent worklo
 - [ ] **Python/Flask/FastAPI** - `pip install` + run server. *(Original)*
 - [ ] **Dockerfile Projects** - If Dockerfile exists, build and run as container. *(Original)*
 
-## 12. Dashboard (GODashboard)
+## 13. Dashboard (GODashboard)
 
 - [x] **Real-time Agent Monitoring** - Live feed of agent activity. *(Agent Zero dashboard)*
 - [x] **Chat Interface** - Talk to orchestrator from browser. *(Agent Zero, OpenClaw)*
@@ -415,18 +473,18 @@ Go-native live preview server and lightweight container runtime for agent worklo
 - [ ] **Draw.io Integration** - Embed draw.io diagrams in dashboard for architecture docs, flowcharts, and ERDs. Via draw.io MCP server. *(Original - tasks.md)*
 - [ ] **GOForge Deploy Panel** - View all live preview deployments, build logs, and project URLs directly from dashboard. *(Original)*
 
-## 13. Transport & Connectivity
+## 14. Transport & Connectivity
 
 - [x] **SSE Streaming** - Server-Sent Events for universal compatibility. *(Standard)*
 - [x] **WebTransport (HTTP/3)** - Primary transport for Go-to-Go communication. Uses `quic-go/webtransport-go`. Reliable streams + unreliable datagrams. *(Original - notes.md)*
 - [ ] **Webhook Support** - For n8n, automation platforms. Inbound/outbound webhooks. *(Original - notes.md)*
 
-## 14. Sequential Thinking Engine
+## 15. Sequential Thinking Engine
 
 - [ ] **Built-in Sequential Thinking** - Go-native implementation of the Sequential Thinking MCP pattern. Improves reasoning and planning for small models. Chain-of-thought with revision loops. *(Anthropic MCP, Original - notes.md)*
 - [ ] **Research**: How does the Sequential Thinking MCP work? Build our own Go version. *(Original - notes.md)*
 
-## 15. MCP System
+## 16. MCP System
 
 - [ ] **MCP Client** - Connect to external MCP servers. *(Standard)*
 - [ ] **MCP Server** - Expose GOAgent tools as MCP server. Written in Go. *(Standard)*
@@ -445,7 +503,7 @@ Go-native live preview server and lightweight container runtime for agent worklo
   - [ ] Draw.io - architecture diagrams, flowcharts, ERDs *(https://github.com/lgazo/drawio-mcp-server)*
   - [ ] 1Password - secure credential access
 
-## 16. Communication Plugins
+## 17. Communication Plugins
 
 Expanded to match OpenClaw's 15+ chat provider coverage:
 
@@ -464,12 +522,12 @@ Expanded to match OpenClaw's 15+ chat provider coverage:
 - [ ] **Tlon Messenger** - P2P ownership-first chat. *(OpenClaw)*
 - [ ] **WebChat** - Browser-based UI for direct agent interaction. *(OpenClaw)*
 
-## 17. Search Engine
+## 18. Search Engine
 
 - [ ] **SearXNG Integration** - Self-hosted meta-search using top 10 providers. Ships with framework. *(Original - notes.md)*
 - [ ] **Go-native Search** - Research: Can we build a Go version of SearXNG? *(Original - notes.md)*
 
-## 18. Security
+## 19. Security
 
 - [ ] **Outbound PII Scrubbing** - Scramble ALL private info before it leaves the agent: API keys, tokens, addresses, SSNs, phone numbers, credit cards. Nothing leaks to providers. *(Original - notes.md)*
 - [x] **Shell Safety** - Blocked commands, protected paths. *(Original)*
@@ -526,7 +584,7 @@ Dedicated auth service for the GO* ecosystem. Fork from **Ory Hydra** (OAuth2/OI
 - [ ] **Multi-Account** - Manage multiple GOAgent instances from one phone app. *(Original)*
 - [ ] **PWA Fallback** - Progressive Web App version for browsers. No app store install needed. Offline TOTP via Service Worker. *(Original)*
 
-## 19. Integrations & Skills
+## 20. Integrations & Skills
 
 - [ ] **Figma** - Design-to-code pipeline. *(Original)*
 - [ ] **Unreal Engine** - Game dev via MCP. *(Original)*
@@ -546,7 +604,7 @@ Dedicated auth service for the GO* ecosystem. Fork from **Ory Hydra** (OAuth2/OI
 - [ ] **GIF Search** - Find and send the perfect GIF. Integrates into chat and social media agents. *(OpenClaw)*
 - [ ] **Peekaboo** - Quick screen capture and share. Lightweight alternative to full GOVision for simple screenshots. *(OpenClaw)*
 
-## 20. Platform Support
+## 21. Platform Support
 
 - [x] **Windows** *(Primary)*
 - [x] **Linux** *(Cross-compile)*
@@ -556,7 +614,7 @@ Dedicated auth service for the GO* ecosystem. Fork from **Ory Hydra** (OAuth2/OI
 - [ ] **Chromebook** *(Linux layer)*
 - [ ] **Low-spec Hardware** - Target: old i7 mini PC, 16GB RAM (Dell OptiPlex 7060). *(Original)*
 
-## 21. GOTorch (Go-Native Inference Engine)
+## 22. GOTorch (Go-Native Inference Engine)
 
 Custom Go-native LLM inference runtime. No dependency on Ollama or any external tool. GOAgent loads and runs models by itself.
 
@@ -602,7 +660,7 @@ Custom Go-native LLM inference runtime. No dependency on Ollama or any external 
 - [ ] **ONNX Model Runner** - Run HuggingFace ONNX models for embeddings, classification, text generation. *(Hugot)*
 - [ ] **Local Embedding Pipeline** - Generate embeddings locally without API calls using ONNX models. *(Hugot)*
 
-## 22. GOMedia (Go-Native Media Downloader & Transcriber)
+## 23. GOMedia (Go-Native Media Downloader & Transcriber)
 
 Go-native alternative to yt-dlp targeting the top 15 social media platforms. Single binary, no Python dependency. Fork base from `kkdai/youtube` (Go YouTube library) and `horiagug/youtube-transcript-api-go`.
 
@@ -646,20 +704,20 @@ Go-native alternative to yt-dlp targeting the top 15 social media platforms. Sin
 - [ ] **Go Library** - Import as `pkg/media/` in GOAgent. Agents call it directly, no shell-out. *(Original)*
 - [ ] **yt-dlp Fallback** - If GOMedia doesn't support a platform, shell out to yt-dlp if installed. Graceful degradation. *(Original)*
 
-## 23. API Server
+## 24. API Server
 
 - [ ] **REST API** - Standalone HTTP API for external apps to interact with GOAgent. Send tasks, query agents, get results. *(Recommendation)*
 - [ ] **gRPC API** - High-performance binary protocol for Go-to-Go and mobile app integration. *(Recommendation)*
 - [ ] **API Key Auth** - Secure API access with generated API keys. Rate limiting per key. *(Recommendation)*
 - [ ] **Webhook Callbacks** - Register webhook URLs. GOAgent calls back when tasks complete. *(Recommendation)*
 
-## 24. Observability & Export
+## 25. Observability & Export
 
 - [ ] **Log Export** - Export structured logs to Grafana/Loki, ELK stack, or plain JSON files. *(Recommendation)*
 - [ ] **Trace Export** - OpenTelemetry-compatible traces. Full request lifecycle from user input to agent response. *(Recommendation)*
 - [ ] **Metrics Export** - Prometheus-compatible metrics endpoint. Token usage, response times, agent utilization. *(Recommendation)*
 
-## 25. Missing Infrastructure (Gap Analysis)
+## 26. Missing Infrastructure (Gap Analysis)
 
 Features identified by asking: "If everything above was built, what would still be missing?"
 
@@ -723,7 +781,7 @@ Features identified by asking: "If everything above was built, what would still 
 - [ ] **Anonymous Usage Stats** - Opt-in telemetry: which features are used, error rates, performance metrics. For improving GOAgent. *(Recommendation)*
 - [ ] **Crash Reporting** - Automatic crash reports with stack traces. Opt-in only. *(Recommendation)*
 
-## 26. Autonomy Engine (GOPilot)
+## 27. Autonomy Engine (GOPilot)
 
 The core differentiator. GOAgent should run unattended for hours, fix its own problems, and only bother the user when it genuinely can't proceed. This section covers everything needed to make that real.
 
@@ -788,7 +846,7 @@ User-configurable autonomy from fully supervised to fully autonomous:
 - [ ] **Autonomy Level Setting** - Global and per-agent autonomy levels. Boss at Level 2, trusted agents at Level 3, new agents at Level 1. *(Original)*
 - [ ] **Autonomy Promotion** - Agent earns higher autonomy over time based on success rate. Demoted on failure. *(Original)*
 
-## 27. Small LLM Optimization Engine (GOSqueeze)
+## 28. Small LLM Optimization Engine (GOSqueeze)
 
 Everything needed to make 1B-8B parameter models perform like 70B+ models. This is how GOAgent runs on a Dell OptiPlex with no GPU.
 
