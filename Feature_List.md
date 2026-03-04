@@ -467,7 +467,14 @@ User says: "Create a YouTube tutorial on how to deploy a Next.js app to Vercel"
 - [ ] **Video Editing** - Auto-add intro/outro sequences, chapter markers, smooth transitions between sections, lower-third text callouts. *(Original)*
 - [ ] **Auto-Captions** - Generate accurate subtitles/closed captions from the narration. Burn in or attach as .srt file. Multi-language. *(Original)*
 - [ ] **Thumbnail Generation** - Image Agent creates eye-catching thumbnails with title text, screenshots, and branding. Multiple variations to A/B test. *(Original)*
-- [ ] **Background Music** - Add royalty-free background music from a built-in library. Auto-duck under narration. *(Original)*
+- [ ] **Background Music (Copyright-Free)** - Add ambient background music at low volume. Auto-ducks to ~10-15% volume when narration is playing, rises slightly during silent pauses. Only uses royalty-free/Creative Commons sources:
+  - **Built-in Library** - Ships with 50+ royalty-free tracks (lo-fi, ambient, upbeat tech) organized by mood
+  - **Pixabay Music** - Free API, no attribution required, thousands of tracks
+  - **Free Music Archive** - Creative Commons licensed tracks
+  - **Incompetech (Kevin MacLeod)** - Classic YouTube tutorial background music, CC-BY
+  - **AI-Generated Music** - Generate custom background tracks via Suno, Udio, or local MusicGen model. Unique per video, zero copyright risk
+  - **Mood Matching** - Auto-select music mood based on tutorial tone: chill for coding, upbeat for intros, calm for explanations
+  - **Seamless Looping** - Tracks loop seamlessly across the full video length with crossfade. No abrupt cuts *(Original)*
 - [ ] **SEO Optimization** - Auto-generate YouTube-optimized titles, descriptions, tags, and hashtags. Research trending keywords for the topic. *(Original)*
 - [ ] **Multi-Platform Publishing** - Upload final video to YouTube, TikTok (vertical crop), Instagram Reels, Twitter/X, LinkedIn. Platform-specific formatting. *(Original)*
 - [ ] **Series Generation** - Create multi-part tutorial series. "Part 1: Setup", "Part 2: Authentication", "Part 3: Deployment". Auto-link and playlist. *(Original)*
