@@ -106,9 +106,7 @@ func NewLlamaEngine(modelPath string, opts EngineOpts) (*LlamaEngine, error) {
 	if idx := strings.LastIndex(name, "\\"); idx >= 0 {
 		name = name[idx+1:]
 	}
-	if strings.HasSuffix(name, ".gguf") {
-		name = name[:len(name)-5]
-	}
+	name = strings.TrimSuffix(name, ".gguf")
 
 	return &LlamaEngine{
 		model:     model,

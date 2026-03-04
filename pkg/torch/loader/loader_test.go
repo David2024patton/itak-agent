@@ -30,10 +30,10 @@ func TestGetLibraryFilename(t *testing.T) {
 			path: "/opt/yzma",
 			lib:  "gguf",
 			expected: map[string]string{
-				"linux":   "/opt/gotorch/libgguf.so",
-				"freebsd": "/opt/gotorch/libgguf.so",
-				"darwin":  "/opt/gotorch/libgguf.dylib",
-				"windows": "/opt/gotorch/gguf.dll",
+				"linux":   "/opt/yzma/libgguf.so",
+				"freebsd": "/opt/yzma/libgguf.so",
+				"darwin":  "/opt/yzma/libgguf.dylib",
+				"windows": "/opt/yzma/gguf.dll",
 			},
 		},
 		{
