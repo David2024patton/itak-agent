@@ -460,6 +460,15 @@ Dedicated auth service for the GO* ecosystem. Fork from **Ory Hydra** (OAuth2/OI
 - [ ] **Auto-Pairing (Local)** - Services on same machine auto-discover via shared local secret. Zero config. *(Original)*
 - [ ] **Remote Pairing** - Cross-machine: `goagent pair <service-url>` exchanges keys via one-time code. *(Original)*
 
+**GOAuth Mobile App (Authenticator)**
+- [ ] **Cross-Platform App** - Built with Fyne (Go GUI toolkit). Single codebase compiles to iOS, Android, Windows, macOS. *(Original, Fyne)*
+- [ ] **TOTP Code Generator** - 6-digit rotating codes (30-sec). Works offline. Compatible with Google Authenticator standard. *(Original)*
+- [ ] **Push Approve/Deny** - "Login attempt from Windows PC in [City]. [Approve] [Deny]" notifications. *(Original)*
+- [ ] **Biometric Unlock** - Fingerprint/Face ID to approve auth requests. *(Original)*
+- [ ] **QR Pairing** - Scan QR code from GODashboard to pair phone with GOAuth server. *(Original)*
+- [ ] **Multi-Account** - Manage multiple GOAgent instances from one phone app. *(Original)*
+- [ ] **PWA Fallback** - Progressive Web App version for browsers. No app store install needed. Offline TOTP via Service Worker. *(Original)*
+
 ## 19. Integrations & Skills
 
 - [ ] **Figma** - Design-to-code pipeline. *(Original)*
@@ -593,6 +602,70 @@ Go-native alternative to yt-dlp targeting the top 15 social media platforms. Sin
 - [ ] **Trace Export** - OpenTelemetry-compatible traces. Full request lifecycle from user input to agent response. *(Recommendation)*
 - [ ] **Metrics Export** - Prometheus-compatible metrics endpoint. Token usage, response times, agent utilization. *(Recommendation)*
 
+## 25. Missing Infrastructure (Gap Analysis)
+
+Features identified by asking: "If everything above was built, what would still be missing?"
+
+### Installation & Distribution
+- [ ] **One-Line Installer** - `curl -sSL install.goagent.dev | sh` for Linux/Mac. PowerShell equivalent for Windows. Detects OS/arch, downloads binary, sets PATH. *(Recommendation)*
+- [ ] **Auto-Updater** - Background check for new versions. Notifies user, downloads, restarts. Rollback if update fails. *(Recommendation)*
+- [ ] **Homebrew / Winget / Snap** - Package manager distribution for easy install and updates. *(Recommendation)*
+- [ ] **Docker Image** - Official `goagent/goagent` Docker image on GHCR. Multi-arch (amd64, arm64). *(Recommendation)*
+
+### CLI Experience
+- [ ] **Interactive Setup Wizard** - First-run TUI wizard: choose providers, paste API keys, select hardware tier, pick default model. Beautiful terminal UI via `charmbracelet/bubbletea`. *(Recommendation)*
+- [ ] **Shell Completions** - Bash, Zsh, Fish, PowerShell auto-completions for all CLI commands. *(Recommendation)*
+- [ ] **CLI Themes** - Configurable terminal colors, emoji usage, output density (compact/verbose/json). *(Recommendation)*
+
+### Documentation & Help
+- [ ] **Built-in Docs Server** - `goagent docs` starts a local docs site. API reference, tutorials, architecture guides. *(Recommendation)*
+- [ ] **`goagent help <topic>`** - Context-aware help. `goagent help agents` shows all agent types, `goagent help gotorch` shows model management. *(Recommendation)*
+- [ ] **Example Projects** - Curated example projects showing real-world agent setups: "Build a blog with agents", "Automate social media", "Run a research pipeline". *(Recommendation)*
+- [ ] **Video Tutorials** - Agent-generated video walkthroughs (using GOMedia + GOVision to record and narrate). *(Recommendation)*
+
+### Testing & Quality
+- [ ] **Agent Test Framework** - Write tests for agent behaviors: "Given this input, agent should use this tool and produce this output." CI-friendly. *(Recommendation)*
+- [ ] **Simulation Mode** - Run agents against mock LLMs and mock tools. Test workflows without burning API tokens. *(Recommendation)*
+- [ ] **Regression Tests** - Track agent quality over time. Same prompt should produce same-quality output after updates. *(Recommendation)*
+
+### Data Management
+- [ ] **Import/Export Wizard** - Migrate from other agent frameworks (Agent Zero, OpenClaw, LangChain). Import configs, memories, prompts. *(Recommendation)*
+- [ ] **Data Portability** - All user data exportable as standard formats (JSON, CSV, SQLite). No vendor lock-in. *(Recommendation)*
+- [ ] **Multi-Machine Sync** - Sync knowledge graphs, memories, and configs across multiple GOAgent instances. CRDTs or last-write-wins. *(Recommendation)*
+
+### Notifications & Alerts
+- [ ] **Notification Center** - Unified notification hub in GODashboard. Agent completions, errors, approvals needed, health alerts. *(Recommendation)*
+- [ ] **Alert Rules** - Configurable alerts: "Notify me on Discord when spending exceeds $5/day", "Email me when a deploy fails". *(Recommendation)*
+- [ ] **Quiet Hours** - Do Not Disturb mode. Batch non-urgent notifications. *(Recommendation)*
+
+### Resilience & Recovery
+- [ ] **Graceful Degradation** - If GOTorch dies, auto-fallback to cloud providers. If internet dies, auto-fallback to local models. No user intervention. *(Recommendation)*
+- [ ] **Task Persistence** - Running tasks survive process restarts. Resume from last checkpoint on reboot. *(Recommendation)*
+- [ ] **Disaster Recovery** - Full backup/restore of entire GOAgent state. Point-in-time recovery. *(Recommendation)*
+- [ ] **Migration CLI** - `goagent migrate` to move entire setup between machines. *(Recommendation)*
+
+### Rate Limiting & Abuse Prevention
+- [ ] **Per-User Rate Limits** - In multi-user mode, prevent one user from consuming all resources. *(Recommendation)*
+- [ ] **Agent Spending Caps** - Per-agent daily/monthly spending limits. Auto-pause agent when exceeded. *(Recommendation)*
+- [ ] **Resource Quotas** - Limit CPU/RAM/disk per user or project in multi-tenant setups. *(Recommendation)*
+
+### Internationalization
+- [ ] **Multi-Language UI** - GODashboard in English, Spanish, Portuguese, French, German, Japanese, Chinese, Korean, Arabic. *(Recommendation)*
+- [ ] **Locale-Aware Agents** - Agents respect user's date/time/currency formats. *(Recommendation)*
+
+### Agent-to-Agent Communication
+- [ ] **A2A Protocol** - Google's Agent-to-Agent protocol for cross-framework agent communication. GOAgent agents can talk to agents from other platforms. *(Google A2A)*
+- [ ] **Agent Discovery** - Publish agent capabilities so external agents can discover and invoke them. *(Google A2A)*
+
+### Billing & Licensing (for SaaS/Enterprise)
+- [ ] **Usage Metering** - Track per-user, per-agent, per-project resource consumption for billing. *(Recommendation)*
+- [ ] **License Key System** - For commercial distribution. Free tier, Pro tier, Enterprise tier. *(Recommendation)*
+- [ ] **White-Label** - Remove GOAgent branding. Companies deploy under their own brand. *(Recommendation)*
+
+### Telemetry (Opt-in)
+- [ ] **Anonymous Usage Stats** - Opt-in telemetry: which features are used, error rates, performance metrics. For improving GOAgent. *(Recommendation)*
+- [ ] **Crash Reporting** - Automatic crash reports with stack traces. Opt-in only. *(Recommendation)*
+
 ---
 
 ## Research Queue
@@ -652,3 +725,8 @@ Items to investigate before implementation:
 | Gonum | https://github.com/gonum/gonum | Go numeric/matrix libraries |
 | kkdai/youtube | https://github.com/kkdai/youtube | Go YouTube downloader (GOMedia base) |
 | yt-transcript-api-go | https://github.com/horiagug/youtube-transcript-api-go | Go YouTube transcript extraction |
+| Ory Hydra | https://github.com/ory/hydra | OAuth2/OIDC server (GOAuth base) |
+| Ory Kratos | https://github.com/ory/kratos | Identity management (GOAuth base) |
+| Fyne | https://github.com/fyne-io/fyne | Go cross-platform GUI (GOAuth mobile app) |
+| Bubbletea | https://github.com/charmbracelet/bubbletea | Go TUI framework (CLI wizard) |
+| Google A2A | https://github.com/google/A2A | Agent-to-Agent protocol |
