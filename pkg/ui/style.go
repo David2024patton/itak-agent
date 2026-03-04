@@ -246,7 +246,7 @@ func Info(message string) {
 
 // AgentReady prints a formatted agent-ready line for startup.
 func AgentReady(name, role string, toolCount int) {
-	fmt.Printf("  %s%s%s %s%s%s%s — %s (%d tools)%s\n",
+	fmt.Printf("  %s%s%s %s%s%s%s  -  %s (%d tools)%s\n",
 		ColorSuccess, Bold, IconSuccess,
 		ColorHighlight, name, Reset,
 		ColorDim, role, toolCount, Reset)

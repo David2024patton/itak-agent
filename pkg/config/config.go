@@ -13,12 +13,19 @@ import (
 
 // Config is the top-level GOAgent configuration.
 type Config struct {
-	Orchestrator OrchestratorYAML       `yaml:"orchestrator"`
-	Agents       []AgentYAML            `yaml:"agents"`
-	Integrations map[string]Integration `yaml:"integrations,omitempty"`
-	DataDir      string                 `yaml:"data_dir,omitempty"`
-	Memory       MemoryYAML             `yaml:"memory,omitempty"`
-	ShellSafety  ShellSafetyYAML        `yaml:"shell_safety,omitempty"`
+	Orchestrator OrchestratorYAML            `yaml:"orchestrator"`
+	Agents       []AgentYAML                 `yaml:"agents"`
+	Providers    map[string]ProviderKeyYAML  `yaml:"providers,omitempty"`
+	Integrations map[string]Integration      `yaml:"integrations,omitempty"`
+	DataDir      string                      `yaml:"data_dir,omitempty"`
+	Memory       MemoryYAML                  `yaml:"memory,omitempty"`
+	ShellSafety  ShellSafetyYAML             `yaml:"shell_safety,omitempty"`
+}
+
+// ProviderKeyYAML stores an API key (and optional model override) for a provider.
+type ProviderKeyYAML struct {
+	APIKey string `yaml:"api_key"`
+	Model  string `yaml:"model,omitempty"` // override default model for this provider
 }
 
 // MemoryYAML is the YAML representation of memory config.
@@ -108,6 +115,24 @@ func Load(path string) (*Config, error) {
 	}
 	if !cfg.Memory.AutoEntities {
 		cfg.Memory.AutoEntities = true
+	}
+
+	// Build active provider list from the providers map.
+	if cfg.Providers != nil {
+		keys := make(map[string]string, len(cfg.Providers))
+		for slug, entry := range cfg.Providers {
+			if entry.APIKey != "" {
+				keys[slug] = entry.APIKey
+			}
+		}
+		activeCfgs := llm.BuildProviderConfigs(keys)
+		// Apply model overrides from the providers section.
+		for i := range activeCfgs {
+			if pk, ok := cfg.Providers[activeCfgs[i].Provider]; ok && pk.Model != "" {
+				activeCfgs[i].Model = pk.Model
+			}
+		}
+		cfg.Orchestrator.Providers = append(cfg.Orchestrator.Providers, activeCfgs...)
 	}
 
 	for i := range cfg.Agents {

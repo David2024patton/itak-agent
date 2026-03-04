@@ -19,7 +19,7 @@ type MemorySaveTool struct {
 func (t *MemorySaveTool) Name() string { return "memory_save" }
 
 func (t *MemorySaveTool) Description() string {
-	return "Save a fact or piece of information to persistent memory. Use this to remember things for future sessions — user preferences, learned facts, project context, etc."
+	return "Save a fact or piece of information to persistent memory. Use this to remember things for future sessions  -  user preferences, learned facts, project context, etc."
 }
 
 func (t *MemorySaveTool) Schema() map[string]interface{} {
@@ -90,7 +90,7 @@ func (t *MemoryRecallTool) Schema() map[string]interface{} {
 		"properties": map[string]interface{}{
 			"query": map[string]interface{}{
 				"type":        "string",
-				"description": "Search query — matches against fact keys, values, and categories",
+				"description": "Search query  -  matches against fact keys, values, and categories",
 			},
 		},
 		"required": []string{"query"},
@@ -135,7 +135,7 @@ func (t *ConversationSearchTool) Schema() map[string]interface{} {
 		"properties": map[string]interface{}{
 			"query": map[string]interface{}{
 				"type":        "string",
-				"description": "Search query — matches against conversation titles, summaries, tags, and entities",
+				"description": "Search query  -  matches against conversation titles, summaries, tags, and entities",
 			},
 		},
 		"required": []string{"query"},
@@ -243,7 +243,7 @@ func FormatEntities(mgr *memory.Manager) string {
 		sb.WriteString(fmt.Sprintf("• %s (%s)", e.Name, e.Type))
 		if len(e.Attributes) > 0 {
 			attrs, _ := json.Marshal(e.Attributes)
-			sb.WriteString(fmt.Sprintf(" — %s", string(attrs)))
+			sb.WriteString(fmt.Sprintf("  -  %s", string(attrs)))
 		}
 		sb.WriteString("\n")
 	}

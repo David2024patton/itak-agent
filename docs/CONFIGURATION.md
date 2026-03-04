@@ -172,6 +172,6 @@ agents:
 ## Security Notes
 
 - **Never commit API keys** to git. Use `${ENV_VAR}` references
-- `goagent.yaml` is in `.gitignore` by default — your live config stays local
+- `goagent.yaml` is in `.gitignore` by default  -  your live config stays local
 - `configs/example.yaml` uses `${ENV_VAR}` placeholders and is safe to commit
-- The `shell` tool can execute **any command** — only deploy to trusted environments
+- The `shell` tool can execute **any command**  -  only deploy to trusted environments

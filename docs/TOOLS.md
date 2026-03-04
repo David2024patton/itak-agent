@@ -273,8 +273,8 @@ func (t *MyTool) Schema() map[string]interface{} {
 
 When writing tool `Execute()` methods:
 
-1. **Always validate inputs** — check that required args exist and have the right type
-2. **Return errors, don't panic** — the agent loop handles errors gracefully
-3. **Include context in errors** — `"missing required argument: query"` not just `"bad input"`
-4. **Partial results are OK** — if a command fails but produces output, return both
-5. **Truncate large outputs** — prevent context overflow (see `http_fetch` for an example)
+1. **Always validate inputs**  -  check that required args exist and have the right type
+2. **Return errors, don't panic**  -  the agent loop handles errors gracefully
+3. **Include context in errors**  -  `"missing required argument: query"` not just `"bad input"`
+4. **Partial results are OK**  -  if a command fails but produces output, return both
+5. **Truncate large outputs**  -  prevent context overflow (see `http_fetch` for an example)

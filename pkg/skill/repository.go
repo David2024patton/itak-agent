@@ -156,7 +156,7 @@ func ParseSkillFile(path string) (*Skill, error) {
 	}
 	firstLine := strings.TrimSpace(scanner.Text())
 	if firstLine != "---" {
-		// No frontmatter — entire file is the body, use directory name as skill name.
+		// No frontmatter  -  entire file is the body, use directory name as skill name.
 		skill.Name = strings.ToLower(filepath.Base(filepath.Dir(path)))
 		skill.Description = "Skill: " + skill.Name
 		skill.Body = firstLine + "\n"

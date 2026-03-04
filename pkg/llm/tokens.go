@@ -170,14 +170,14 @@ func (bc *BudgetClient) Chat(ctx context.Context, messages []Message, tools []To
 	bc.mu.Unlock()
 
 	if overBudget {
-		debug.Warn("budget", "Token budget exhausted (%d/%d) — rejecting request", bc.Used, bc.MaxTokens)
+		debug.Warn("budget", "Token budget exhausted (%d/%d)  -  rejecting request", bc.Used, bc.MaxTokens)
 		return nil, fmt.Errorf("token budget exhausted: used %d of %d", bc.Used, bc.MaxTokens)
 	}
 
 	client := bc.Primary
 	if fallbackZone && bc.Fallback != nil {
 		if !bc.switched {
-			debug.Info("budget", "Budget %.0f%% consumed (%d/%d) — switching to fallback model",
+			debug.Info("budget", "Budget %.0f%% consumed (%d/%d)  -  switching to fallback model",
 				float64(bc.Used)/float64(bc.MaxTokens)*100, bc.Used, bc.MaxTokens)
 			bc.switched = true
 		}

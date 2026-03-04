@@ -1,8 +1,8 @@
 <div align="center">
   <img src="docs/images/logo.png" alt="GOAgent Logo" width="280"/>
   <h1>GOAgent</h1>
-  <p><strong>A lightweight Go-based AI agent framework where a small orchestrator delegates to focused sub-agents.</strong></p>
-  <p>Built to run efficiently on 30B models — no $200/mo API bills required.</p>
+  <p><strong>An AI agent framework written in Go. One boss delegates to focused agents who get work done.</strong></p>
+  <p>Runs on small local models. No expensive API bills required.</p>
 
   <br/>
 
@@ -17,78 +17,74 @@
 
 ## What Is GOAgent?
 
-GOAgent is an AI agent framework written in **Go** that takes a different approach from Python-based frameworks like CrewAI, LangGraph, and AutoGen. Instead of requiring expensive frontier models with massive context windows, GOAgent is designed to run on **smaller, efficient models** like NVIDIA's Nemotron 30B.
+GOAgent is an AI agent framework built in **Go**. It's a different approach from Python-based frameworks like CrewAI, LangGraph, and AutoGen. Instead of needing expensive, massive models, GOAgent is designed to work with **smaller, efficient models** you can run locally.
 
-The key insight: **keep the orchestrator dumb and the agents focused.**
+The core idea: **keep the boss simple and the agents focused.**
 
-- The **Orchestrator** never touches tools — it only reasons about what needs to happen and delegates work
-- **Focused Agents** each have a small set of tools (max 7), clear goals, and a specific personality
-- **Progressive disclosure** keeps each agent's context window small and efficient
+- The **Boss (Orchestrator)** never touches tools. It just figures out what needs to happen and hands off work.
+- **Focused Agents** (like researcher, coder, browser) each have a small set of tools, clear goals, and a specific job.
+- Each agent only sees what it needs. This keeps things fast and cheap.
 
 ### Why Go?
 
-| Feature | Benefit |
+| Feature | Why It Matters |
 |---|---|
-| **Single binary** | No virtual environments, no `pip install`, no dependency hell |
+| **Single binary** | No virtual environments, no `pip install`, no dependency problems |
 | **Fast startup** | Agents start in milliseconds, not seconds |
 | **Cross-platform** | Same binary runs on Windows, Linux, macOS, Docker |
-| **Low memory** | Fraction of what Python frameworks consume |
+| **Low memory** | Uses way less memory than Python frameworks |
 | **Easy deployment** | Copy one file to your server and run it |
 
 ---
 
-## Architecture
+## How It Works
 
-```
-                    User sends a message
-                           │
-                           ▼
-              ┌─────────────────────────┐
-              │   ORCHESTRATOR AGENT    │
-              │                         │
-              │  • Receives the request │
-              │  • Thinks about it      │
-              │  • Decides WHO to ask   │
-              │  • Sends focused tasks  │
-              │                         │
-              │  ⛔ NO tools           │
-              │  ⛔ NO file access     │
-              │  ⛔ NO shell access    │
-              └───┬──────────┬──────────┘
-                  │          │
-         ┌────────▼───┐  ┌───▼────────┐
-         │ RESEARCHER │  │   CODER    │
-         │            │  │            │
-         │ Tools:     │  │ Tools:     │
-         │ • http     │  │ • shell    │
-         │ • file_read│  │ • file_read│
-         │ • file_wrt │  │ • file_wrt │
-         │            │  │            │
-         │ "Find info"│  │ "Write code│
-         └────────────┘  └────────────┘
-                  │          │
-                  ▼          ▼
-              Results flow back to
-              the Orchestrator, which
-              combines them into a
-              final response for the user
+```mermaid
+flowchart TD
+    User["You type a message"] --> Boss
+
+    subgraph Boss["Boss (Orchestrator)"]
+        direction TB
+        B1["Reads your request"]
+        B2["Thinks about it"]
+        B3["Picks the right agent"]
+        B4["Sends them a task"]
+        B1 --> B2 --> B3 --> B4
+    end
+
+    Boss --> Researcher
+    Boss --> Coder
+
+    subgraph Researcher["Researcher Agent"]
+        R1["Tools: http, file_read, file_write"]
+        R2["Job: Find info"]
+    end
+
+    subgraph Coder["Coder Agent"]
+        C1["Tools: shell, file_read, file_write"]
+        C2["Job: Write code"]
+    end
+
+    Researcher --> Result["Results flow back to Boss"]
+    Coder --> Result
+    Result --> Answer["Boss gives you a clean answer"]
 ```
 
-### How It Works Step-by-Step
+### Step by Step
 
-1. **You type a message** → `"Fetch google.com and save the HTML to output.html"`
-2. **Orchestrator thinks** → "This needs HTTP fetching AND file writing. I'll send it to `researcher`."
-3. **Orchestrator creates a TaskPayload** → `{ agent: "researcher", task: "Fetch google.com and save to output.html" }`
-4. **Researcher agent receives the task** → Calls `http_fetch` tool → Gets the HTML → Calls `file_write` tool → Saves it
-5. **Result flows back** → Orchestrator synthesizes a clean response for you: *"Done! Saved Google's HTML to output.html (52KB)"*
+1. **You type a message** - `"Fetch google.com and save the HTML to output.html"`
+2. **Boss thinks** - "This needs HTTP fetching AND file writing. I'll send it to `researcher`."
+3. **Boss sends a task** - `{ agent: "researcher", task: "Fetch google.com and save to output.html" }`
+4. **Researcher does the work** - calls `http_fetch` to get the HTML, then calls `file_write` to save it
+5. **Result comes back** - Boss gives you a clean answer: *"Done! Saved Google's HTML to output.html (52KB)"*
 
 ---
 
 ## Quick Start
 
-### Prerequisites
+### What You Need
 
-- **Go 1.22+** installed ([download](https://go.dev/dl/))
+- **Go 1.22+** installed ([download here](https://go.dev/dl/))
 - An **API key** for an LLM provider (NVIDIA NIM, OpenAI, Ollama, etc.)
 
 ### 1. Clone and Build
@@ -101,7 +97,7 @@ go build -o goagent ./cmd/goagent/
 
 This creates a single `goagent` binary (or `goagent.exe` on Windows).
 
-### 2. Create Your Config
+### 2. Set Up Your Config
 
 Copy the example config and add your API key:
 
@@ -109,7 +105,7 @@ Copy the example config and add your API key:
 cp configs/example.yaml goagent.yaml
 ```
 
-Edit `goagent.yaml` — the only thing you **must** change is the API key:
+Open `goagent.yaml` and change the API key:
 
 ```yaml
 orchestrator:
@@ -117,10 +113,10 @@ orchestrator:
     provider: nvidia_nim
     model: nvidia/nemotron-3-nano-30b-a3b
     api_base: https://integrate.api.nvidia.com/v1
-    api_key: YOUR_API_KEY_HERE    # ← put your key here
+    api_key: YOUR_API_KEY_HERE    # put your key here
 ```
 
-> 💡 **Tip:** You can also use `${NVIDIA_API_KEY}` and set the environment variable instead of hardcoding the key.
+> **Tip:** You can use `${NVIDIA_API_KEY}` and set the environment variable instead of putting the key directly in the file.
 
 ### 3. Run It
 
@@ -130,7 +126,7 @@ orchestrator:
 
 You'll see:
 ```
-GOAgent v0.1.0 — 2 agents ready. Type a message (Ctrl+C to quit).
+GOAgent v0.1.0 - 2 agents ready. Type a message (Ctrl+C to quit).
 
 >
 ```
@@ -144,52 +140,51 @@ Type anything and watch it work!
 Tokyo
 
 > List all files in the current directory
-[Orchestrator delegates to coder → runs 'dir' → returns file list]
+[Boss sends task to coder -> runs 'dir' -> returns file list]
 
 > Fetch https://httpbin.org/get and show me the response
-[Orchestrator delegates to researcher → calls http_fetch → returns JSON]
+[Boss sends task to researcher -> calls http_fetch -> returns JSON]
 
 > Write "hello world" to test.txt
-[Orchestrator delegates to coder → calls file_write → confirms success]
+[Boss sends task to coder -> calls file_write -> confirms success]
 ```
 
 ---
 
 ## Configuration Guide
 
-The config file (`goagent.yaml`) controls everything. Here's a complete annotated example:
+The config file (`goagent.yaml`) controls everything. Here's a full example:
 
 ```yaml
-# ── ORCHESTRATOR ────────────────────────────────────────
-# The orchestrator is the "brain" that delegates work.
-# It NEVER uses tools — it only decides which agent to ask.
+# ORCHESTRATOR
+# The boss that delegates work. It NEVER uses tools.
 orchestrator:
   llm:
-    provider: nvidia_nim                              # provider name (for your reference)
-    model: nvidia/nemotron-3-nano-30b-a3b             # which model to use
-    api_base: https://integrate.api.nvidia.com/v1     # API endpoint
+    provider: nvidia_nim
+    model: nvidia/nemotron-3-nano-30b-a3b
+    api_base: https://integrate.api.nvidia.com/v1
     api_key: ${NVIDIA_API_KEY}                        # supports env vars!
-  system_prompt: ""                                   # optional: add custom instructions
+  system_prompt: ""                                   # optional custom instructions
   max_delegations: 5                                  # max agents per request
 
-# ── FOCUSED AGENTS ──────────────────────────────────────
-# Each agent has a specific role, personality, and tools.
+# FOCUSED AGENTS
+# Each agent has a specific job, personality, and tools.
 agents:
   # Agent 1: The Researcher
-  - name: researcher                    # unique name (used in delegation)
-    role: Senior Research Analyst       # job title (shown to orchestrator)
+  - name: researcher                    # unique name
+    role: Senior Research Analyst       # job title (shown to boss)
     personality: >-                     # how the agent "thinks"
       Thorough and methodical researcher who finds accurate,
       well-sourced information and summarizes clearly
-    goals:                              # max 3 narrow KPIs
+    goals:                              # max 3 narrow goals
       - accuracy
       - comprehensiveness
       - source_verification
-    tools:                              # which built-in tools this agent can use
+    tools:                              # which tools this agent can use
       - http_fetch
       - file_read
       - file_write
-    max_loops: 8                        # max reasoning iterations before giving up
+    max_loops: 8                        # max tries before giving up
 
   # Agent 2: The Coder
   - name: coder
@@ -215,8 +210,7 @@ agents:
   #   tools: [file_read, file_write]
   #   max_loops: 6
 
-# ── INTEGRATIONS (optional) ─────────────────────────────
-# External API connections that skills can reference.
+# INTEGRATIONS (optional)
 integrations:
   serp_api:
     api_key: ${SERP_API_KEY}
@@ -224,10 +218,10 @@ integrations:
 
 ### Using Different LLM Providers
 
-Each agent can use a **different model** — use a cheap model for simple tasks, a bigger one for hard ones:
+Each agent can use a **different model**. Use a cheap model for simple tasks and a bigger one for hard ones:
 
 ```yaml
-# Orchestrator uses a small, fast model
+# Boss uses a small, fast model
 orchestrator:
   llm:
     model: nvidia/nemotron-3-nano-30b-a3b
@@ -235,7 +229,7 @@ orchestrator:
     api_key: ${NVIDIA_API_KEY}
 
 agents:
-  # Researcher uses Ollama local model (free)
+  # Researcher uses a local Ollama model (free)
   - name: researcher
     llm:
       model: llama3.1:8b
@@ -250,15 +244,15 @@ agents:
       api_key: ${OPENROUTER_API_KEY}
 ```
 
-> If an agent doesn't specify its own `llm` section, it automatically inherits the orchestrator's model.
+> If an agent doesn't have its own `llm` section, it uses the same model as the boss.
 
 ---
 
 ## Built-in Tools
 
-Every focused agent is assigned tools from this catalog. The orchestrator has **no tools**.
+Every focused agent gets tools from this list. The boss has **no tools**.
 
-### `shell` — Execute Commands
+### `shell` - Run Commands
 
 Runs any shell command on the host system. Auto-detects the OS:
 
@@ -268,38 +262,36 @@ Runs any shell command on the host system. Auto-detects the OS:
 | macOS | `zsh -c` |
 | Linux / Docker | `sh -c` |
 | Android (Termux) | `sh -c` |
-| FreeBSD / OpenBSD | `sh -c` |
 
-**What it can do:** Run programs, check system state, install packages, chain commands, execute scripts.
+**Examples the agent might run:**
 
 ```
-Examples the agent might run:
-  dir                           # list files (Windows)
-  ls -la                        # list files (Linux/Mac)
-  python script.py              # run a script
-  git status                    # check git state
-  curl https://example.com      # fetch a URL
-  pip install requests          # install a package
+dir                           # list files (Windows)
+ls -la                        # list files (Linux/Mac)
+python script.py              # run a script
+git status                    # check git state
+curl https://example.com      # fetch a URL
+pip install requests          # install a package
 ```
 
-**Config:** `timeout_seconds` (default: 30) prevents runaway commands.
+**Config:** `timeout_seconds` (default: 30) stops runaway commands.
 
 ---
 
-### `file_read` — Read Files
+### `file_read` - Read Files
 
-Reads the full text content of any file the agent has access to.
+Reads the full text of any file the agent has access to.
 
 ```
 Agent calls: file_read({ path: "README.md" })
-Returns: the full text content of README.md
+Returns: the full text of README.md
 ```
 
 ---
 
-### `file_write` — Write Files
+### `file_write` - Write Files
 
-Writes content to a file. Creates parent directories automatically if they don't exist.
+Writes content to a file. Creates folders automatically if they don't exist.
 
 ```
 Agent calls: file_write({ path: "output/report.txt", content: "Hello World" })
@@ -308,9 +300,9 @@ Returns: "Wrote 11 bytes to /full/path/output/report.txt"
 
 ---
 
-### `http_fetch` — HTTP Requests
+### `http_fetch` - HTTP Requests
 
-Makes HTTP GET or POST requests and returns the response body. Useful for APIs, web scraping, and data retrieval.
+Makes HTTP GET or POST requests and returns the response. Good for APIs, web scraping, and data retrieval.
 
 ```
 Agent calls: http_fetch({ url: "https://api.example.com/data", method: "GET" })
@@ -322,13 +314,13 @@ Returns: "HTTP 200\n\n{...response body...}"
 - Custom headers
 - Request body (for POST)
 - 30-second timeout
-- Response truncated at 50KB (prevents context overflow)
+- Response cut at 50KB to prevent overflow
 
 ---
 
 ## Debug Mode
 
-GOAgent has three logging levels to help you understand what's happening:
+GOAgent has three logging levels:
 
 ### Quiet Mode (default)
 
@@ -336,7 +328,7 @@ GOAgent has three logging levels to help you understand what's happening:
 ./goagent run
 ```
 
-Only shows the final response. Warnings and errors appear if something goes wrong.
+Only shows the final response. Warnings and errors show up if something goes wrong.
 
 ### Verbose Mode
 
@@ -344,18 +336,18 @@ Only shows the final response. Warnings and errors appear if something goes wron
 ./goagent run --verbose
 ```
 
-Shows key decisions: which agent was chosen, what tools were called, success/failure.
+Shows key decisions: which agent was picked, what tools were called, success or failure.
 
 ```
 14:33:24.100 INFO [orchestrator] Processing: List all files in the current directory
 14:33:24.101 INFO [orchestrator] Calling LLM for delegation decision...
-14:33:25.543 INFO [orchestrator] → Delegating [1/1] to "coder": Run dir command
+14:33:25.543 INFO [orchestrator] -> Delegating [1/1] to "coder": Run dir command
 14:33:25.544 INFO [coder] Starting task: Run dir command
 14:33:25.544 INFO [coder] Loop 1/10
 14:33:26.891 INFO [coder] Calling tool "shell" (id: call_abc123)
-14:33:26.950 INFO [coder] ✓ Task complete (loop 2)
-14:33:26.950 INFO [orchestrator] ← "coder" succeeded
-14:33:26.951 INFO [orchestrator] Synthesizing 1 result(s)...
+14:33:26.950 INFO [coder] Done (loop 2)
+14:33:26.950 INFO [orchestrator] <- "coder" succeeded
+14:33:26.951 INFO [orchestrator] Combining 1 result(s)...
 ```
 
 ### Debug Mode
@@ -364,14 +356,14 @@ Shows key decisions: which agent was chosen, what tools were called, success/fai
 ./goagent run --debug
 ```
 
-Shows **everything** — JSON payloads, token counts, HTTP timing, tool arguments, full results. Use this when something isn't working:
+Shows **everything**: JSON payloads, token counts, HTTP timing, tool arguments, full results. Use this when something isn't working:
 
 ```
 14:33:24.100 DEBUG [llm] POST https://integrate.api.nvidia.com/v1/chat/completions
                          (model: nemotron-3-nano-30b, messages: 2, tools: 0)
 14:33:25.543 DEBUG [llm] Response: HTTP 200, 347 bytes, 1.443s elapsed
 14:33:25.543 DEBUG [llm] Finish reason: stop, tool_calls: 0, content length: 203
-14:33:25.543 DEBUG [orchestrator] Tokens — prompt: 412, completion: 87, total: 499
+14:33:25.543 DEBUG [orchestrator] Tokens: prompt: 412, completion: 87, total: 499
 14:33:25.544 DEBUG [orchestrator] Raw LLM response:
 {"reasoning":"...","delegations":[{"agent":"coder","task":"..."}]}
 ```
@@ -389,8 +381,8 @@ GOAgent/
 ├── pkg/
 │   ├── agent/
 │   │   ├── types.go             # Core types: AgentConfig, TaskPayload, Result
-│   │   ├── orchestrator.go      # Orchestrator: reasons and delegates (NO tools)
-│   │   └── focused.go           # Focused Agent: ReAct loop with tool calling
+│   │   ├── orchestrator.go      # Boss: reasons and delegates (NO tools)
+│   │   └── focused.go           # Focused Agent: task loop with tool calling
 │   │
 │   ├── llm/
 │   │   ├── client.go            # OpenAI-compatible HTTP client
@@ -405,7 +397,7 @@ GOAgent/
 │   │       └── http.go          # HTTP GET/POST requests
 │   │
 │   ├── config/
-│   │   └── config.go            # YAML config loader with env var expansion
+│   │   └── config.go            # YAML config loader with env var support
 │   │
 │   └── debug/
 │       └── logger.go            # Structured logger (ERROR/WARN/INFO/DEBUG)
@@ -420,9 +412,9 @@ GOAgent/
 │   ├── TOOLS.md                 # Tool reference
 │   └── ARCHITECTURE.md          # Architecture explanation
 │
-├── goagent.yaml                 # Your active config (not committed — in .gitignore)
-├── go.mod                       # Go module definition
-├── go.sum                       # Dependency checksums
+├── goagent.yaml                 # Your active config (not committed)
+├── go.mod
+├── go.sum
 ├── .gitignore
 ├── LICENSE
 └── README.md                    # This file
@@ -432,12 +424,12 @@ GOAgent/
 
 | File | What to edit it for |
 |---|---|
-| `goagent.yaml` | Change your API keys, add/remove agents, change models |
-| `configs/example.yaml` | Reference config — don't edit directly, copy it |
-| `pkg/agent/types.go` | Add new fields to agent config (e.g., new properties) |
-| `pkg/agent/orchestrator.go` | Change how the orchestrator reasons or delegates |
+| `goagent.yaml` | Change API keys, add/remove agents, change models |
+| `configs/example.yaml` | Reference config. Don't edit directly, copy it |
+| `pkg/agent/types.go` | Add new fields to agent config |
+| `pkg/agent/orchestrator.go` | Change how the boss reasons or delegates |
 | `pkg/agent/focused.go` | Change how focused agents run their task loop |
-| `pkg/tool/builtins/*.go` | Add new built-in tools or modify existing ones |
+| `pkg/tool/builtins/*.go` | Add new built-in tools or change existing ones |
 | `pkg/tool/interface.go` | Change the Tool interface (rarely needed) |
 | `pkg/llm/client.go` | Add support for non-OpenAI API formats |
 | `pkg/config/config.go` | Add new config options |
@@ -467,13 +459,13 @@ agents:
     max_loops: 6
 ```
 
-That's it. Restart GOAgent and the orchestrator will automatically know about the writer agent and can delegate writing tasks to it.
+That's it. Restart GOAgent and the boss will automatically know about the writer agent and can hand off writing tasks to it.
 
 ---
 
 ## Adding a New Tool
 
-To create a custom tool, create a new file in `pkg/tool/builtins/` that implements the `Tool` interface:
+Create a new file in `pkg/tool/builtins/` that follows the `Tool` interface:
 
 ```go
 // pkg/tool/builtins/mytool.go
@@ -513,7 +505,7 @@ func buildToolCatalog() map[string]tool.Tool {
         "file_read":  &builtins.FileReadTool{},
         "file_write": &builtins.FileWriteTool{},
         "http_fetch": &builtins.HTTPFetchTool{},
-        "my_tool":    &builtins.MyTool{},          // ← add this line
+        "my_tool":    &builtins.MyTool{},          // add this line
     }
 }
 ```
@@ -524,7 +516,7 @@ Rebuild, and now any agent with `my_tool` in its `tools` list can use it.
 
 ## Supported LLM Providers
 
-GOAgent works with any API that speaks the OpenAI `/v1/chat/completions` format:
+GOAgent works with any API that uses the OpenAI `/v1/chat/completions` format:
 
 | Provider | `api_base` | Notes |
 |---|---|---|
@@ -538,6 +530,23 @@ GOAgent works with any API that speaks the OpenAI `/v1/chat/completions` format:
 
 ---
 
+## The GOAgent Ecosystem
+
+GOAgent is the core framework, but it's part of a bigger system:
+
+| Project | What It Does |
+|---|---|
+| **GOAgent** | Core agent framework. Boss + focused agents + tools. |
+| **GOGateway** | Standalone LLM gateway. Routes requests across 42+ providers with failover, rate limiting, and cost tracking. |
+| **GOForge** | Live preview server + container runtime. Builds and hosts projects in real time as agents write code. GitHub integration. |
+| **GODashboard** | Web-based dashboard. Chat, agent monitoring, task board, cost tracking. |
+| **GOBeat** | Self-healing monitor. Auto-detects errors, runs diagnostics, fixes problems, remembers what worked. |
+| **GOHub** | Extension marketplace. Browse, install, and share agent skills and tools. |
+| **GOBrowser** | Custom browser engine for agents. DOM extraction and web automation. |
+| **GOVision** | Screen automation. Takes screenshots, understands UI, clicks/types on your behalf. |
+
+---
+
 ## Roadmap
 
 - [x] Core orchestrator + focused agent pipeline
@@ -545,25 +554,31 @@ GOAgent works with any API that speaks the OpenAI `/v1/chat/completions` format:
 - [x] Structured debug logging
 - [x] Cross-platform shell support
 - [x] Per-agent LLM configuration
-- [ ] Skills system (progressive disclosure, max 7 per agent)
-- [ ] Memory system (session + persistent)
-- [ ] HTTP API server (for mobile/web clients)
-- [ ] Agent self-copy (spawn sub-agents)
-- [ ] Swarm execution (parallel agents)
-- [ ] Heartbeat scheduler (cron-style proactive agents)
+- [x] Mandatory task system (every request gets a checklist)
+- [x] Single-call routing (one LLM call to pick the right agent)
+- [x] GOGateway with 42-provider catalog, failover, cost tracking
+- [ ] GOForge live preview server (Tier 1: process isolation)
+- [ ] Local model marketplace with hardware auto-detect
+- [ ] Manager-worker hierarchy (agents delegate to sub-agents)
+- [ ] Memory system (session + persistent + knowledge graph)
+- [ ] GOHub extension marketplace
+- [ ] GOBeat self-healing
+- [ ] Communication plugins (Discord, Telegram, WhatsApp, Slack)
+- [ ] MCP client/server support
+- [ ] GOVision screen automation
 
 ---
 
 ## License
 
-MIT — use it however you want.
+MIT. Use it however you want.
 
 ## Contributing
 
-PRs welcome! See the [project structure](#project-structure) section to understand where things live.
+PRs welcome! Check the [project structure](#project-structure) section to see where things live.
 
 ---
 
 <div align="center">
-  <sub>Built with ❤️ in Go</sub>
+  <sub>Built with Go</sub>
 </div>

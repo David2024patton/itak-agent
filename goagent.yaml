@@ -1,4 +1,4 @@
-# GOAgent Configuration — 30B Model Focus
+# GOAgent Configuration  -  30B Model Focus
 
 orchestrator:
   llm:
@@ -8,14 +8,14 @@ orchestrator:
     api_key: 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
   max_delegations: 5
 
-# Shell safety — block dangerous commands
+# Shell safety  -  block dangerous commands
 shell_safety:
   denied_cmds:
     - "format"
     - "del /s /q"
   protected_paths:
-    - "./cmd"         # GOAgent source — self-preservation
-    - "./pkg"         # GOAgent packages — self-preservation
+    - "./cmd"         # GOAgent source  -  self-preservation
+    - "./pkg"         # GOAgent packages  -  self-preservation
     - "./go.mod"      # Go module file
     - "./go.sum"      # Go dependencies
 
@@ -33,20 +33,20 @@ agents:
     role: System Scout (Read-Only)
     personality: |
       You are GOAgent's read-only system scout. You navigate the filesystem and physically check data to report facts.
-      You NEVER guess — you always use dir_list and file_read to verify before answering.
+      You NEVER guess  -  you always use dir_list and file_read to verify before answering.
       You have NO write tools. You cannot create, modify, or delete any files. You only observe and report.
 
       KEY PATHS (relative to project root):
-      - ./data/conversations/ — archived conversation logs (JSONL files in numbered folders)
-      - ./data/skills/ — skill definitions (SKILL.md files in subdirectories)
-      - ./data/facts.json — persistent facts/knowledge
-      - ./data/entities.json — tracked entities
-      - ./data/reflections.json — session reflections
-      - ./cmd/ — GOAgent source code
-      - ./pkg/ — GOAgent packages
-      - ./goagent.yaml — main config file
+      - ./data/conversations/  -  archived conversation logs (JSONL files in numbered folders)
+      - ./data/skills/  -  skill definitions (SKILL.md files in subdirectories)
+      - ./data/facts.json  -  persistent facts/knowledge
+      - ./data/entities.json  -  tracked entities
+      - ./data/reflections.json  -  session reflections
+      - ./cmd/  -  GOAgent source code
+      - ./pkg/  -  GOAgent packages
+      - ./goagent.yaml  -  main config file
 
-      When asked about counts, data, files — always use dir_list or file_read to physically check first.
+      When asked about counts, data, files  -  always use dir_list or file_read to physically check first.
     goals:
       - filesystem_awareness
       - accuracy
@@ -61,10 +61,10 @@ agents:
     role: System Operator (Write-Only)
     personality: |
       You are GOAgent's system operator. You create files, save data, and execute commands.
-      You only write when explicitly instructed. You do NOT read or browse — the scout does that.
+      You only write when explicitly instructed. You do NOT read or browse  -  the scout does that.
 
       SELF-PRESERVATION: You NEVER modify files in ./cmd/ or ./pkg/. These are GOAgent's source code.
-      Protected paths are enforced by guardrails — any attempt to write there will be blocked.
+      Protected paths are enforced by guardrails  -  any attempt to write there will be blocked.
     goals:
       - task_execution
       - safety
@@ -78,7 +78,7 @@ agents:
   - name: browser
     role: Web Browser
     personality: |
-      You are a stealth browser agent — always undetectable to bot-detection sites.
+      You are a stealth browser agent  -  always undetectable to bot-detection sites.
       The browser stays open between calls with persistent cookies and sessions.
       WORKFLOW: web_navigate → see [@e1] refs → web_click/web_type/web_hover to interact.
       KEYS: web_keys for Enter, Tab, Escape, Ctrl+A etc. web_focus to focus without clicking.
@@ -148,3 +148,108 @@ agents:
       - memory_save
       - memory_recall
     max_loops: 10
+
+# ═══════════════════════════════════════════════════════════════════
+# LLM PROVIDERS
+# Add your API key to activate a provider. Active providers become
+# failover backups (in catalog order). GOAgent auto-discovers
+# available models when a key is present.
+# ═══════════════════════════════════════════════════════════════════
+
+providers:
+
+  # ── Model Creators ──────────────────────────────────────────────
+
+  openai:
+    api_key: ""           # https://platform.openai.com/api-keys
+  anthropic:
+    api_key: ""           # https://console.anthropic.com/ (non-OpenAI format)
+  google:
+    api_key: ""           # https://aistudio.google.com/apikey
+  mistral:
+    api_key: ""           # https://console.mistral.ai/api-keys
+  meta:
+    api_key: ""           # No direct API. Use via Together/Groq/Azure.
+  cohere:
+    api_key: ""           # https://dashboard.cohere.com/api-keys (non-OpenAI format)
+  xai:
+    api_key: ""           # https://console.x.ai/
+  deepseek:
+    api_key: ""           # https://platform.deepseek.com/api_keys
+  ai21:
+    api_key: ""           # https://studio.ai21.com/account/api-key (non-OpenAI format)
+  aleph_alpha:
+    api_key: ""           # https://app.aleph-alpha.com/ (non-OpenAI format)
+  qwen:
+    api_key: ""           # https://dashscope.console.aliyun.com/
+  01ai:
+    api_key: ""           # https://platform.01.ai/
+  moonshot:
+    api_key: ""           # https://platform.moonshot.cn/
+  hunyuan:
+    api_key: ""           # https://cloud.tencent.com/product/hunyuan (non-OpenAI format)
+  zhipu:
+    api_key: ""           # https://open.bigmodel.cn/
+
+  # ── Inference & Hosting Specialists ─────────────────────────────
+
+  groq:
+    api_key: ""           # https://console.groq.com/keys
+  together:
+    api_key: ""           # https://api.together.xyz/settings/api-keys
+  fireworks:
+    api_key: ""           # https://fireworks.ai/account/api-keys
+  cerebras:
+    api_key: ""           # https://cloud.cerebras.ai/
+  deepinfra:
+    api_key: ""           # https://deepinfra.com/dash/api_keys
+  sambanova:
+    api_key: ""           # https://cloud.sambanova.ai/
+  siliconflow:
+    api_key: ""           # https://cloud.siliconflow.cn/
+  baseten:
+    api_key: ""           # https://www.baseten.co/ (custom deployments)
+  runpod:
+    api_key: ""           # https://www.runpod.io/ (custom deployments)
+  lambda:
+    api_key: ""           # https://cloud.lambdalabs.com/
+  novita:
+    api_key: ""           # https://novita.ai/dashboard/key
+  kluster:
+    api_key: ""           # https://kluster.ai/
+  inferencenet:
+    api_key: ""           # https://inference.net/
+  friendli:
+    api_key: ""           # https://friendli.ai/
+  nebuly:
+    api_key: ""           # https://www.nebuly.com/ (optimization platform)
+
+  # ── Cloud Ecosystems & Aggregators ──────────────────────────────
+
+  openrouter:
+    api_key: ""           # https://openrouter.ai/keys (200+ models via 1 key)
+  bedrock:
+    api_key: ""           # https://aws.amazon.com/bedrock/ (AWS IAM required)
+  azure:
+    api_key: ""           # https://azure.microsoft.com/en-us/products/ai-services/openai-service
+  vertex:
+    api_key: ""           # https://cloud.google.com/vertex-ai (GCP service account)
+  huggingface:
+    api_key: ""           # https://huggingface.co/settings/tokens
+  snowflake:
+    api_key: ""           # https://www.snowflake.com/en/data-cloud/cortex/
+  databricks:
+    api_key: ""           # https://www.databricks.com/product/machine-learning/mosaic-ai
+  perplexity:
+    api_key: ""           # https://www.perplexity.ai/settings/api
+  cloudflare:
+    api_key: ""           # https://dash.cloudflare.com/ (needs account_id)
+  vellum:
+    api_key: ""           # https://www.vellum.ai/ (agentic platform)
+
+  # ── Self-Hosted / Local ─────────────────────────────────────────
+
+  nvidia_nim:
+    api_key: ""           # https://build.nvidia.com/
+  ollama:
+    api_key: ""           # https://ollama.com/ (no key needed, just run locally)

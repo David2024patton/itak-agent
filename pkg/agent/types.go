@@ -2,8 +2,10 @@ package agent
 
 import (
 	"github.com/David2024patton/GOAgent/pkg/debug"
+	"github.com/David2024patton/GOAgent/pkg/eventbus"
 	"github.com/David2024patton/GOAgent/pkg/llm"
 	"github.com/David2024patton/GOAgent/pkg/memory"
+	"github.com/David2024patton/GOAgent/pkg/task"
 	"github.com/David2024patton/GOAgent/pkg/tool"
 )
 
@@ -21,7 +23,7 @@ type AgentConfig struct {
 	MaxSkills   int      `yaml:"max_skills" json:"max_skills"` // default 7
 	MaxLoops    int      `yaml:"max_loops" json:"max_loops"`   // default 10
 
-	// LLM config — each agent can use a different model.
+	// LLM config: each agent can use a different model.
 	LLM llm.ProviderConfig `yaml:"llm" json:"llm"`
 }
 
@@ -74,6 +76,8 @@ type Orchestrator struct {
 	Memory    *memory.Manager
 	Trace     *debug.StepLogger
 	Tokens    *llm.TokenTracker
+	Bus       *eventbus.EventBus
+	Tasks     *task.Tracker
 	StatusFunc func(string) // callback to display status to user
 }
 
@@ -85,6 +89,7 @@ type FocusedAgent struct {
 	Memory    *memory.Manager
 	Trace     *debug.StepLogger
 	Tokens    *llm.TokenTracker
+	Bus       *eventbus.EventBus
 	SessionID string
 }
 

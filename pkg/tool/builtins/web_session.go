@@ -15,7 +15,7 @@ import (
 )
 
 // ──────────────────────────────────────────────────────────────────
-// BrowserSession — persistent, stealth, multi-tab browser for AI agents
+// BrowserSession  -  persistent, stealth, multi-tab browser for AI agents
 // ──────────────────────────────────────────────────────────────────
 
 type BrowserSession struct {
@@ -263,7 +263,7 @@ func (s *BrowserSession) CloseTab(idx int) error {
 		return fmt.Errorf("no browser session")
 	}
 	if len(s.pages) <= 1 {
-		return fmt.Errorf("cannot close the last tab — use web_close to end the session")
+		return fmt.Errorf("cannot close the last tab  -  use web_close to end the session")
 	}
 	if idx < 0 || idx >= len(s.pages) {
 		return fmt.Errorf("tab index %d out of range (0-%d)", idx, len(s.pages)-1)

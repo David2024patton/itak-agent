@@ -52,7 +52,7 @@ GOAgent follows an **orchestrator-delegate** pattern. The core idea: split the A
 │                   SYNTHESIS                             │
 │                                                         │
 │  Orchestrator receives the agent's result and creates   │
-│  a clean, user-facing response — hiding all the         │
+│  a clean, user-facing response  -  hiding all the         │
 │  internal mechanics.                                    │
 │                                                         │
 │  User sees: "Done! Saved example.com HTML to            │
@@ -64,7 +64,7 @@ GOAgent follows an **orchestrator-delegate** pattern. The core idea: split the A
 
 ### Problem with Other Frameworks
 
-Most AI agent frameworks (LangGraph, CrewAI, AutoGen) give a single agent access to everything — dozens of tools, massive system prompts, and long conversation histories. This works with GPT-4 (200K context) but **falls apart** with smaller models because:
+Most AI agent frameworks (LangGraph, CrewAI, AutoGen) give a single agent access to everything  -  dozens of tools, massive system prompts, and long conversation histories. This works with GPT-4 (200K context) but **falls apart** with smaller models because:
 
 - The system prompt alone can eat 30-50% of the context window
 - Tool definitions add thousands of tokens
@@ -103,7 +103,7 @@ Each focused agent runs a **ReAct loop** (Reason → Act → Observe → Decide)
 │                                         │
 │  Iteration 3:                           │
 │    LLM: "Task complete!"                │
-│    Action: (none — returns result)      │
+│    Action: (none  -  returns result)      │
 │                                         │
 └─────────────────────────────────────────┘
 ```

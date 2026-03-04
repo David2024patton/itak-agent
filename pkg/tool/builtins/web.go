@@ -14,7 +14,7 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
-// annotatedSnapshot JS — enumerates interactive elements with @e refs.
+// annotatedSnapshot JS  -  enumerates interactive elements with @e refs.
 // Shared between web_navigate and web_snapshot.
 const annotatedSnapshotJS = `() => {
 	const els = document.querySelectorAll('a, button, input, textarea, select, [role="button"], [onclick]');
@@ -103,7 +103,7 @@ func getPageSnapshot(page *rod.Page) string {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_navigate — go to a URL, return page + elements
+// web_navigate  -  go to a URL, return page + elements
 // ══════════════════════════════════════════════════════════════════
 
 type WebNavigateTool struct{}
@@ -137,7 +137,7 @@ func (w *WebNavigateTool) Execute(ctx context.Context, args map[string]interface
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_click — click an element by @ref or CSS selector
+// web_click  -  click an element by @ref or CSS selector
 // ══════════════════════════════════════════════════════════════════
 
 type WebClickTool struct{}
@@ -159,7 +159,7 @@ func (w *WebClickTool) Schema() map[string]interface{} {
 func (w *WebClickTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 
 	ref := argStr(args, "ref")
@@ -185,7 +185,7 @@ func (w *WebClickTool) Execute(ctx context.Context, args map[string]interface{})
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_type — type text into an input by @ref or CSS selector
+// web_type  -  type text into an input by @ref or CSS selector
 // ══════════════════════════════════════════════════════════════════
 
 type WebTypeTool struct{}
@@ -210,7 +210,7 @@ func (w *WebTypeTool) Schema() map[string]interface{} {
 func (w *WebTypeTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 
 	ref := argStr(args, "ref")
@@ -249,7 +249,7 @@ func (w *WebTypeTool) Execute(ctx context.Context, args map[string]interface{}) 
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_scroll — scroll the page up or down
+// web_scroll  -  scroll the page up or down
 // ══════════════════════════════════════════════════════════════════
 
 type WebScrollTool struct{}
@@ -271,7 +271,7 @@ func (w *WebScrollTool) Schema() map[string]interface{} {
 func (w *WebScrollTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 
 	dir := strings.ToLower(argStr(args, "direction"))
@@ -293,7 +293,7 @@ func (w *WebScrollTool) Execute(ctx context.Context, args map[string]interface{}
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_back — go back in browser history
+// web_back  -  go back in browser history
 // ══════════════════════════════════════════════════════════════════
 
 type WebBackTool struct{}
@@ -307,7 +307,7 @@ func (w *WebBackTool) Schema() map[string]interface{} {
 func (w *WebBackTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 
 	page.NavigateBack()
@@ -316,7 +316,7 @@ func (w *WebBackTool) Execute(ctx context.Context, args map[string]interface{}) 
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_eval — run JavaScript on the current page
+// web_eval  -  run JavaScript on the current page
 // ══════════════════════════════════════════════════════════════════
 
 type WebEvalTool struct{}
@@ -338,7 +338,7 @@ func (w *WebEvalTool) Schema() map[string]interface{} {
 func (w *WebEvalTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 
 	code := argStr(args, "code")
@@ -369,7 +369,7 @@ func (w *WebEvalTool) Execute(ctx context.Context, args map[string]interface{}) 
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_wait — wait for an element or a duration
+// web_wait  -  wait for an element or a duration
 // ══════════════════════════════════════════════════════════════════
 
 type WebWaitTool struct{}
@@ -391,7 +391,7 @@ func (w *WebWaitTool) Schema() map[string]interface{} {
 func (w *WebWaitTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 
 	ref := argStr(args, "ref")
@@ -422,7 +422,7 @@ func (w *WebWaitTool) Execute(ctx context.Context, args map[string]interface{}) 
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_screenshot — capture current page (session-based)
+// web_screenshot  -  capture current page (session-based)
 // ══════════════════════════════════════════════════════════════════
 
 type WebScreenshotTool struct {
@@ -457,7 +457,7 @@ func (w *WebScreenshotTool) Execute(ctx context.Context, args map[string]interfa
 	} else {
 		page = globalSession.Page()
 		if page == nil {
-			return "", fmt.Errorf("no browser session and no URL — use web_navigate first or provide a url")
+			return "", fmt.Errorf("no browser session and no URL  -  use web_navigate first or provide a url")
 		}
 	}
 
@@ -489,7 +489,7 @@ func (w *WebScreenshotTool) Execute(ctx context.Context, args map[string]interfa
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_extract — CSS selector extraction (session-based)
+// web_extract  -  CSS selector extraction (session-based)
 // ══════════════════════════════════════════════════════════════════
 
 type WebExtractTool struct{}
@@ -511,7 +511,7 @@ func (w *WebExtractTool) Schema() map[string]interface{} {
 func (w *WebExtractTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 
 	selector := argStr(args, "selector")
@@ -543,7 +543,7 @@ func (w *WebExtractTool) Execute(ctx context.Context, args map[string]interface{
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_pdf — save page as PDF
+// web_pdf  -  save page as PDF
 // ══════════════════════════════════════════════════════════════════
 
 type WebPDFTool struct {
@@ -576,7 +576,7 @@ func (w *WebPDFTool) Execute(ctx context.Context, args map[string]interface{}) (
 	} else {
 		page = globalSession.Page()
 		if page == nil {
-			return "", fmt.Errorf("no browser session — use web_navigate first or provide a url")
+			return "", fmt.Errorf("no browser session  -  use web_navigate first or provide a url")
 		}
 	}
 
@@ -619,7 +619,7 @@ func (w *WebPDFTool) Execute(ctx context.Context, args map[string]interface{}) (
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_search — Google search, return results
+// web_search  -  Google search, return results
 // ══════════════════════════════════════════════════════════════════
 
 type WebSearchTool struct{}
@@ -683,7 +683,7 @@ func (w *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_close — explicitly close the browser session
+// web_close  -  explicitly close the browser session
 // ══════════════════════════════════════════════════════════════════
 
 type WebCloseTool struct{}
@@ -703,7 +703,7 @@ func (w *WebCloseTool) Execute(ctx context.Context, args map[string]interface{})
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_snapshot — re-read current page state (no navigation)
+// web_snapshot  -  re-read current page state (no navigation)
 // ══════════════════════════════════════════════════════════════════
 
 type WebSnapshotTool struct{}
@@ -719,12 +719,12 @@ func (w *WebSnapshotTool) Schema() map[string]interface{} {
 func (w *WebSnapshotTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 	return getPageSnapshot(page), nil
 }
 // ══════════════════════════════════════════════════════════════════
-// web_cookies — manage cookies for persistent auth
+// web_cookies  -  manage cookies for persistent auth
 // ══════════════════════════════════════════════════════════════════
 
 type WebCookiesTool struct{}
@@ -788,12 +788,12 @@ func (w *WebCookiesTool) Execute(ctx context.Context, args map[string]interface{
 		return "Cookies cleared.", nil
 
 	default:
-		return "", fmt.Errorf("unknown action %q — use save, load, list, or clear", action)
+		return "", fmt.Errorf("unknown action %q  -  use save, load, list, or clear", action)
 	}
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_headed — toggle visible browser for 2FA
+// web_headed  -  toggle visible browser for 2FA
 // ══════════════════════════════════════════════════════════════════
 
 type WebHeadedTool struct{}
@@ -817,17 +817,17 @@ func (w *WebHeadedTool) Execute(ctx context.Context, args map[string]interface{}
 	switch mode {
 	case "on", "true", "yes", "headed":
 		globalSession.SetHeaded(true)
-		return "Browser switched to HEADED mode — a visible window will appear on next navigation. Use this for 2FA or CAPTCHA flows.", nil
+		return "Browser switched to HEADED mode  -  a visible window will appear on next navigation. Use this for 2FA or CAPTCHA flows.", nil
 	case "off", "false", "no", "headless":
 		globalSession.SetHeaded(false)
 		return "Browser switched to HEADLESS mode.", nil
 	default:
-		return "", fmt.Errorf("unknown mode %q — use 'on' or 'off'", mode)
+		return "", fmt.Errorf("unknown mode %q  -  use 'on' or 'off'", mode)
 	}
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_hover — hover over an element
+// web_hover  -  hover over an element
 // ══════════════════════════════════════════════════════════════════
 
 type WebHoverTool struct{}
@@ -849,7 +849,7 @@ func (w *WebHoverTool) Schema() map[string]interface{} {
 func (w *WebHoverTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 
 	ref := argStr(args, "ref")
@@ -866,7 +866,7 @@ func (w *WebHoverTool) Execute(ctx context.Context, args map[string]interface{})
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_double_click — double-click an element
+// web_double_click  -  double-click an element
 // ══════════════════════════════════════════════════════════════════
 
 type WebDoubleClickTool struct{}
@@ -888,7 +888,7 @@ func (w *WebDoubleClickTool) Schema() map[string]interface{} {
 func (w *WebDoubleClickTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 
 	ref := argStr(args, "ref")
@@ -905,7 +905,7 @@ func (w *WebDoubleClickTool) Execute(ctx context.Context, args map[string]interf
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_focus — focus an element (without clicking)
+// web_focus  -  focus an element (without clicking)
 // ══════════════════════════════════════════════════════════════════
 
 type WebFocusTool struct{}
@@ -927,7 +927,7 @@ func (w *WebFocusTool) Schema() map[string]interface{} {
 func (w *WebFocusTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 
 	ref := argStr(args, "ref")
@@ -942,7 +942,7 @@ func (w *WebFocusTool) Execute(ctx context.Context, args map[string]interface{})
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_keys — send keyboard keys (Enter, Tab, Escape, shortcuts)
+// web_keys  -  send keyboard keys (Enter, Tab, Escape, shortcuts)
 // ══════════════════════════════════════════════════════════════════
 
 type WebKeysTool struct{}
@@ -964,7 +964,7 @@ func (w *WebKeysTool) Schema() map[string]interface{} {
 func (w *WebKeysTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	page := globalSession.Page()
 	if page == nil {
-		return "", fmt.Errorf("no browser session — use web_navigate first")
+		return "", fmt.Errorf("no browser session  -  use web_navigate first")
 	}
 
 	keys := argStr(args, "keys")
@@ -1010,7 +1010,7 @@ func (w *WebKeysTool) Execute(ctx context.Context, args map[string]interface{}) 
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_tab_new — open a new tab
+// web_tab_new  -  open a new tab
 // ══════════════════════════════════════════════════════════════════
 
 type WebTabNewTool struct{}
@@ -1047,7 +1047,7 @@ func (w *WebTabNewTool) Execute(ctx context.Context, args map[string]interface{}
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_tab_switch — switch to a tab by index
+// web_tab_switch  -  switch to a tab by index
 // ══════════════════════════════════════════════════════════════════
 
 type WebTabSwitchTool struct{}
@@ -1078,7 +1078,7 @@ func (w *WebTabSwitchTool) Execute(ctx context.Context, args map[string]interfac
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_tab_close — close a tab by index
+// web_tab_close  -  close a tab by index
 // ══════════════════════════════════════════════════════════════════
 
 type WebTabCloseTool struct{}
@@ -1109,7 +1109,7 @@ func (w *WebTabCloseTool) Execute(ctx context.Context, args map[string]interface
 }
 
 // ══════════════════════════════════════════════════════════════════
-// web_tab_list — list all open tabs
+// web_tab_list  -  list all open tabs
 // ══════════════════════════════════════════════════════════════════
 
 type WebTabListTool struct{}

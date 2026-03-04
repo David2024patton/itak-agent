@@ -145,6 +145,56 @@ func (c *OpenAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	return result, nil
 }
 
+// ModelInfo holds basic info about an available model.
+type ModelInfo struct {
+	ID      string `json:"id"`
+	OwnedBy string `json:"owned_by,omitempty"`
+}
+
+// modelsResponse is the response from GET /models.
+type modelsResponse struct {
+	Data []ModelInfo `json:"data"`
+}
+
+// ListModels calls the /models endpoint and returns available model IDs.
+func (c *OpenAIClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
+	url := c.config.APIBase + "/models"
+	debug.Debug("llm", "GET %s", url)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if c.config.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.config.APIKey)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("models API error (status %d): %s", resp.StatusCode, truncateStr(string(respBytes), 200))
+	}
+
+	var mr modelsResponse
+	if err := json.Unmarshal(respBytes, &mr); err != nil {
+		return nil, fmt.Errorf("unmarshal models: %w", err)
+	}
+
+	debug.Debug("llm", "Found %d models from %s", len(mr.Data), c.config.APIBase)
+	return mr.Data, nil
+}
+
 // truncateStr is a local helper (avoids circular import).
 func truncateStr(s string, maxLen int) string {
 	if len(s) <= maxLen {

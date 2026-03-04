@@ -8,22 +8,24 @@ import (
 	"time"
 
 	"github.com/David2024patton/GOAgent/pkg/debug"
+	"github.com/David2024patton/GOAgent/pkg/eventbus"
 	"github.com/David2024patton/GOAgent/pkg/llm"
 	"github.com/David2024patton/GOAgent/pkg/memory"
+	"github.com/David2024patton/GOAgent/pkg/task"
 )
 
 // delegationSystemPrompt is the baked-in system prompt for the orchestrator.
-// It tells the LLM to ONLY reason and delegate — never use tools.
+// It tells the LLM to ONLY reason and delegate  -  never use tools.
 // %d = agent count, %s = data directory, %s = agent descriptions
-const delegationSystemPrompt = `You are GOAgent — a lightweight, sovereign AI agent framework written in Go.
+const delegationSystemPrompt = `You are GOAgent  -  a lightweight, sovereign AI agent framework written in Go.
 
 ABOUT YOU:
 - You are GOAgent v0.2.0, created by David Patton
 - GitHub: https://github.com/David2024patton/GOAgent
 - You are purpose-built for 30B-parameter models and smaller (like NVIDIA Nemotron)
-- Your architecture: Orchestrator-Delegate pattern — you reason and route, focused agents execute with tools
+- Your architecture: Orchestrator-Delegate pattern  -  you reason and route, focused agents execute with tools
 - You have built-in memory (session + persistent + archive), skills, guardrails, and time-travel debugging
-- You have EXACTLY %d agent(s) available — listed below in AVAILABLE AGENTS
+- You have EXACTLY %d agent(s) available  -  listed below in AVAILABLE AGENTS
 
 YOUR PRIMARY JOB IS TO DELEGATE. You have NO tools yourself.
 You reason about requests, then delegate to your focused agents who DO the work.
@@ -34,22 +36,22 @@ DELEGATION RULES (FOLLOW THESE FIRST):
 3. Delegate to "browser" when the user wants to: visit a website, read a web page, take a screenshot, or extract data from a URL.
 4. Delegate to "researcher" for: general research, fetching raw URLs, gathering information.
 5. Delegate to "coder" for: writing code, debugging, running programs.
-6. You can chain delegations — e.g. scout checks data, then operator acts on it.
+6. You can chain delegations  -  e.g. scout checks data, then operator acts on it.
 
 ANSWER DIRECTLY (from the AVAILABLE AGENTS section below) when asked about:
-- "how many agents do you have" — count the agents listed below and name them
-- "what agents/tools do you have" — list them from the AVAILABLE AGENTS section
-- "what can you do" — describe your capabilities based on your agents and their tools
+- "how many agents do you have"  -  count the agents listed below and name them
+- "what agents/tools do you have"  -  list them from the AVAILABLE AGENTS section
+- "what can you do"  -  describe your capabilities based on your agents and their tools
 - Pure greetings: "hi", "hello", "hey"
 - Identity questions: "what are you", "who made you", "what is GOAgent"
 
 DELEGATE TO SCOUT (never guess) when asked about:
-- "how many skills/messages/conversations are there" — scout checks the filesystem
-- "list files/folders" — scout browses the directory
-- "show me the data/project structure" — scout lists directories
+- "how many skills/messages/conversations are there"  -  scout checks the filesystem
+- "list files/folders"  -  scout browses the directory
+- "show me the data/project structure"  -  scout lists directories
 - ANY question about data that lives on disk
 
-When in doubt — DELEGATE to scout. It is always better to delegate than to guess.
+When in doubt  -  DELEGATE to scout. It is always better to delegate than to guess.
 
 SYSTEM INFO:
 - Data directory: %s
@@ -85,10 +87,10 @@ ONLY if the question is a pure greeting or identity question, respond:
 // synthesisSystemPrompt is used when the orchestrator combines agent results.
 const synthesisSystemPrompt = `You are the GOAgent Orchestrator synthesizing results.
 Given the original user request and the results from your focused agents, create a clear, helpful final response.
-Be concise. Present the information naturally — don't mention agents or delegation mechanics to the user.`
+Be concise. Present the information naturally  -  don't mention agents or delegation mechanics to the user.`
 
 // NewOrchestrator creates an orchestrator with its LLM client and registered agents.
-func NewOrchestrator(cfg OrchestratorConfig, agents map[string]*FocusedAgent, mem *memory.Manager, trace *debug.StepLogger, tokens *llm.TokenTracker) *Orchestrator {
+func NewOrchestrator(cfg OrchestratorConfig, agents map[string]*FocusedAgent, mem *memory.Manager, trace *debug.StepLogger, tokens *llm.TokenTracker, bus *eventbus.EventBus) *Orchestrator {
 	client := llm.NewOpenAIClient(cfg.LLM)
 	return &Orchestrator{
 		Config:    cfg,
@@ -97,6 +99,15 @@ func NewOrchestrator(cfg OrchestratorConfig, agents map[string]*FocusedAgent, me
 		Memory:    mem,
 		Trace:     trace,
 		Tokens:    tokens,
+		Bus:       bus,
+		Tasks:     task.NewTracker(100),
+	}
+}
+
+// emit publishes an event to the bus if one is attached.
+func (o *Orchestrator) emit(e eventbus.Event) {
+	if o.Bus != nil {
+		o.Bus.Publish(e)
 	}
 }
 
@@ -109,10 +120,11 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 	debug.Info("orchestrator", "Processing: %s", truncate(userMessage, 80))
 	debug.Separator("orchestrator")
 
-	// Trace: user message received.
+	// Trace + Bus: user message received.
 	if o.Trace != nil {
 		o.Trace.Record(debug.StepUserMessage, "orchestrator", "", userMessage, "", nil)
 	}
+	o.emit(eventbus.NewEvent(eventbus.TopicUserInput, userMessage))
 
 	// Log user message to session memory and archive.
 	if o.Memory != nil {
@@ -166,7 +178,7 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 
 	debug.JSON("orchestrator", "Raw LLM response", resp.Content)
 	if resp.Usage != nil {
-		debug.Debug("orchestrator", "Tokens — prompt: %d, completion: %d, total: %d",
+		debug.Debug("orchestrator", "Tokens  -  prompt: %d, completion: %d, total: %d",
 			resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens)
 	}
 
@@ -185,7 +197,7 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 	}
 
 	if len(delegation.Delegations) == 0 {
-		debug.Warn("orchestrator", "No delegations and no direct response — unclear request")
+		debug.Warn("orchestrator", "No delegations and no direct response  -  unclear request")
 		fallback := "I wasn't sure how to help with that. Could you rephrase?"
 		o.logAssistantResponse(fallback)
 		return fallback, nil
@@ -194,57 +206,90 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 	debug.Info("orchestrator", "Reasoning: %s", truncate(delegation.Reasoning, 150))
 	debug.Info("orchestrator", "Delegating to %d agent(s)", len(delegation.Delegations))
 
-	// Trace: delegation decision.
+	// Trace + Bus: delegation decision.
 	if o.Trace != nil {
 		o.Trace.Record(debug.StepDelegation, "orchestrator", "", delegation.Reasoning, "", map[string]interface{}{
 			"agent_count": len(delegation.Delegations),
 		})
 	}
+	o.emit(eventbus.Event{
+		Topic:   eventbus.TopicOrchestratorDelegation,
+		Message: delegation.Reasoning,
+		Data:    map[string]interface{}{"agent_count": len(delegation.Delegations)},
+	})
 
-	// Step 3: Execute delegations.
+	// Step 3: Create mandatory task list.
+	taskList := o.Tasks.Create(userMessage)
+	for i, t := range delegation.Delegations {
+		taskList.AddItem(
+			fmt.Sprintf("step-%d", i+1),
+			t.Task,
+			t.Agent,
+		)
+	}
+
+	o.status(fmt.Sprintf("GOAgent Task: %s", taskList.Summary()))
+
+	// Step 4: Execute delegations with task tracking.
 	results := make([]Result, 0, len(delegation.Delegations))
-	for i, task := range delegation.Delegations {
-		agent, ok := o.Agents[task.Agent]
+	for i, dtask := range delegation.Delegations {
+		agent, ok := o.Agents[dtask.Agent]
+		taskID := fmt.Sprintf("step-%d", i+1)
+
 		if !ok {
-			debug.Error("orchestrator", "Unknown agent %q in delegation %d", task.Agent, i+1)
+			debug.Error("orchestrator", "Unknown agent %q in delegation %d", dtask.Agent, i+1)
+			taskList.Fail(taskID, fmt.Sprintf("unknown agent: %s", dtask.Agent))
 			results = append(results, Result{
-				Agent:   task.Agent,
+				Agent:   dtask.Agent,
 				Success: false,
-				Error:   fmt.Sprintf("unknown agent: %s", task.Agent),
+				Error:   fmt.Sprintf("unknown agent: %s", dtask.Agent),
 			})
 			continue
 		}
 
-		// Status: Delegating
-		o.status(fmt.Sprintf("GOAgent Delegating to %s...", task.Agent))
+		// Mark task as running.
+		taskList.Start(taskID)
+		o.status(fmt.Sprintf("GOAgent Delegating to %s...", dtask.Agent))
 
-		debug.Separator(task.Agent)
-		debug.Info("orchestrator", "→ Delegating [%d/%d] to %q: %s",
-			i+1, len(delegation.Delegations), task.Agent, truncate(task.Task, 100))
+		debug.Separator(dtask.Agent)
+		debug.Info("orchestrator", "-> Delegating [%d/%d] to %q: %s",
+			i+1, len(delegation.Delegations), dtask.Agent, truncate(dtask.Task, 100))
 
-		// Trace: agent start.
+		// Trace + Bus: agent start.
 		if o.Trace != nil {
-			o.Trace.Record(debug.StepAgentStart, task.Agent, "", task.Task, "", nil)
+			o.Trace.Record(debug.StepAgentStart, dtask.Agent, "", dtask.Task, "", nil)
 		}
+		o.emit(eventbus.AgentEvent(eventbus.TopicAgentStart, dtask.Agent, dtask.Task))
 
 		startTime := time.Now()
-		result := agent.Run(ctx, task)
+		result := agent.Run(ctx, dtask)
 
 		if result.Success {
-			debug.Info("orchestrator", "← %q succeeded: %s", task.Agent, truncate(result.Output, 100))
+			debug.Info("orchestrator", "<- %q succeeded: %s", dtask.Agent, truncate(result.Output, 100))
+			taskList.Complete(taskID, truncate(result.Output, 200))
 		} else {
-			debug.Error("orchestrator", "← %q failed: %s", task.Agent, result.Error)
+			debug.Error("orchestrator", "<- %q failed: %s", dtask.Agent, result.Error)
+			taskList.Fail(taskID, result.Error)
 		}
 		results = append(results, result)
 
-		// Trace: agent complete.
+		// Trace + Bus: agent complete.
 		if o.Trace != nil {
 			output := result.Output
 			if !result.Success {
 				output = result.Error
 			}
-			o.Trace.RecordTimed(debug.StepAgentComplete, task.Agent, "", task.Task, startTime, truncate(output, 500))
+			o.Trace.RecordTimed(debug.StepAgentComplete, dtask.Agent, "", dtask.Task, startTime, truncate(output, 500))
 		}
+		o.emit(eventbus.Event{
+			Topic: eventbus.TopicAgentComplete,
+			Agent: dtask.Agent,
+			Data: map[string]interface{}{
+				"success":     result.Success,
+				"duration_ms": time.Since(startTime).Milliseconds(),
+			},
+			Message: truncate(result.Output, 200),
+		})
 
 		// Auto-reflect: record what the agent learned from this task.
 		if o.Config.Memory.AutoReflect && o.Memory != nil {
@@ -254,13 +299,16 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 				outcome = "failure"
 				lessons = result.Error
 			}
-			if err := o.Memory.Reflections.Add(task.Agent, task.Task, outcome, lessons); err != nil {
+			if err := o.Memory.Reflections.Add(dtask.Agent, dtask.Task, outcome, lessons); err != nil {
 				debug.Warn("orchestrator", "Auto-reflect save failed: %v", err)
 			} else {
-				debug.Debug("orchestrator", "Auto-reflected for %q: %s → %s", task.Agent, outcome, truncate(lessons, 80))
+				debug.Debug("orchestrator", "Auto-reflected for %q: %s -> %s", dtask.Agent, outcome, truncate(lessons, 80))
 			}
 		}
 	}
+
+	// Archive the completed task list.
+	o.Tasks.Archive(taskList.ID)
 
 	// Step 4: Synthesize results.
 	debug.Separator("orchestrator")
@@ -367,11 +415,11 @@ type rawTaskPayload struct {
 func parseDelegation(raw string) (*Delegation, string, error) {
 	jsonStr := extractJSON(raw)
 	if jsonStr == "" {
-		// No JSON found — the LLM responded conversationally.
+		// No JSON found  -  the LLM responded conversationally.
 		// Treat the entire response as a direct answer (common with 30B models).
 		cleaned := strings.TrimSpace(raw)
 		if cleaned != "" {
-			debug.Debug("orchestrator", "No JSON in response — treating as direct reply")
+			debug.Debug("orchestrator", "No JSON in response  -  treating as direct reply")
 			return nil, cleaned, nil
 		}
 		return nil, "", fmt.Errorf("empty response from LLM")

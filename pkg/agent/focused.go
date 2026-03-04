@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/David2024patton/GOAgent/pkg/debug"
+	"github.com/David2024patton/GOAgent/pkg/eventbus"
 	"github.com/David2024patton/GOAgent/pkg/llm"
 	"github.com/David2024patton/GOAgent/pkg/memory"
 	"github.com/David2024patton/GOAgent/pkg/tool"
@@ -48,7 +49,7 @@ If you cannot find something after 2-3 tries, report what you DID find and note 
 }
 
 // NewFocusedAgent creates a focused agent with its own LLM client and tools.
-func NewFocusedAgent(cfg AgentConfig, client llm.Client, tools *tool.Registry, mem *memory.Manager, trace *debug.StepLogger, tokens *llm.TokenTracker, sessionID string) *FocusedAgent {
+func NewFocusedAgent(cfg AgentConfig, client llm.Client, tools *tool.Registry, mem *memory.Manager, trace *debug.StepLogger, tokens *llm.TokenTracker, bus *eventbus.EventBus, sessionID string) *FocusedAgent {
 	if cfg.MaxSkills == 0 {
 		cfg.MaxSkills = DefaultMaxSkills
 	}
@@ -62,6 +63,7 @@ func NewFocusedAgent(cfg AgentConfig, client llm.Client, tools *tool.Registry, m
 		Memory:    mem,
 		Trace:     trace,
 		Tokens:    tokens,
+		Bus:       bus,
 		SessionID: sessionID,
 	}
 }
@@ -101,7 +103,7 @@ func (a *FocusedAgent) Run(ctx context.Context, task TaskPayload) Result {
 		}
 
 		if resp.Usage != nil {
-			debug.Debug(tag, "Tokens — prompt: %d, completion: %d, total: %d",
+			debug.Debug(tag, "Tokens  -  prompt: %d, completion: %d, total: %d",
 				resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens)
 		}
 
@@ -129,18 +131,26 @@ func (a *FocusedAgent) Run(ctx context.Context, task TaskPayload) Result {
 			debug.Info(tag, "Calling tool %q (id: %s)", tc.Function.Name, tc.ID)
 			debug.Debug(tag, "Tool args: %s", truncate(tc.Function.Arguments, 200))
 
-			// Trace: tool invoked.
+			// Trace + Bus: tool invoked.
 			if a.Trace != nil {
 				a.Trace.Record(debug.StepToolInvoked, tag, tc.Function.Name, tc.Function.Arguments, "", nil)
+			}
+			if a.Bus != nil {
+				a.Bus.Publish(eventbus.ToolEvent(eventbus.TopicAgentToolCall, tag, tc.Function.Name, truncate(tc.Function.Arguments, 200), nil))
 			}
 
 			toolStart := time.Now()
 			toolResult := a.executeTool(ctx, tc)
 			debug.Debug(tag, "Tool result: %s", truncate(toolResult, 300))
 
-			// Trace: tool result.
+			// Trace + Bus: tool result.
 			if a.Trace != nil {
 				a.Trace.RecordTimed(debug.StepToolResult, tag, tc.Function.Name, tc.Function.Arguments, toolStart, truncate(toolResult, 500))
+			}
+			if a.Bus != nil {
+				a.Bus.Publish(eventbus.ToolEvent(eventbus.TopicAgentToolResult, tag, tc.Function.Name, truncate(toolResult, 300), map[string]interface{}{
+					"duration_ms": time.Since(toolStart).Milliseconds(),
+				}))
 			}
 
 			messages = append(messages, llm.Message{

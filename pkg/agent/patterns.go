@@ -8,7 +8,7 @@ import (
 	"github.com/David2024patton/GOAgent/pkg/debug"
 )
 
-// ChainRunner executes agents sequentially — each agent's output becomes the next agent's input.
+// ChainRunner executes agents sequentially  -  each agent's output becomes the next agent's input.
 type ChainRunner struct {
 	Name   string
 	Agents []*FocusedAgent

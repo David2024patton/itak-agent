@@ -62,7 +62,7 @@ func (fc *FailoverClient) Chat(ctx context.Context, messages []Message, tools []
 
 		resp, err := p.Client.Chat(ctx, messages, tools)
 		if err == nil {
-			// Success — promote this provider to primary if it wasn't already.
+			// Success  -  promote this provider to primary if it wasn't already.
 			fc.mu.Lock()
 			if fc.primary != p.Priority {
 				debug.Info("llm", "Failover: promoted %s to primary (was provider %d)", p.Name, fc.primary)
@@ -72,7 +72,7 @@ func (fc *FailoverClient) Chat(ctx context.Context, messages []Message, tools []
 			return resp, nil
 		}
 
-		debug.Warn("llm", "Provider %s failed: %v — trying next", p.Name, err)
+		debug.Warn("llm", "Provider %s failed: %v  -  trying next", p.Name, err)
 		lastErr = err
 	}
 
