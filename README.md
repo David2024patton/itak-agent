@@ -100,7 +100,10 @@ flowchart TD
 ### What You Need
 
 - **Go 1.22+** installed ([download here](https://go.dev/dl/))
-- An **API key** for an LLM provider (NVIDIA NIM, OpenAI, Ollama, etc.)
+- **One of these** (pick whichever works for you):
+  - A **cloud API key** (NVIDIA NIM, OpenAI, OpenRouter, etc.)
+  - A **local model** running on [Ollama](https://ollama.com/) (free, no API key needed)
+  - Both! Use cloud for the boss, local for workers
 
 ### 1. Clone and Build
 
