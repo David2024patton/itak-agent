@@ -270,11 +270,68 @@ Specialized agents for specific industries. Each loads industry-specific knowled
 | **Standard** (16GB) | 12-16GB | **Dell OptiPlex 7060 (Skynet)** | Qwen3 8B + Granite Code + qwen3-embedding |
 | **Pro** (32GB+) | 32GB+ | Workstations, gaming PCs | Qwen3 14B + Qwen2.5-Coder 7B + qwen3-embedding |
 
-## 9. GOBrowser (Custom Browser Engine)
+## 9. GOBrowser (AI-Native Browser Engine)
 
-- [ ] **GOBrowser Repo** - Custom Go browser engine for agents. Integrated into GOAgent. Research Vercel's browser SDK. *(Original - notes.md)*
-- [ ] **DOM Extraction** - Navigate and extract structured data via DOM. *(Original - notes.md)*
-- [ ] **Teaching Mode** - DOM-based interactive tutorials. Teacher agent uses this to guide users. *(Original - notes.md)*
+Go-native browser automation CLI for agents. Inspired by [Vercel agent-browser](https://github.com/vercel-labs/agent-browser) architecture, rebuilt entirely in Go. Uses Snapshot+Refs pattern for 93% token reduction vs raw DOM dumps.
+
+### Architecture
+- [ ] **Go CLI** - Fast native binary. Parses commands, communicates with daemon. Replaces agent-browser's Rust CLI. *(agent-browser pattern)*
+- [ ] **Go Daemon** - Manages browser instance via CDP (Chrome DevTools Protocol). Persists between commands for fast sequential operations. *(agent-browser pattern)*
+- [ ] **CDP-Native (Default)** - Direct Chrome DevTools Protocol via `chromedp` (Go-native). No Node.js, no Playwright required. *(agent-browser native mode, chromedp)*
+- [ ] **Playwright Fallback** - For complex pages or Firefox/WebKit support, fall back to Playwright via shell. *(agent-browser pattern)*
+
+### Snapshot + Refs (Core Innovation)
+The key to making small LLMs work with browsers. Instead of dumping 50KB of HTML, generate a compact accessibility tree with refs:
+
+```
+# Agent asks for snapshot, gets:
+- heading "Example Domain" [ref=e1] [level=1]
+- button "Submit" [ref=e2]
+- textbox "Email" [ref=e3]
+- link "Learn more" [ref=e4]
+
+# Agent says: click @e2, fill @e3 "test@example.com"
+# ~200 tokens instead of 10,000
+```
+
+- [ ] **Accessibility Snapshots** - Generate compact text-based tree of all interactive elements with unique refs. 93% fewer tokens than raw DOM. *(agent-browser)*
+- [ ] **Ref-Based Interaction** - Click, fill, hover, get text by ref ID. Deterministic, fast, no DOM re-query. *(agent-browser)*
+- [ ] **Annotated Screenshots** - Screenshots with numbered element labels overlaid. Vision models can reference elements by number. *(agent-browser)*
+- [ ] **JSON Agent Mode** - All commands output structured JSON for machine parsing. `--json` flag on every command. *(agent-browser)*
+
+### Core Commands (50+)
+- [ ] **Navigation** - open, close, back, forward, reload. *(agent-browser)*
+- [ ] **Interaction** - click, dblclick, fill, type, press, hover, select, check, uncheck, scroll, drag, upload. *(agent-browser)*
+- [ ] **Data Extraction** - get text, get html, get value, get attr, get title, get url, get count, get box, get styles. *(agent-browser)*
+- [ ] **State Checks** - is visible, is enabled, is checked. *(agent-browser)*
+- [ ] **Waiting** - Wait for selector, time, text, URL pattern, network idle, JS condition. *(agent-browser)*
+- [ ] **Mouse Control** - move, down, up, wheel for pixel-precise control. *(agent-browser)*
+- [ ] **Keyboard** - Full keyboard emulation. Key combos, inserttext, keydown/keyup. *(agent-browser)*
+- [ ] **Capture** - screenshot, screenshot --annotate, snapshot, pdf, eval (JavaScript). *(agent-browser)*
+
+### Semantic Locators
+- [ ] **Find by Role** - `gobrowser find role button click --name "Submit"`. ARIA-aware element discovery. *(agent-browser)*
+- [ ] **Find by Text/Label** - `gobrowser find text "Sign In" click`. Natural language element finding. *(agent-browser)*
+- [ ] **Find by Placeholder/Alt/TestID** - Multiple strategies for locating elements. *(agent-browser)*
+
+### Sessions & Persistence
+- [ ] **Persistent Profiles** - Dedicated browser profiles per agent/task. Cookies, storage, history persist across sessions. *(agent-browser)*
+- [ ] **Session Persistence** - Save and restore browser state (cookies, storage, open tabs). *(agent-browser)*
+- [ ] **State Encryption** - Encrypt persisted session data at rest. API keys and auth tokens stay safe. *(agent-browser)*
+
+### Stealth & Anti-Detection
+- [ ] **Stealth Mode** - Evade bot detection (headless fingerprinting, navigator.webdriver, etc.). *(Browserbase patterns)*
+- [ ] **Proxy Support** - HTTP/SOCKS5 proxy per session. Rotate IPs for scraping. *(Original)*
+- [ ] **Custom User-Agent** - Rotate user agents. Mobile/desktop emulation. *(Original)*
+
+### Advanced
+- [ ] **Browser Streaming** - WebSocket-based live preview of browser viewport. Watch agents browse in real-time from GODashboard. *(agent-browser streaming)*
+- [ ] **Page Diff** - Compare DOM snapshots between actions. Track what changed. Useful for testing. *(agent-browser diff)*
+- [ ] **Tab/Window Management** - Open, close, switch tabs. Multi-tab workflows. *(agent-browser)*
+- [ ] **Network Interception** - Monitor, mock, block network requests. *(Playwright pattern)*
+- [ ] **CDP Connect** - Attach to an already-running browser via CDP port. Reuse existing sessions. *(agent-browser connect)*
+- [ ] **Teaching Mode** - Record agent actions as interactive tutorials for the Teacher Agent. *(Original)*
+- [ ] **DOM Extraction** - Navigate and extract structured data via DOM. *(Original)*
 
 ## 10. GOVision (Screen Automation Agent)
 
@@ -793,6 +850,8 @@ Items to investigate before implementation:
 - [ ] **kkdai/youtube** - Go YouTube downloader. Fork as base for GOMedia YouTube extractor. *(https://github.com/kkdai/youtube)*
 - [ ] **horiagug/youtube-transcript-api-go** - Go YouTube transcript extractor. Fork for GOMedia subtitle pipeline. *(https://github.com/horiagug/youtube-transcript-api-go)*
 - [ ] **gonum/gonum** - Go numeric libraries (matrices, stats, optimization). Potential dep for tensor math. *(https://github.com/gonum/gonum)*
+- [ ] **vercel-labs/agent-browser** - Browser automation CLI for AI agents. Snapshot+Refs pattern, Rust CLI + Node daemon. Study architecture for GOBrowser. *(https://github.com/vercel-labs/agent-browser)*
+- [ ] **chromedp/chromedp** - Go-native Chrome DevTools Protocol client. Primary browser control layer for GOBrowser. *(https://github.com/chromedp/chromedp)*
 
 ---
 
@@ -821,7 +880,8 @@ Items to investigate before implementation:
 | Draw.io MCP | https://github.com/lgazo/drawio-mcp-server | Diagram generation via MCP |
 | Canvas (Go) | https://github.com/steipete/canvas | Visual workspace in Go |
 | wacli (Go) | https://github.com/steipete/wacli | WhatsApp CLI in Go |
-| Vercel Browser | (research needed) | Agent browser engine |
+| Vercel Browser | https://github.com/vercel-labs/agent-browser | AI browser CLI with Snapshot+Refs (GOBrowser base) |
+| chromedp | https://github.com/chromedp/chromedp | Go-native Chrome DevTools Protocol client |
 | GoMLX | https://github.com/gomlx/gomlx | Pure Go tensor engine, XLA GPU backend |
 | LangChainGo | https://github.com/tmc/langchaingo | LLM providers, tools, cache |
 | Eino | https://github.com/cloudwego/eino | ByteDance agent framework, streaming, interrupt/resume |
