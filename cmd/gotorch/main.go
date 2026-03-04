@@ -62,6 +62,9 @@ func cmdServe(args []string) {
 	modelPath := fs.String("model", "", "Path to GGUF model file")
 	port := fs.Int("port", defaultPort, "Port to listen on")
 	useMock := fs.Bool("mock", false, "Use mock engine (for testing without a real model)")
+	ctxSize := fs.Int("ctx", 2048, "Context window size")
+	threads := fs.Int("threads", 4, "Number of CPU threads")
+	gpuLayers := fs.Int("gpu-layers", 0, "Number of layers to offload to GPU (0 = CPU only)")
 	fs.Parse(args)
 
 	var engine torch.Engine
@@ -74,10 +77,22 @@ func cmdServe(args []string) {
 		engine = torch.NewMockEngine(mockName)
 		fmt.Println("[GOTorch] Using mock engine (no real inference)")
 	} else if *modelPath != "" {
-		// TODO: Replace with real llama.cpp engine when CGo is available.
-		fmt.Fprintf(os.Stderr, "[GOTorch] Real llama.cpp engine not yet implemented.\n")
-		fmt.Fprintf(os.Stderr, "[GOTorch] Use --mock flag for testing, or wait for CGo backend.\n")
-		os.Exit(1)
+		fmt.Printf("[GOTorch] Loading model: %s\n", *modelPath)
+		fmt.Printf("[GOTorch] Config: ctx=%d, threads=%d, gpu_layers=%d\n", *ctxSize, *threads, *gpuLayers)
+
+		opts := torch.EngineOpts{
+			ContextSize: *ctxSize,
+			Threads:     *threads,
+			GPULayers:   *gpuLayers,
+		}
+
+		var err error
+		engine, err = torch.NewLlamaEngine(*modelPath, opts)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[GOTorch] Failed to load model: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("[GOTorch] Model loaded successfully: %s\n", engine.ModelName())
 	} else {
 		fmt.Fprintf(os.Stderr, "Error: --model or --mock is required\n")
 		fmt.Fprintf(os.Stderr, "Usage: gotorch serve --model <path.gguf> --port <port>\n")
