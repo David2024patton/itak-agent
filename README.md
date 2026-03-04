@@ -77,11 +77,21 @@ flowchart TD
     Coder --> CW2["Worker 2: file_read"]
     Coder --> CW3["Worker 3: file_write"]
 
+    CW1 --> Doctor
+    CW2 --> Doctor
+    CW3 --> Doctor
+
+    subgraph Doctor["Doctor Agent (GOBeat)"]
+        direction TB
+        D1["Runs linter for the project language"]
+        D2["Checks for errors"]
+        D3["Fixes problems or reports back"]
+        D1 --> D2 --> D3
+    end
+
     RW1 --> Result["Results flow back up"]
     RW2 --> Result
-    CW1 --> Result
-    CW2 --> Result
-    CW3 --> Result
+    Doctor --> Result
     Result --> Answer["Boss combines everything into a final answer"]
 ```
 
