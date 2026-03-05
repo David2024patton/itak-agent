@@ -10,7 +10,7 @@ import (
 	"github.com/David2024patton/GOAgent/pkg/torch"
 )
 
-const defaultPort = 11434
+const defaultPort = 41934
 const defaultCacheDir = "~/.gotorch/models"
 
 func main() {

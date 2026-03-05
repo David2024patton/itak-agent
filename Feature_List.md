@@ -813,9 +813,10 @@ Custom Go-native LLM inference runtime. No dependency on Ollama or any external 
 - [ ] **Inference Metrics** - Tokens/second, memory usage, model load time. Feed into GODashboard. *(Original)*
 - [ ] **Research**: Study `go-skynet/LocalAI`, `mudler/go-llama.cpp`, `ggml-org/llama.cpp` CGo patterns, and `ollama/ollama` internals for architecture inspiration. *(Research)*
 
-### Pure Go Backend (from GoMLX)
-- [ ] **GoMLX SimpleGo Fork** - Fork GoMLX's `backends/simplego/` pure Go tensor engine into `pkg/torch/native/`. AVX-512 optimized matmul, convolutions, packed GEMM. Zero CGo deps. *(GoMLX)*
-- [ ] **Native Inference Engine** - Run tiny models (<1B params) entirely in pure Go. No shared libraries needed at all. *(GoMLX, Original)*
+### Pure Go Backend (GOTensor)
+- [ ] **GOTensor Engine** - Pure Go tensor engine in `pkg/torch/native/`. AVX-512 optimized matmul, convolutions, packed GEMM. Zero CGo deps. Forked and rebranded from GoMLX's `backends/simplego/`. *(GOTensor)*
+- [ ] **Native Inference Engine** - Run tiny models (<1B params) entirely in pure Go. No shared libraries needed at all. *(GOTensor, Original)*
+- [ ] **Training & Fine-Tuning** - Train and fine-tune models locally using GOTensor's XLA GPU backend. Agents can autonomously create custom models from user data. Dashboard section for training jobs, loss curves, and model management. *(GOTensor, Original)*
 
 ### LLM Provider System (from LangChainGo)
 - [ ] **Unified Model Interface** - Fork LangChainGo's `Model` interface with `GenerateContent()` and `ReasoningModel` support. *(LangChainGo)*
@@ -1082,7 +1083,7 @@ Items to investigate before implementation:
 - [ ] **Go container runtimes** - Study containerd, runc, Podman internals for Tier 2 container implementation. All written in Go. *(https://github.com/containerd/containerd, https://github.com/opencontainers/runc)*
 - [ ] **gogs/gogs** - Self-hosted Git service in Go. Reference for Git hosting patterns (we'll use GitHub API instead). *(https://github.com/gogs/gogs)*
 - [ ] **go-gitea/gitea** - Gogs fork, more active. Reference for Go-based Git server patterns. *(https://github.com/go-gitea/gitea)*
-- [ ] **gomlx/gomlx** - Accelerated ML framework for Go. Fork `backends/simplego/` for pure Go tensor engine. *(https://github.com/gomlx/gomlx)*
+- [ ] **gomlx/gomlx** - Studied and forked as GOTensor. Pure Go tensor engine with XLA GPU backend. Source: `backends/simplego/`. *(https://github.com/gomlx/gomlx)*
 - [ ] **tmc/langchaingo** - LangChain for Go. Fork LLM provider interface, tools, and cache layer. *(https://github.com/tmc/langchaingo)*
 - [ ] **cloudwego/eino** - ByteDance LLM agent framework. Study streaming, interrupt/resume, callback patterns. *(https://github.com/cloudwego/eino)*
 - [ ] **knights-analytics/hugot** - ONNX transformer pipelines in Go. Fork for ONNX model support + local embeddings. *(https://github.com/knights-analytics/hugot)*
@@ -1121,7 +1122,7 @@ Items to investigate before implementation:
 | wacli (Go) | https://github.com/steipete/wacli | WhatsApp CLI in Go |
 | Vercel Browser | https://github.com/vercel-labs/agent-browser | AI browser CLI with Snapshot+Refs (GOBrowser base) |
 | chromedp | https://github.com/chromedp/chromedp | Go-native Chrome DevTools Protocol client |
-| GoMLX | https://github.com/gomlx/gomlx | Pure Go tensor engine, XLA GPU backend |
+| GOTensor (ex-GoMLX) | https://github.com/gomlx/gomlx | Forked as GOTensor: pure Go tensor engine, XLA GPU backend, training/finetuning |
 | LangChainGo | https://github.com/tmc/langchaingo | LLM providers, tools, cache |
 | Eino | https://github.com/cloudwego/eino | ByteDance agent framework, streaming, interrupt/resume |
 | Hugot | https://github.com/knights-analytics/hugot | ONNX transformer pipelines in Go |
