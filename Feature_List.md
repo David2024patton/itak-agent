@@ -183,7 +183,7 @@ Each persona below shows: **Name** - what it does. *[Core Agent(s) + Key Skills]
 
 #### Platform Personas
 - [ ] **Automation Builder** - Build cross-app workflows on: Zapier, Make, n8n, Node-RED, IFTTT, UiPath, Power Automate, ServiceNow, Workato, Gumloop, Lindy AI. Workflow creation, templates, cross-platform migration. *[Browser + Operator + automation skills]* *(Original)*
-- [ ] **Google Workspace** - Gmail, Drive, Docs, Sheets, Calendar, Meet, YouTube Studio, Search Console, Ads. Full CRUD + automation. *[Browser + Operator + Google skills]* *(Original)*
+- [ ] **Google Workspace** - Gmail, Drive, Docs, Sheets, Calendar, Meet, Contacts, Tasks, Forms, Keep, Chat, YouTube Studio, Search Console, Ads. Uses [gogcli](https://github.com/steipete/gogcli) as the native CLI tool layer (JSON output, command allowlisting for sandboxed runs, OS keyring credential storage, multi-account support). Full CRUD + automation without browser overhead. *[Operator + gogcli + Google skills]* *(Original)*
 - [ ] **Microsoft 365** - Outlook, Teams, Office, OneDrive, SharePoint, Azure, Power BI, Dynamics 365, Active Directory. *[Browser + Operator + Microsoft skills]* *(Original)*
 - [ ] **Apple Ecosystem** - macOS control, Shortcuts, iCloud, Xcode, TestFlight, App Store Connect. *[Operator + Apple skills]* *(Original)*
 - [ ] **Android Controller** - ADB control, app management, notification relay, file transfer, screen mirroring (scrcpy), Tasker integration, GOVision bridge. *[Operator + Android skills]* *(Original)*
