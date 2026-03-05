@@ -13,6 +13,8 @@ type Engine interface {
 	Complete(ctx context.Context, messages []ChatMessage, params CompletionParams) (string, error)
 	// ModelName returns the name of the currently loaded model.
 	ModelName() string
+	// GetStats returns engine performance stats.
+	GetStats() EngineStats
 	// Close unloads the model and frees resources.
 	Close() error
 }
@@ -44,6 +46,10 @@ func (m *MockEngine) Complete(ctx context.Context, messages []ChatMessage, param
 
 func (m *MockEngine) ModelName() string {
 	return m.name
+}
+
+func (m *MockEngine) GetStats() EngineStats {
+	return EngineStats{}
 }
 
 func (m *MockEngine) Close() error {

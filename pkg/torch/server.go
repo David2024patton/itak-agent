@@ -157,12 +157,14 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Estimate token counts (rough: 4 chars per token).
+	// Use actual token counts from engine metrics (much more accurate than char estimates).
+	stats := s.engine.GetStats()
 	promptTokens := 0
-	for _, m := range req.Messages {
-		promptTokens += len(m.Content) / 4
+	completionTokens := 0
+	if stats.LastMetrics != nil {
+		promptTokens = stats.LastMetrics.PromptTokens
+		completionTokens = stats.LastMetrics.CompletionTokens
 	}
-	completionTokens := len(result) / 4
 
 	// Build response in OpenAI format.
 	resp := ChatResponse{
@@ -187,9 +189,12 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	_ = elapsed // Will be used for metrics later.
-
-	s.debugf("[RES] 200 OK in %s tokens=%d", elapsed, resp.Usage.TotalTokens)
+	// Log with performance data.
+	tokSec := 0.0
+	if stats.LastMetrics != nil {
+		tokSec = stats.LastMetrics.TokensPerSecond
+	}
+	s.debugf("[RES] 200 OK in %s | %d tok | %.1f tok/s", elapsed, resp.Usage.TotalTokens, tokSec)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -226,10 +231,49 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	s.debugf("[REQ] %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
 	uptime := time.Since(s.startTime).Round(time.Second).String()
 
-	resp := HealthResponse{
-		Status:    "ok",
-		ModelName: s.engine.ModelName(),
-		Uptime:    uptime,
+	stats := s.engine.GetStats()
+	currentRes := CaptureResources()
+
+	// Extended health response with performance data.
+	resp := map[string]interface{}{
+		"status": "ok",
+		"model":  s.engine.ModelName(),
+		"uptime": uptime,
+		"port":   s.port,
+		"performance": map[string]interface{}{
+			"model_load_time_ms": stats.ModelLoadTime.Milliseconds(),
+			"request_count":      stats.RequestCount,
+			"total_tokens_gen":   stats.TotalTokensGen,
+			"avg_tokens_per_sec": fmt.Sprintf("%.1f", stats.AvgTokPerSec),
+		},
+		"resources": map[string]interface{}{
+			"current": map[string]interface{}{
+				"heap_mb":    fmt.Sprintf("%.1f", currentRes.HeapAllocMB),
+				"sys_mb":     fmt.Sprintf("%.1f", currentRes.SysMB),
+				"goroutines": currentRes.GoRoutines,
+				"gc_cycles":  currentRes.NumGC,
+			},
+			"pre_model_load": map[string]interface{}{
+				"heap_mb": fmt.Sprintf("%.1f", stats.PreLoadRes.HeapAllocMB),
+				"sys_mb":  fmt.Sprintf("%.1f", stats.PreLoadRes.SysMB),
+			},
+			"post_model_load": map[string]interface{}{
+				"heap_mb": fmt.Sprintf("%.1f", stats.PostLoadRes.HeapAllocMB),
+				"sys_mb":  fmt.Sprintf("%.1f", stats.PostLoadRes.SysMB),
+			},
+		},
+	}
+
+	// Add last request metrics if available.
+	if stats.LastMetrics != nil {
+		resp["last_request"] = map[string]interface{}{
+			"prompt_tokens":     stats.LastMetrics.PromptTokens,
+			"completion_tokens": stats.LastMetrics.CompletionTokens,
+			"tokens_per_second": fmt.Sprintf("%.1f", stats.LastMetrics.TokensPerSecond),
+			"prompt_ms":         stats.LastMetrics.PromptDuration.Milliseconds(),
+			"gen_ms":            stats.LastMetrics.GenDuration.Milliseconds(),
+			"total_ms":          stats.LastMetrics.TotalDuration.Milliseconds(),
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

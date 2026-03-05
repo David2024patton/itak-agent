@@ -23,15 +23,22 @@ func TestServerHealth(t *testing.T) {
 		t.Fatalf("health status = %d, want 200", w.Code)
 	}
 
-	var resp HealthResponse
+	var resp map[string]interface{}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal health: %v", err)
 	}
-	if resp.Status != "ok" {
-		t.Errorf("status = %q, want %q", resp.Status, "ok")
+	if resp["status"] != "ok" {
+		t.Errorf("status = %q, want %q", resp["status"], "ok")
 	}
-	if resp.ModelName != "test-model" {
-		t.Errorf("model = %q, want %q", resp.ModelName, "test-model")
+	if resp["model"] != "test-model" {
+		t.Errorf("model = %q, want %q", resp["model"], "test-model")
+	}
+	// Verify performance and resources sub-objects exist.
+	if _, ok := resp["performance"]; !ok {
+		t.Error("missing performance object in health response")
+	}
+	if _, ok := resp["resources"]; !ok {
+		t.Error("missing resources object in health response")
 	}
 }
 

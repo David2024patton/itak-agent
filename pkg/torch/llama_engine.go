@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/David2024patton/GOAgent/pkg/torch/llama"
 )
@@ -22,6 +23,7 @@ type LlamaEngine struct {
 	opts      EngineOpts
 	mu        sync.Mutex
 	loaded    bool
+	Stats     EngineStats
 }
 
 // NewLlamaEngine creates an engine that loads a GGUF model via llama.cpp.
@@ -71,6 +73,10 @@ func NewLlamaEngine(modelPath string, opts EngineOpts) (*LlamaEngine, error) {
 		opts.Threads = 4
 	}
 
+	// Snapshot resources before loading.
+	preLoad := CaptureResources()
+	loadStart := time.Now()
+
 	// Load the model.
 	modelParams := llama.ModelDefaultParams()
 	modelParams.NGpuLayers = int32(opts.GPULayers)
@@ -79,6 +85,8 @@ func NewLlamaEngine(modelPath string, opts EngineOpts) (*LlamaEngine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load model %s: %w", modelPath, err)
 	}
+
+	loadDuration := time.Since(loadStart)
 
 	// Create context.
 	ctxParams := llama.ContextDefaultParams()
@@ -108,7 +116,7 @@ func NewLlamaEngine(modelPath string, opts EngineOpts) (*LlamaEngine, error) {
 	}
 	name = strings.TrimSuffix(name, ".gguf")
 
-	return &LlamaEngine{
+	engine := &LlamaEngine{
 		model:     model,
 		ctx:       ctx,
 		vocab:     vocab,
@@ -117,7 +125,19 @@ func NewLlamaEngine(modelPath string, opts EngineOpts) (*LlamaEngine, error) {
 		modelPath: modelPath,
 		opts:      opts,
 		loaded:    true,
-	}, nil
+	}
+
+	// Record load metrics.
+	postLoad := CaptureResources()
+	engine.Stats.ModelLoadTime = loadDuration
+	engine.Stats.PreLoadRes = preLoad
+	engine.Stats.PostLoadRes = postLoad
+
+	fmt.Printf("[GOTorch] Model loaded in %s\n", loadDuration.Round(time.Millisecond))
+	fmt.Printf("[GOTorch] %s\n", preLoad.String())
+	fmt.Printf("[GOTorch] %s\n", postLoad.String())
+
+	return engine, nil
 }
 
 // Complete runs inference on the given messages and returns the generated text.
@@ -147,13 +167,17 @@ func (e *LlamaEngine) Complete(ctx context.Context, messages []ChatMessage, para
 	}
 
 	// Process prompt tokens.
+	promptStart := time.Now()
 	batch := llama.BatchGetOne(tokens)
 	if _, err := llama.Decode(e.ctx, batch); err != nil {
 		return "", fmt.Errorf("decode prompt: %w", err)
 	}
+	promptDuration := time.Since(promptStart)
 
 	// Generate tokens.
+	genStart := time.Now()
 	var result strings.Builder
+	completionTokens := 0
 	for i := 0; i < maxTokens; i++ {
 		// Check context cancellation.
 		select {
@@ -175,6 +199,7 @@ func (e *LlamaEngine) Complete(ctx context.Context, messages []ChatMessage, para
 		n := llama.TokenToPiece(e.vocab, token, buf, 0, true)
 		if n > 0 {
 			result.Write(buf[:n])
+			completionTokens++
 		}
 
 		// Check stop sequences.
@@ -195,7 +220,36 @@ func (e *LlamaEngine) Complete(ctx context.Context, messages []ChatMessage, para
 		}
 	}
 
+	genDuration := time.Since(genStart)
+	totalDuration := promptDuration + genDuration
+
+	// Calculate tok/s.
+	tokPerSec := 0.0
+	if genDuration.Seconds() > 0 {
+		tokPerSec = float64(completionTokens) / genDuration.Seconds()
+	}
+
+	// Record metrics.
+	metrics := &InferenceMetrics{
+		PromptTokens:     len(tokens),
+		CompletionTokens: completionTokens,
+		TotalTokens:      len(tokens) + completionTokens,
+		PromptDuration:   promptDuration,
+		GenDuration:      genDuration,
+		TotalDuration:    totalDuration,
+		TokensPerSecond:  tokPerSec,
+	}
+	e.Stats.RecordRequest(metrics)
+
+	// Print metrics to CLI.
+	fmt.Printf("%s\n", metrics.String())
+
 	return result.String(), nil
+}
+
+// GetStats returns a snapshot of engine performance stats.
+func (e *LlamaEngine) GetStats() EngineStats {
+	return e.Stats.Snapshot()
 }
 
 // ModelName returns the name of the loaded model.
