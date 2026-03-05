@@ -15,6 +15,17 @@ type EngineOpts struct {
 	Threads int `json:"threads" yaml:"threads"`
 	// GPULayers is how many layers to offload to GPU. 0 = CPU only.
 	GPULayers int `json:"gpu_layers" yaml:"gpu_layers"`
+	// FlashAttention enables flash attention for faster inference.
+	// Auto-enabled when GPULayers > 0 (Phase 3). Set NoFlashAttention to override.
+	FlashAttention bool `json:"flash_attention" yaml:"flash_attention"`
+	// NoFlashAttention disables the auto-enable of flash attention on GPU mode.
+	NoFlashAttention bool `json:"no_flash_attention,omitempty" yaml:"no_flash_attention"`
+	// UseMlock locks model weights in RAM to prevent OS swapping. Default: false.
+	UseMlock bool `json:"use_mlock" yaml:"use_mlock"`
+	// NumaStrategy controls NUMA memory policy (0=disabled, 1=distribute, 2=isolate). Default: 0.
+	NumaStrategy int `json:"numa_strategy" yaml:"numa_strategy"`
+	// BatchSize is the logical batch size for prompt processing. Default: 2048.
+	BatchSize int `json:"batch_size" yaml:"batch_size"`
 }
 
 // CompletionParams controls inference behavior per request.

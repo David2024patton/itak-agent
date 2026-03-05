@@ -32,6 +32,15 @@ Feature checklist for the entire GOAgent ecosystem. Each feature has its source,
 - [ ] **Reflection Loops** - Advanced execution loops where agents constantly reflect on work they're doing. Self-correction before reporting back. *(ClickUp Super Agents)*
 - [ ] **Ambient Awareness** - Agents run quietly in background, monitoring context and responding instantly when relevant. Always-on intelligence layer. *(ClickUp Super Agents)*
 
+### BMAD-Inspired Orchestration Patterns
+Adopted from the [BMAD Method](https://github.com/bmad-code-org/BMAD-METHOD) - an agile AI-driven development framework with 12+ specialized personas and structured workflows.
+
+- [ ] **Party Mode (Multi-Agent Debate)** - `/party` command loads 3-5 relevant managers into a single discussion. Boss asks a question, each manager responds from their perspective (Coder sees code risk, Researcher sees data gaps, Browser sees UX problems). They agree, disagree, and build on each other's ideas. Boss synthesizes into a final recommendation with dissenting views noted. Use for architecture decisions, sprint retrospectives, post-mortems, and big tradeoff discussions. *(BMAD Method)*
+- [ ] **Scale-Adaptive Planning** - Boss auto-classifies incoming requests by complexity tier and adjusts planning depth accordingly. Quick Fix (typo, color change) = skip to Coder, no planning. Small Task (add a page, create endpoint) = quick spec then implement. Feature (auth system, payment flow) = architecture + stories + implement. Project (full SaaS, dashboard) = full lifecycle: brief -> PRD -> architecture -> epics -> stories -> implement. Prevents over-planning a typo or under-planning an enterprise app. *(BMAD Method)*
+- [ ] **Slash Command Workflows** - Named triggers for structured workflows with required inputs and expected outputs. `/go-sprint-plan` (Boss breaks work into stories, assigns managers), `/go-code-review` (Doctor + Coder review together), `/go-retrospective` (Party Mode review), `/go-deploy` (Operator runs deploy with pre/post checks), `/go-onboard` (Scout scans project, generates context, briefs user). Each is a YAML-defined workflow. Maps to the Script Library feature. *(BMAD Method)*
+- [ ] **Structured Story Files** - Before implementation, each task gets a focused YAML story file with title, assignee, dependencies, acceptance criteria, technical notes, and test requirements. The Coder reads ONLY the current story file during implementation, not the full chat history. Keeps context windows small and decisions sharp. *(BMAD Method)*
+- [ ] **Consensus Verification Loop** - Work product goes to 3 independent reviewer agents (can use different LLMs for diversity). Each scores the work 1-10 across dimensions (correctness, completeness, code quality, RWD/PWA compliance, security). A Gate Agent collects scores and rejects anything below 8, kicking it back to the author agent with specific feedback. Loop continues until all 3 reviewers score 8+. Final output is compiled from the best elements of all 3 review perspectives into one polished document or codebase. Prevents single-agent blind spots. *(Original - n8n pattern)*
+
 ## 2. Extension & Marketplace System (GOHub)
 
 - [ ] **GOHub Registry** - Public registry for sharing and discovering agent skills, tools, and extensions. Inspired by VS Code Marketplace + OpenClaw's ClawHub. *(ClickUp, OpenClaw ClawHub, VS Code Marketplace)*
@@ -99,6 +108,11 @@ Core Agent (Coder)      + Skill Pack (Game Dev)       = "Gamer Agent"
 - [x] **Researcher** - HTTP + memory + skills. Web requests, API calls, data analysis. Stores findings in knowledge graph for future recall. *(Original)*
 
 - [x] **Coder** - Code generation, refactoring, debugging. Language-aware with syntax validation. Auto-triggers Doctor for lint after changes. *(Original)*
+  - **Mandatory RWD**: Every web page, app, and dashboard the Coder builds MUST be Responsive Web Design (RWD) and mobile-first. No exceptions. Viewport meta tags, fluid grids, media queries, touch-friendly targets (min 44px), and flexible images are non-negotiable defaults.
+  - **Mandatory PWA**: Every web app MUST be a Progressive Web App (PWA). Includes: `manifest.json` with name/icons/theme, Service Worker for offline caching, installable on mobile/desktop, app-shell architecture, background sync where applicable. Users should be able to "Add to Home Screen" on any device.
+  - **Accessibility (a11y)**: All output must meet WCAG 2.1 AA minimum: semantic HTML, proper heading hierarchy, ARIA labels, color contrast ratios (4.5:1+), keyboard navigation, screen reader compatibility.
+  - **Progressive Enhancement**: Core functionality works without JS. Enhanced features layer on top. No blank pages on slow connections.
+  - Applies to the entire GO ecosystem: GODashboard, GOForge preview panel, GOHub marketplace, GOTeach tutorials, and any client project.
 
 - [ ] **Doctor (GOBeat)** - Self-healing framework guardian. *(OpenClaw "doctor", Original)*
   - 30-minute health loop: checks all services, agents, connections, disk/memory
@@ -107,6 +121,10 @@ Core Agent (Coder)      + Skill Pack (Game Dev)       = "Gamer Agent"
   - Security scanning: dependency vulnerabilities, exposed secrets detection
   - Fix memory: logs every fix. Same error = instant recall, no re-diagnosis
   - Post-fix validation: re-runs failing command to confirm fix worked
+  - **RWD Audit (Mandatory)**: Every web build is automatically checked for responsive design compliance. Fails the quality gate if: missing viewport meta, hardcoded pixel widths, no media queries, unresponsive layouts at 320px/768px/1024px/1440px breakpoints.
+  - **PWA Audit (Mandatory)**: Every web build must pass Lighthouse PWA checks. Fails if: no manifest.json, no Service Worker, not installable, no offline fallback page, missing icons (192px + 512px), no theme-color. Target: Lighthouse PWA score 100.
+  - **Mobile Audit**: Lighthouse mobile score must be 90+. Touch target sizing, tap delay elimination, viewport overflow detection, font legibility on small screens.
+  - **Accessibility Audit**: axe-core or pa11y scan on every build. Zero critical/serious a11y violations allowed. Color contrast, alt text, focus indicators, form labels.
 
 - [ ] **Builder** - Creates new agents, skills, and tools on-the-fly. On the ignore list (can't edit itself). *(Original)*
   - Agent scaffolding: generates YAML config, system prompt, tool assignments
@@ -248,6 +266,10 @@ Specialized knowledge and workflows for specific industries. Each builds on top 
 - [ ] **Live Intelligence** - Actively monitors all context to capture and update knowledge bases for people, teams, projects, decisions. Real-time 2-way syncing engine. *(ClickUp Super Agents)*
 - [ ] **Infinite Knowledge** - Proprietary real-time syncing with retrieval from fine-tuned embeddings. Enterprise search from connected knowledge across 50+ apps. *(ClickUp Super Agents)*
 
+### BMAD-Inspired Context Management
+- [ ] **Context Chain (Document-Driven Handoffs)** - Each workflow phase produces a persistent document that becomes the context for the next agent. Product Brief -> PRD -> Architecture Doc -> Epics/Stories -> Implementation. Managers read upstream docs instead of full chat history. Solves the "agents forget what was decided earlier" problem by encoding decisions in files that feed downstream. The single most impactful orchestration pattern. *(BMAD Method)*
+- [ ] **Project Constitution (`project-context.yaml`)** - Auto-generated file on project setup that captures tech stack, language, framework, package manager, coding conventions, naming patterns, error handling style, lint config, and architectural decisions. Scout scans the codebase to detect patterns. Every agent reads this file before doing anything. Doctor knows which linters to run, Coder matches existing style, Builder follows conventions when scaffolding. Replaces ad-hoc "read the codebase first" instructions. *(BMAD Method)*
+
 ## 6. LLM Provider System
 
 - [x] **42-Provider Catalog** - All major providers with API endpoints pre-configured. *(Original)*
@@ -274,6 +296,7 @@ Specialized knowledge and workflows for specific industries. Each builds on top 
 - [ ] **Self-Heal Prompts** - Main agent can detect errors and route them to doctor automatically. *(Original - notes.md)*
 - [ ] **Nudge Feature** - Poke agent if stuck. *(Agent Zero)*
 - [ ] **Linter Integration** - Auto-detect project language and run appropriate linter (golangci-lint, eslint, stylelint, pylint, etc.) after every code change. Results feed into Doctor. *(Original - tasks.md, VS Code stylelint)*
+- [ ] **Semantic Code Review** - Goes beyond lint. Doctor compares implementation against the story file's acceptance criteria and the `project-context.yaml` conventions. Checks that architectural patterns are followed, not just syntax. Distinguishes between "code quality issues" (Doctor auto-fixes) and "design drift issues" (flags for Boss to decide). Verifies RWD/PWA/a11y compliance against the mandatory standards. Feeds into the Consensus Verification Loop when enabled. *(BMAD Method)*
 
 ## 8. Offline Mode & Local Model Marketplace
 
@@ -343,6 +366,8 @@ Specialized knowledge and workflows for specific industries. Each builds on top 
 ## 9. GOBrowser (AI-Native Browser Engine)
 
 Go-native browser automation CLI for agents. Inspired by [Vercel agent-browser](https://github.com/vercel-labs/agent-browser) architecture, rebuilt entirely in Go. Uses Snapshot+Refs pattern for 93% token reduction vs raw DOM dumps.
+
+**Research:** [rtrvr.ai](https://www.rtrvr.ai/) - AI-native browser retrieval platform. Study their approach to structured web data extraction for agent consumption.
 
 ### Architecture
 - [ ] **Go CLI** - Fast native binary. Parses commands, communicates with daemon. Replaces agent-browser's Rust CLI. *(agent-browser pattern)*
@@ -781,9 +806,10 @@ Dedicated auth service for the GO* ecosystem. Fork from **Ory Hydra** (OAuth2/OI
 - [ ] **Sonos** - Multi-room audio control. *(OpenClaw)*
 - [ ] **Shazam** - Song recognition. *(OpenClaw)*
 - [ ] **Weather** - Forecasts and conditions. Location-aware alerts. *(OpenClaw)*
-- [ ] **Camera** - Photo and video capture from connected cameras/webcams. *(OpenClaw)*
+- [ ] **Camera / Webcam** - Photo and video capture from connected cameras/webcams. Agent can see the user and their environment via webcam feed, processed through vision models (moondream2, qwen3-vl) via GOTorch + GOMedia. *(OpenClaw, Original)*
 - [ ] **GIF Search** - Find and send the perfect GIF. Integrates into chat and social media agents. *(OpenClaw)*
 - [ ] **Peekaboo** - Quick screen capture and share. Lightweight alternative to full GOVision for simple screenshots. *(OpenClaw)*
+- [ ] **Genspark Integration** - [genspark.ai](https://www.genspark.ai/) AI-powered search engine. Research their agent-to-search patterns for deep web research capabilities. *(Original)*
 
 ## 21. Platform Support
 
@@ -1198,3 +1224,49 @@ Items to investigate before implementation:
 | go-fault | https://github.com/lingrino/go-fault | Go fault injection library |
 | finish | https://github.com/pseidemann/finish | Zero-dep graceful shutdown |
 | Anthropic Go SDK | https://github.com/anthropics/anthropic-sdk-go | Official Anthropic SDK for Go |
+| HackBrowserData | https://github.com/moonD4rk/HackBrowserData | Go browser data extraction (cookies, passwords, history) |
+
+---
+
+## PRIVATE: GOSecurity (AI-Powered Physical Security Monitoring)
+
+> **Commercial product. Private repo.** Built on the public GO ecosystem.
+
+AI agent swarm that replaces call center operators for physical security monitoring. One GOAgent instance monitors 1000+ cameras, network devices, and solar-powered surveillance units.
+
+**Repo:** [GOSecurity](https://github.com/David2024patton/GOSecurity) (private)
+
+### Core Capabilities
+- [ ] **Device Fleet Monitoring** - Poll 1000+ IPs via SNMP/HTTP/ICMP/Zabbix. Axis cameras, Cradlepoint routers, MicroHard LTE, Morningstar solar controllers, PoE switches, NVRs
+- [ ] **Vision Event Detection** - GOTorch runs moondream2/Qwen3-VL on camera snapshots. Detect people, vehicles, animals. Annotate screenshots with bounding boxes, labels, confidence scores, timestamps
+- [ ] **Multi-Camera Tracking** - Cross-reference detections across feeds. PTZ auto-slew to events. False positive learning per site
+- [ ] **Solar Power Optimization** - Correlate weather/GPS/season with Morningstar harvest data. Auto-generate optimized charge profiles. Predict battery depletion windows
+- [ ] **Automated Reporting** - Daily health, weekly trends, monthly optimization recommendations. Natural language via GOGateway LLMs
+- [ ] **SaaS Multi-Tenant Portal** - Client dashboard with live health, event feed with annotated images, report downloads, alert configuration
+- [ ] **Agent Swarm Scaling** - Scout swarm (1 per ~100 devices), Vision workers (GPU-bound), Researcher (weather/solar), Doctor (fault diagnosis), Reporter (NLG), Alert Manager (escalation chains)
+
+### Revenue Model
+- Per-device/month, per-site/month, or tiered (Basic monitoring / Pro vision+events / Enterprise optimization+reports)
+
+### Target Hardware
+ECAM MSU stack: Axis cameras (fixed + PTZ), Cradlepoint IBR, MicroHard pMDDL, Morningstar controllers, PoE speakers, managed switches, environmental sensors
+
+### Zabbix Integration
+Dual-mode monitoring: use Zabbix API as a data backend where clients already run it (no duplicate polling), or GOSecurity's native Go polling engine for lightweight single-binary deploys. Community templates provide pre-built SNMP OID mappings for hundreds of device types.
+
+**References:**
+| Repo | Use |
+|---|---|
+| [zabbix/zabbix](https://github.com/zabbix/zabbix) | Core - SNMP OID mappings, trigger logic, device state detection patterns |
+| [zabbix-docker](https://github.com/zabbix/zabbix-docker) | Deployment - Docker compose for bundling Zabbix alongside GOSecurity |
+| [community-templates](https://github.com/zabbix/community-templates) | Gold mine - Pre-built templates for Cradlepoint, Axis, network gear OIDs |
+| [jjmartres/Zabbix](https://github.com/jjmartres/Zabbix) | Custom templates and monitoring scripts |
+| [itmicus/zabbix](https://github.com/itmicus/zabbix) | Additional community device templates |
+
+### Network Security Monitoring
+Protect client networks from hackers and vulnerabilities using a dual-layer approach:
+- [ ] **DNS Sinkhole** - Route client DNS through GOSecurity. Log queries, block known malicious/C2 domains, detect unusual DNS patterns (DGA, tunneling). Lightweight, no agents required
+- [ ] **Endpoint Agent** - Lightweight Go agent on client servers/endpoints. File integrity monitoring, vulnerability scanning, log collection, anomaly detection (Wazuh/OSSEC style)
+- [ ] **Network Flow Analysis** - Ingest NetFlow/sFlow from managed switches. Detect port scans, lateral movement, data exfiltration, unusual traffic patterns
+- [ ] **Vulnerability Scanning** - Scheduled scans of client IP ranges. CVE matching against known services. Auto-generate remediation reports
+- [ ] **Threat Intel Feeds** - Integrate with open threat intelligence (AlienVault OTX, Abuse.ch, VirusTotal API). Correlate against client traffic

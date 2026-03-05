@@ -64,8 +64,12 @@ func cmdServe(args []string) {
 	port := fs.Int("port", defaultPort, "Port to listen on")
 	useMock := fs.Bool("mock", false, "Use mock engine (for testing without a real model)")
 	ctxSize := fs.Int("ctx", 2048, "Context window size")
-	threads := fs.Int("threads", 4, "Number of CPU threads")
+	threads := fs.Int("threads", 0, "Number of CPU threads (0 = auto-detect)")
 	gpuLayers := fs.Int("gpu-layers", 0, "Number of layers to offload to GPU (0 = CPU only)")
+	flashAttn := fs.Bool("flash-attn", true, "Enable flash attention for faster inference")
+	useMlock := fs.Bool("mlock", false, "Lock model in RAM to prevent OS swapping")
+	numaStrategy := fs.Int("numa", 0, "NUMA strategy (0=disabled, 1=distribute, 2=isolate)")
+	batchSize := fs.Int("batch", 2048, "Logical batch size for prompt processing")
 	fs.Parse(args)
 
 	var engine torch.Engine
@@ -79,12 +83,18 @@ func cmdServe(args []string) {
 		fmt.Println("[GOTorch] Using mock engine (no real inference)")
 	} else if *modelPath != "" {
 		fmt.Printf("[GOTorch] Loading model: %s\n", *modelPath)
-		fmt.Printf("[GOTorch] Config: ctx=%d, threads=%d, gpu_layers=%d\n", *ctxSize, *threads, *gpuLayers)
+		fmt.Printf("[GOTorch] Config: ctx=%d threads=%d gpu_layers=%d flash_attn=%v batch=%d\n",
+			*ctxSize, *threads, *gpuLayers, *flashAttn, *batchSize)
 
 		opts := torch.EngineOpts{
-			ContextSize: *ctxSize,
-			Threads:     *threads,
-			GPULayers:   *gpuLayers,
+			ContextSize:      *ctxSize,
+			Threads:          *threads,
+			GPULayers:        *gpuLayers,
+			FlashAttention:   *flashAttn,
+			NoFlashAttention: !*flashAttn, // if user explicitly disabled flash-attn, prevent auto-enable
+			UseMlock:         *useMlock,
+			NumaStrategy:     *numaStrategy,
+			BatchSize:        *batchSize,
 		}
 
 		var err error
