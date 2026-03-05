@@ -166,7 +166,7 @@ func CuratedModels() []ModelIndex {
 	return []ModelIndex{
 		{
 			Name:   "qwen3-0.6b-q4_k_m",
-			URL:    "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/qwen3-0.6b-q4_k_m.gguf",
+			URL:    "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf",
 			Size:   "~400MB",
 			Params: "0.6B",
 			Role:   "chat",
@@ -174,7 +174,7 @@ func CuratedModels() []ModelIndex {
 		},
 		{
 			Name:   "qwen3-1.7b-q4_k_m",
-			URL:    "https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/main/qwen3-1.7b-q4_k_m.gguf",
+			URL:    "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf",
 			Size:   "~1.2GB",
 			Params: "1.7B",
 			Role:   "chat",
@@ -182,7 +182,7 @@ func CuratedModels() []ModelIndex {
 		},
 		{
 			Name:   "qwen3-4b-q4_k_m",
-			URL:    "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/qwen3-4b-q4_k_m.gguf",
+			URL:    "https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf",
 			Size:   "~2.5GB",
 			Params: "4B",
 			Role:   "chat",
@@ -190,7 +190,7 @@ func CuratedModels() []ModelIndex {
 		},
 		{
 			Name:   "qwen2.5-coder-3b-q4_k_m",
-			URL:    "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_k_m.gguf",
+			URL:    "https://huggingface.co/bartowski/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf",
 			Size:   "~2GB",
 			Params: "3B",
 			Role:   "code",

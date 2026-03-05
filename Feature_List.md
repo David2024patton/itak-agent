@@ -811,6 +811,7 @@ Custom Go-native LLM inference runtime. No dependency on Ollama or any external 
 - [ ] **OpenAI-Compatible API** - GOTorch exposes a local `/v1/chat/completions` endpoint so GOGateway and all agents can talk to it like any cloud provider. *(Original)*
 - [ ] **Quantization on Download** - Auto-quantize models to Q4_K_M during download if the user's hardware needs it. *(Original)*
 - [ ] **Inference Metrics** - Tokens/second, memory usage, model load time. Feed into GODashboard. *(Original)*
+- [ ] **Request Queue** - Thread-safe FIFO queue for inference requests. Multiple users/agents pushing prompts get queued and processed in order. Priority lanes for system-critical requests vs user chat. Backpressure: reject new requests when queue exceeds configurable depth. Queue depth visible in `/health` and GODashboard. *(Original)*
 - [ ] **Research**: Study `go-skynet/LocalAI`, `mudler/go-llama.cpp`, `ggml-org/llama.cpp` CGo patterns, and `ollama/ollama` internals for architecture inspiration. *(Research)*
 
 ### Pure Go Backend (GOTensor)
@@ -905,6 +906,8 @@ Features identified by asking: "If everything above was built, what would still 
 
 ### Installation & Distribution
 - [ ] **One-Line Installer** - `curl -sSL install.goagent.dev | sh` for Linux/Mac. PowerShell equivalent for Windows. Detects OS/arch, downloads binary, sets PATH. *(Recommendation)*
+- [ ] **Prerequisite Auto-Installer** - On first run, scan for all required dependencies (Go, Git, CMake, WSL, ffmpeg, etc.). Missing items are auto-installed with user confirmation. Windows: uses winget/choco. Linux: apt/dnf. Mac: brew. *(Original)*
+- [ ] **WSL-First on Windows** - On Windows, default to running inside WSL (Ubuntu). Installer checks for WSL, installs it if missing (`wsl --install`), then sets up GOAgent inside WSL. User can opt-out to native Windows mode via `--native` flag. WSL gives better Go/Linux compat, avoids firewall popups, and matches production Linux servers. *(Original)*
 - [ ] **Auto-Updater** - Background check for new versions. Notifies user, downloads, restarts. Rollback if update fails. *(Recommendation)*
 - [ ] **Homebrew / Winget / Snap** - Package manager distribution for easy install and updates. *(Recommendation)*
 - [ ] **Docker Image** - Official `goagent/goagent` Docker image on GHCR. Multi-arch (amd64, arm64). *(Recommendation)*
