@@ -1,0 +1,43 @@
+//go:build windows
+
+package loader
+
+import (
+	"os"
+	"sync"
+	"syscall"
+	"unsafe"
+)
+
+var dllDirOnce sync.Once
+
+// setDllSearchPath configures Windows to find dependent DLLs (like llama.dll,
+// ggml.dll) when loading plugin DLLs (like mtmd.dll) that import them.
+//
+// Uses three strategies:
+// 1. SetDllDirectoryW - adds to standard DLL search path
+// 2. AddDllDirectory  - adds to the "safe DLL search" list (Win8+)
+// 3. PATH prepend     - fallback for LoadLibraryExW LOAD_WITH_ALTERED_SEARCH_PATH
+func setDllSearchPath(dir string) {
+	dllDirOnce.Do(func() {
+		kernel32 := syscall.NewLazyDLL("kernel32.dll")
+
+		// Strategy 1: SetDllDirectoryW
+		setDllDir := kernel32.NewProc("SetDllDirectoryW")
+		dirUTF16, err := syscall.UTF16PtrFromString(dir)
+		if err != nil {
+			return
+		}
+		setDllDir.Call(uintptr(unsafe.Pointer(dirUTF16)))
+
+		// Strategy 2: AddDllDirectory (Windows 8+)
+		addDllDir := kernel32.NewProc("AddDllDirectory")
+		if addDllDir.Find() == nil {
+			addDllDir.Call(uintptr(unsafe.Pointer(dirUTF16)))
+		}
+
+		// Strategy 3: Prepend to PATH environment variable
+		currentPath := os.Getenv("PATH")
+		os.Setenv("PATH", dir+";"+currentPath)
+	})
+}

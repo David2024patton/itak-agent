@@ -30,15 +30,17 @@ type VisionEngine struct {
 // NewVisionEngine creates an engine that loads both a text GGUF model and
 // its corresponding multimodal projector (mmproj) for vision support.
 func NewVisionEngine(modelPath, mmprojPath string, opts EngineOpts) (*VisionEngine, error) {
-	// First check that mtmd support is available.
-	if !llama.MtmdAvailable() {
-		return nil, fmt.Errorf("multi-modal support (mtmd.dll) not available. Cannot load vision model")
-	}
-
-	// Create the base TorchEngine (loads text model + context).
+	// Create the base TorchEngine first (loads shared libraries + text model).
+	// llama.Load() inside NewTorchEngine also loads mtmd.dll if available.
 	base, err := NewTorchEngine(modelPath, opts)
 	if err != nil {
 		return nil, fmt.Errorf("load text model: %w", err)
+	}
+
+	// Now check that mtmd support was loaded (DLLs are loaded at this point).
+	if !llama.MtmdAvailable() {
+		base.Close()
+		return nil, fmt.Errorf("multi-modal support (mtmd) not available. Cannot load vision model")
 	}
 
 	// Initialize the multi-modal context from the mmproj file.

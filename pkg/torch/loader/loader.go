@@ -22,6 +22,11 @@ func LoadLibrary(path, lib string) (ffi.Lib, error) {
 		return ffi.Lib{}, fmt.Errorf("library path not specified and GOTORCH_LIB env variable not set")
 	}
 
+	// Tell the OS to search our lib directory for dependent shared libraries.
+	// On Windows this calls SetDllDirectoryW. On Linux/macOS it's a no-op
+	// because dlopen resolves dependencies from RPATH or already-loaded objects.
+	setDllSearchPath(path)
+
 	filename := GetLibraryFilename(path, lib)
 
 	return ffi.Load(filename)

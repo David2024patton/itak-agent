@@ -843,6 +843,32 @@ Custom Go-native LLM inference runtime. No dependency on Ollama or any external 
 - [ ] **ONNX Model Runner** - Run HuggingFace ONNX models for embeddings, classification, text generation. *(Hugot)*
 - [ ] **Local Embedding Pipeline** - Generate embeddings locally without API calls using ONNX models. *(Hugot)*
 
+### Caching & Performance (from Ecosystem Research)
+- [ ] **Ristretto Cache** - High-performance Go cache (SampledLFU + TinyLFU, 26.9k dependents). Use for prompt/embedding/tokenization caching. `dgraph-io/ristretto`. *(Research Sweep)*
+- [ ] **Go 1.26 SIMD** - Experimental `simd/archsimd` package for 128/256/512-bit vector ops. Potential for embedding math acceleration. `GOEXPERIMENT=simd`. *(Go 1.26)*
+- [ ] **Go 1.26 runtime/secret** - Secure register/stack erasure for API key handling. `GOEXPERIMENT=runtimesecret`. *(Go 1.26)*
+- [ ] **Go 1.26 Green Tea GC** - Now default. 10-40% GC overhead reduction. Vector-accelerated small object scanning. *(Go 1.26)*
+- [ ] **Binary Size Optimization** - Use `goda` (dep graph) and `go-size-analyzer` (`gsa --web`) to audit and shrink GOTorch binary. Datadog achieved 77% reduction. *(Research Sweep)*
+
+### Code Analysis Tools (from Ecosystem Research)
+- [ ] **gotreesitter** - Pure Go tree-sitter runtime. No CGo. Parser, lexer, query engine, incremental reparsing. Matches our purego philosophy. Use as code analysis skill for agents. `odvcencio/gotreesitter`. *(Research Sweep)*
+
+### Agent State Management (from Ecosystem Research)
+- [ ] **Stateless FSM** - Go finite state machine with hierarchical states, entry/exit events, guard clauses, external state storage, DOT graph export. Use for agent state (idle -> thinking -> tool_calling -> responding). `qmuntal/stateless`. *(Research Sweep)*
+- [ ] **DBOS Durable Execution** - Extends `context.Context` into `durable.Context` for crash-recoverable workflow checkpointing. Type-safe `RunWorkflow`/`RunAsStep`. Use for long-running agent pipelines. *(Research Sweep)*
+
+### Tool Patterns (from go-llm / gollm Research)
+- [ ] **KeyValueStore Tool** - Reduces context by storing long content by-reference. Agent uses keys instead of repeating data. *(go-llm pattern)*
+- [ ] **JSONAutoFixer Meta-Tool** - When tool args are malformed JSON, auto-fix via separate LLM call before retrying. *(go-llm pattern)*
+- [ ] **GenericAgentTool** - Lets one agent spawn another with dynamic task and tools. *(go-llm pattern)*
+- [ ] **Prompt Optimizer** - Auto-improve prompts via LLM feedback loop. Chain-of-thought pre-built functions. Model comparison (run same prompt against N models). *(gollm pattern)*
+- [ ] **Structured JSON Validation** - Validate LLM output against JSON schema at the framework level. *(gollm pattern)*
+
+### Security Hardening (from OpenClaw Audit Cross-Check)
+- [ ] **Path Traversal Validation** - Validate `--model` and `--mmproj` paths (no `..` traversal, must end in `.gguf`). *(OpenClaw Security Audit)*
+- [ ] **Prompt Sanitization** - Strip potential PII from prompts before logging. *(OpenClaw Security Audit)*
+- [ ] **API Rate Limiting** - Rate-limit inference endpoints to prevent abuse. *(OpenClaw Security Audit)*
+
 ## 23. GOMedia (Go-Native Media Downloader & Transcriber)
 
 Go-native alternative to yt-dlp targeting the top 15 social media platforms. Single binary, no Python dependency. Fork base from `kkdai/youtube` (Go YouTube library) and `horiagug/youtube-transcript-api-go`.
@@ -1076,6 +1102,29 @@ Everything needed to make 1B-8B parameter models perform like 70B+ models. This 
 
 Items to investigate before implementation:
 
+### Tier 1: Adopt Now (from 2026-03-05 Research Sweep)
+- [ ] **google/adk-go** - Google's official Agent Development Kit for Go. Code-first, modular multi-agent, deploys to Cloud Run. `go get google.golang.org/adk`. Study tool interface and agent composition patterns. *(https://github.com/google/adk-go)*
+- [ ] **maximhq/bifrost** - Fastest Go AI gateway. 50x LiteLLM, <100us overhead, 5k RPS. MCP support, semantic caching, multi-provider fallback. Could replace custom provider routing. *(https://github.com/maximhq/bifrost)*
+- [ ] **odvcencio/gotreesitter** - Pure Go tree-sitter. No CGo. Matches purego philosophy. Code analysis skill for agents. *(https://github.com/odvcencio/gotreesitter)*
+- [ ] **dgraph-io/ristretto** - High-perf Go cache (SampledLFU + TinyLFU, 26.9k dependents). Prompt/embedding caching. *(https://github.com/dgraph-io/ristretto)*
+- [ ] **qmuntal/stateless** - Go FSM library. Hierarchical states, external storage, DOT export. Agent state machine. *(https://github.com/qmuntal/stateless)*
+
+### Tier 2: Patterns to Study
+- [ ] **natexcvi/go-llm** - Agent framework with tools (BashTerminal, PythonREPL, KeyValueStore, JSONAutoFixer, GenericAgentTool) + memory (BufferMemory, SummarisedMemory). *(https://github.com/natexcvi/go-llm)*
+- [ ] **teilomillet/gollm** - Prompt optimization, chain-of-thought, model comparison, structured JSON validation. *(https://pkg.go.dev/github.com/teilomillet/gollm)*
+- [ ] **DBOS durable execution** - Extends `context.Context` for workflow checkpointing. Type-safe `RunWorkflow`/`RunAsStep`. *(https://www.dbos.dev/blog/how-we-built-golang-native-durable-execution)*
+- [ ] **Datadog binary optimization** - `goda` + `go-size-analyzer` tools. 77% binary size reduction via method dead code elimination. *(https://www.datadoghq.com/blog/engineering/agent-go-binaries/)*
+
+### Tier 3: Noted for Future
+- [ ] **nalgeon/redka** - Redis re-implemented in SQL/Go. Embedded KV + persistence for agent memory. *(https://github.com/nalgeon/redka)*
+- [ ] **risor.io** - Go scripting language (pipe expressions, JSON, HTTP). User-scriptable agent behaviors. *(https://risor.io/)*
+- [ ] **lingrino/go-fault** - Fault injection middleware. Testing agent resilience. *(https://github.com/lingrino/go-fault)*
+- [ ] **pseidemann/finish** - Zero-dep graceful shutdown for HTTP servers. *(https://github.com/pseidemann/finish)*
+- [ ] **anthropics/anthropic-sdk-go** - Official Anthropic Go SDK. Claude provider. *(https://github.com/anthropics/anthropic-sdk-go)*
+- [ ] **go-git/go-git** - Pure Go git implementation. Agent code management. *(https://github.com/go-git/go-git)*
+- [ ] **aperturerobotics/go-quickjs-wasi-reactor** - QuickJS WASM runtime in Go. Sandboxed JS for agents. *(https://github.com/aperturerobotics/go-quickjs-wasi-reactor)*
+
+### Original Research Queue
 - [ ] **steipete/canvas** - Go-based visual workspace by OpenClaw creator. Assess relevance for GOAgent's Canvas Agent / dashboard whiteboard feature. *(https://github.com/steipete/canvas)*
 - [ ] **steipete/wacli** - Go-based WhatsApp CLI. Evaluate for WhatsApp communication plugin. *(https://github.com/steipete/wacli)*
 - [ ] **openclaw/clawhub** - ClawHub registry source code. Study for GOHub marketplace architecture. *(https://github.com/openclaw/clawhub)*
@@ -1137,3 +1186,15 @@ Items to investigate before implementation:
 | Fyne | https://github.com/fyne-io/fyne | Go cross-platform GUI (GOAuth mobile app) |
 | Bubbletea | https://github.com/charmbracelet/bubbletea | Go TUI framework (CLI wizard) |
 | Google A2A | https://github.com/google/A2A | Agent-to-Agent protocol |
+| Google ADK-Go | https://github.com/google/adk-go | Official Go Agent Development Kit |
+| Bifrost | https://github.com/maximhq/bifrost | Fastest Go AI gateway (<100us overhead) |
+| gotreesitter | https://github.com/odvcencio/gotreesitter | Pure Go tree-sitter runtime (no CGo) |
+| Ristretto | https://github.com/dgraph-io/ristretto | High-perf Go cache (SampledLFU + TinyLFU) |
+| Stateless | https://github.com/qmuntal/stateless | Go finite state machine library |
+| go-llm | https://github.com/natexcvi/go-llm | Go agent framework with tools + memory |
+| gollm | https://github.com/teilomillet/gollm | Go LLM framework with prompt optimization |
+| Redka | https://github.com/nalgeon/redka | Redis re-implemented in SQL (Go) |
+| Risor | https://risor.io/ | Go scripting language |
+| go-fault | https://github.com/lingrino/go-fault | Go fault injection library |
+| finish | https://github.com/pseidemann/finish | Zero-dep graceful shutdown |
+| Anthropic Go SDK | https://github.com/anthropics/anthropic-sdk-go | Official Anthropic SDK for Go |

@@ -1,6 +1,9 @@
 package torch
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ---------- Engine Options ----------
 
@@ -46,11 +49,62 @@ type ChatRequest struct {
 }
 
 // ChatMessage is a single message in a chat conversation.
-// For vision requests, ImageData contains structured content parts (text + images).
+// Handles both OpenAI text format (content as string) and vision format
+// (content as array of content parts with text + image_url entries).
 type ChatMessage struct {
 	Role      string        `json:"role"`
 	Content   string        `json:"content"`
-	ImageData []ContentPart `json:"image_data,omitempty"` // OpenAI-style multi-modal content
+	ImageData []ContentPart `json:"-"` // populated from content array for vision
+}
+
+// UnmarshalJSON handles both string content and array content (OpenAI vision format).
+func (m *ChatMessage) UnmarshalJSON(data []byte) error {
+	// Try the simple string-content format first.
+	type plainMessage struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+	var plain plainMessage
+	if err := json.Unmarshal(data, &plain); err == nil && plain.Content != "" {
+		m.Role = plain.Role
+		m.Content = plain.Content
+		return nil
+	}
+
+	// Try array-content format (OpenAI vision API).
+	type arrayMessage struct {
+		Role    string          `json:"role"`
+		Content json.RawMessage `json:"content"`
+	}
+	var arrMsg arrayMessage
+	if err := json.Unmarshal(data, &arrMsg); err != nil {
+		return err
+	}
+	m.Role = arrMsg.Role
+
+	var parts []ContentPart
+	if err := json.Unmarshal(arrMsg.Content, &parts); err != nil {
+		// Content was neither string nor array - try raw string again.
+		var s string
+		if err2 := json.Unmarshal(arrMsg.Content, &s); err2 == nil {
+			m.Content = s
+			return nil
+		}
+		return err
+	}
+
+	// Split parts into text content and image data.
+	for _, part := range parts {
+		if part.Type == "text" {
+			if m.Content != "" {
+				m.Content += "\n"
+			}
+			m.Content += part.Text
+		} else {
+			m.ImageData = append(m.ImageData, part)
+		}
+	}
+	return nil
 }
 
 // ContentPart represents a single content block in a multi-modal message.
