@@ -197,7 +197,7 @@ Each persona below shows: **Name** - what it does. *[Core Agent(s) + Key Skills]
 
 #### Infrastructure Personas
 - [ ] **DevOps Engineer** - Docker, Kubernetes, CI/CD (GitHub Actions, GitLab CI), IaC (Terraform, Pulumi, Ansible), cloud provisioning (AWS/GCP/Azure), SSL/DNS, zero-downtime deploys. *[Operator + Coder + devops skills]* *(Recommendation)*
-- [ ] **Data Pipeline Engineer** - ETL/ELT, format conversion (CSV/JSON/Parquet), scheduled pipelines, database connectors (PostgreSQL, BigQuery, DuckDB), data validation, freshness monitoring. *[Operator + Coder + data skills]* *(Recommendation)*
+- [ ] **Data Pipeline Engineer** - ETL/ELT, format conversion (CSV/JSON/Parquet), scheduled pipelines, database connectors (PostgreSQL, BigQuery, DuckDB), data validation, freshness monitoring. Consider [Vaex](https://github.com/vaexio/vaex) for out-of-core processing on million/billion-row datasets via mmap. *[Operator + Coder + data skills]* *(Recommendation)*
 - [ ] **Compliance Auditor** - License scanning (SPDX), accessibility (WCAG 2.1), GDPR data mapping, SOC 2 controls, auto-generated compliance reports. *[Scout + Researcher + compliance skills]* *(Recommendation)*
 - [ ] **Incident Responder** - Anomaly detection, severity triage, incident channel creation, status page updates, runbook execution, post-mortem generation. *[Operator + Researcher + incident skills]* *(Recommendation)*
 - [ ] **Migration Specialist** - Database migrations, framework upgrades, dependency updates, infrastructure moves, rollback plans, pre/post test verification. *[Coder + Operator + migration skills]* *(Recommendation)*

@@ -87,6 +87,16 @@ func Load(path string) error {
 		return err
 	}
 
+	// Optionally load mtmd.dll for multi-modal (vision/audio) support.
+	// This is non-fatal: text-only models work fine without it.
+	mtmdLib, mtmdErr := loader.LoadLibrary(path, "mtmd")
+	if mtmdErr == nil {
+		if err := loadMtmdFuncs(mtmdLib); err != nil {
+			// Log but don't fail - vision support is optional
+			fmt.Printf("[GOTorch] Warning: mtmd.dll loaded but functions failed: %v\n", err)
+		}
+	}
+
 	return nil
 }
 
