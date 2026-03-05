@@ -87,7 +87,7 @@ func cmdServe(args []string) {
 		}
 
 		var err error
-		engine, err = torch.NewLlamaEngine(*modelPath, opts)
+		engine, err = torch.NewTorchEngine(*modelPath, opts)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[GOTorch] Failed to load model: %v\n", err)
 			os.Exit(1)

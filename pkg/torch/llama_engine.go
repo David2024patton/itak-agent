@@ -11,9 +11,9 @@ import (
 	"github.com/David2024patton/GOAgent/pkg/torch/llama"
 )
 
-// LlamaEngine implements the Engine interface using the forked yzma/llama.cpp
+// TorchEngine implements the Engine interface using the forked yzma/llama.cpp
 // bindings via purego/ffi. No CGo required.
-type LlamaEngine struct {
+type TorchEngine struct {
 	model     llama.Model
 	ctx       llama.Context
 	vocab     llama.Vocab
@@ -26,10 +26,10 @@ type LlamaEngine struct {
 	Stats     EngineStats
 }
 
-// NewLlamaEngine creates an engine that loads a GGUF model via llama.cpp.
+// NewTorchEngine creates an engine that loads a GGUF model via llama.cpp.
 // libPath is the directory containing the llama.cpp shared libraries.
 // If empty, checks the GOTORCH_LIB environment variable.
-func NewLlamaEngine(modelPath string, opts EngineOpts) (*LlamaEngine, error) {
+func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 	// Find the llama.cpp shared libraries.
 	libPath := os.Getenv("GOTORCH_LIB")
 	if libPath == "" {
@@ -116,7 +116,7 @@ func NewLlamaEngine(modelPath string, opts EngineOpts) (*LlamaEngine, error) {
 	}
 	name = strings.TrimSuffix(name, ".gguf")
 
-	engine := &LlamaEngine{
+	engine := &TorchEngine{
 		model:     model,
 		ctx:       ctx,
 		vocab:     vocab,
@@ -141,7 +141,7 @@ func NewLlamaEngine(modelPath string, opts EngineOpts) (*LlamaEngine, error) {
 }
 
 // Complete runs inference on the given messages and returns the generated text.
-func (e *LlamaEngine) Complete(ctx context.Context, messages []ChatMessage, params CompletionParams) (string, error) {
+func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, params CompletionParams) (string, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -248,17 +248,17 @@ func (e *LlamaEngine) Complete(ctx context.Context, messages []ChatMessage, para
 }
 
 // GetStats returns a snapshot of engine performance stats.
-func (e *LlamaEngine) GetStats() EngineStats {
+func (e *TorchEngine) GetStats() EngineStats {
 	return e.Stats.Snapshot()
 }
 
 // ModelName returns the name of the loaded model.
-func (e *LlamaEngine) ModelName() string {
+func (e *TorchEngine) ModelName() string {
 	return e.modelName
 }
 
 // Close unloads the model and frees all resources.
-func (e *LlamaEngine) Close() error {
+func (e *TorchEngine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
