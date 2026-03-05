@@ -60,6 +60,7 @@ Examples:
 func cmdServe(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	modelPath := fs.String("model", "", "Path to GGUF model file")
+	mmprojPath := fs.String("mmproj", "", "Path to multimodal projector GGUF (for vision models)")
 	port := fs.Int("port", defaultPort, "Port to listen on")
 	useMock := fs.Bool("mock", false, "Use mock engine (for testing without a real model)")
 	ctxSize := fs.Int("ctx", 2048, "Context window size")
@@ -87,7 +88,14 @@ func cmdServe(args []string) {
 		}
 
 		var err error
-		engine, err = torch.NewTorchEngine(*modelPath, opts)
+		if *mmprojPath != "" {
+			// Vision model: load both text model and multimodal projector.
+			fmt.Printf("[GOTorch] Loading mmproj: %s\n", *mmprojPath)
+			engine, err = torch.NewVisionEngine(*modelPath, *mmprojPath, opts)
+		} else {
+			// Text-only model.
+			engine, err = torch.NewTorchEngine(*modelPath, opts)
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[GOTorch] Failed to load model: %v\n", err)
 			os.Exit(1)

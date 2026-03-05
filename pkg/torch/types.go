@@ -46,9 +46,25 @@ type ChatRequest struct {
 }
 
 // ChatMessage is a single message in a chat conversation.
+// For vision requests, ImageData contains structured content parts (text + images).
 type ChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role      string        `json:"role"`
+	Content   string        `json:"content"`
+	ImageData []ContentPart `json:"image_data,omitempty"` // OpenAI-style multi-modal content
+}
+
+// ContentPart represents a single content block in a multi-modal message.
+// Type is either "text" or "image_url".
+type ContentPart struct {
+	Type     string    `json:"type"`
+	Text     string    `json:"text,omitempty"`
+	ImageURL *ImageURL `json:"image_url,omitempty"`
+}
+
+// ImageURL contains the URL (or base64 data URI) for an image.
+type ImageURL struct {
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"` // "auto", "low", "high"
 }
 
 // ChatResponse is the response body for /v1/chat/completions.

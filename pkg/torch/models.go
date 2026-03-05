@@ -153,12 +153,13 @@ func (m *ModelManager) Remove(name string) error {
 
 // ModelIndex is a catalog entry from our curated model list.
 type ModelIndex struct {
-	Name   string `json:"name"`
-	URL    string `json:"url"`
-	Size   string `json:"size"`
-	Params string `json:"params"`
-	Role   string `json:"role"` // "chat", "code", "embed", "vision", "reasoning"
-	Notes  string `json:"notes"`
+	Name      string `json:"name"`
+	URL       string `json:"url"`
+	MmprojURL string `json:"mmproj_url,omitempty"` // for vision models: paired mmproj GGUF
+	Size      string `json:"size"`
+	Params    string `json:"params"`
+	Role      string `json:"role"` // "chat", "code", "embed", "vision", "reasoning"
+	Notes     string `json:"notes"`
 }
 
 // CuratedModels returns the built-in list of recommended small models.
@@ -203,6 +204,25 @@ func CuratedModels() []ModelIndex {
 			Params: "MoE",
 			Role:   "embed",
 			Notes:  "MoE embedding. Smallest footprint, great quality.",
+		},
+		// Vision models (require --mmproj flag)
+		{
+			Name:      "moondream2-q4_k_m",
+			URL:       "https://huggingface.co/vikhyatk/moondream2-gguf/resolve/main/moondream2-text-model-f16.gguf",
+			MmprojURL: "https://huggingface.co/vikhyatk/moondream2-gguf/resolve/main/moondream2-mmproj-f16.gguf",
+			Size:      "~1.9GB",
+			Params:    "1.86B",
+			Role:      "vision",
+			Notes:     "Compact vision model. SigLIP + Phi-1.5. Best small VLM.",
+		},
+		{
+			Name:      "qwen2.5-vl-3b-q4_k_m",
+			URL:       "https://huggingface.co/bartowski/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
+			MmprojURL: "https://huggingface.co/bartowski/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/mmproj-Qwen2.5-VL-3B-Instruct-f16.gguf",
+			Size:      "~2.1GB",
+			Params:    "3B",
+			Role:      "vision",
+			Notes:     "Qwen2.5-VL. Strong OCR, document parsing, video.",
 		},
 	}
 }
