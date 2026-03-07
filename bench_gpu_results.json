@@ -1,38 +1,38 @@
 {
-  "timestamp": "2026-03-07T08:48:55",
+  "timestamp": "2026-03-07T08:58:52",
   "test": "gpu_h2h",
   "max_tokens": 100,
   "runs": 5,
   "prompt": "Write a detailed paragraph about the history of artificial intelligence, coverin...",
   "results": {
     "iTaK Torch (Vulkan)": {
-      "avg_tps": 57.2,
+      "avg_tps": 470.7,
       "individual_tps": [
-        56.9,
-        56.4,
-        57.3,
-        59.7,
-        55.8
+        147.6,
+        556.1,
+        520.3,
+        560.3,
+        569.1
       ]
     },
     "Ollama (CUDA)": {
-      "avg_tps": 114.7,
+      "avg_tps": 204.8,
       "individual_tps": [
-        102.5,
-        113.9,
-        119.9,
-        118.4,
-        118.7
+        210.0,
+        199.7,
+        211.5,
+        192.7,
+        210.2
       ]
     },
     "vLLM (CUDA)": {
-      "avg_tps": 306.8,
+      "avg_tps": 336.5,
       "individual_tps": [
-        173.6,
-        338.3,
-        340.0,
+        332.5,
         341.0,
-        341.1
+        338.3,
+        339.1,
+        331.7
       ]
     }
   }
