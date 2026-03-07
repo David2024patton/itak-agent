@@ -300,6 +300,26 @@ Applied three `unsafe` package optimizations to the token generation hot path:
 > [!NOTE]
 > The 7% gain is real but modest because the true bottleneck is the C++ decode step (matrix multiplication, ~18ms/token) not the Go sampling overhead (~0.5ms/token). The unsafe optimizations squeezed the last juice out of the Go-side hot path. The next major leap requires attacking the decode itself (Vulkan/WebGPU compute shaders or async pipelining).
 
+### Phase 8: 3-Way GPU Benchmark (March 7, 2026)
+
+First 3-way engine comparison using `qwen2.5-0.5b` on Beast (RTX 4070 Ti).
+- **vLLM**: CUDA + PagedAttention, SafeTensors model, running in WSL Ubuntu venv.
+- **Ollama**: CUDA GPU (default, no `num_gpu` override), GGUF model.
+- **iTaK Torch**: CPU backend (Vulkan libs not yet built), GGUF Q4_K_M model.
+
+**Windows Desktop (Beast) - 5 Runs**
+| Engine | Backend | Avg tok/s | Individual Runs |
+| :--- | :--- | :--- | :--- |
+| **vLLM** | CUDA + PagedAttention | **306.8** | 173.6, 338.3, 340.0, 341.0, 341.1 |
+| **Ollama** | CUDA GPU | **114.7** | 102.5, 113.9, 119.9, 118.4, 118.7 |
+| **iTaK Torch** | CPU (32 threads) | **57.2** | 56.9, 56.4, 57.3, 59.7, 55.8 |
+
+> [!IMPORTANT]
+> vLLM's steady-state ~341 tok/s represents the CUDA ceiling for this model size. Ollama CUDA at ~119 tok/s is 2.9x slower despite also using CUDA (lacks PagedAttention and continuous batching optimizations). iTaK Torch at 57.2 tok/s is running CPU-only -- this is **not a fair GPU comparison yet**. Once Vulkan backend libs are compiled, iTaK will be able to offload layers to the RTX 4070 Ti and should close the gap significantly.
+
+> [!NOTE]
+> vLLM run 1 (173.6 tok/s) is slower due to CUDA kernel warm-up / JIT compilation. Runs 2-5 are consistent at ~340 tok/s. Ollama run 1 also shows cold-start (25.6 wall tok/s vs ~92 steady-state).
+
 > [!NOTE] 
 > **Testing Assets Location:** 
 > Benchmark scripts are organized in `scripts/benchmark/` with READMEs.
