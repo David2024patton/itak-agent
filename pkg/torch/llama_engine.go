@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/David2024patton/GOAgent/pkg/torch/llama"
+	"github.com/David2024patton/GOAgent/pkg/torch/tokenizer"
 )
 
 // TorchEngine implements the Engine interface using the forked yzma/llama.cpp
@@ -26,6 +27,46 @@ type TorchEngine struct {
 	mu        sync.Mutex
 	loaded    bool
 	Stats     EngineStats
+
+	// Speculative decoding (Phase 3 Stretch)
+	draftModel   llama.Model
+	draftCtx     llama.Context
+	draftVocab   llama.Vocab
+	draftSampler llama.Sampler
+	hasDraft     bool
+
+	// Go-native tokenizer (Phase 4A) - eliminates FFI overhead.
+	goTokenizer    *tokenizer.GoTokenizer
+	hasGoTokenizer bool
+
+	// Prefix cache (Phase 4B) - reuses KV state for shared system prompts.
+	prefixCache *PrefixCache
+
+	// streamCh receives token deltas during streaming inference.
+	streamCh chan string
+}
+
+// tokenToText converts a token ID to its text representation.
+// Phase 4A: uses Go-native vocab lookup (zero FFI) when available.
+func (e *TorchEngine) tokenToText(token llama.Token) string {
+	if e.hasGoTokenizer {
+		return e.goTokenizer.DecodeToken(int32(token))
+	}
+	// FFI fallback.
+	n := llama.TokenToPiece(e.vocab, token, e.tokenBuf, 0, true)
+	if n > 0 {
+		return string(e.tokenBuf[:n])
+	}
+	return ""
+}
+
+// isEOG checks if a token is an end-of-generation token.
+// Phase 4A: uses Go-native lookup (zero FFI) when available.
+func (e *TorchEngine) isEOG(token llama.Token) bool {
+	if e.hasGoTokenizer {
+		return e.goTokenizer.IsEOG(int32(token))
+	}
+	return llama.VocabIsEOG(e.vocab, token)
 }
 
 // NewTorchEngine creates an engine that loads a GGUF model via llama.cpp.
@@ -35,23 +76,53 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 	// Find the llama.cpp shared libraries.
 	libPath := os.Getenv("GOTORCH_LIB")
 	if libPath == "" {
-		// Smart lib selection: choose CPU-only or CUDA libs based on GPU layer count.
+		// Smart lib selection based on --backend flag and GPU config.
 		// This prevents CUDA DLL contamination that causes 2.5x slowdown on CPU workloads.
 		platformDir := runtime.GOOS + "_" + runtime.GOARCH
 		var candidates []string
-		if opts.GPULayers > 0 {
-			// GPU mode: prefer CUDA libs, fallback to generic.
+
+		backend := strings.ToLower(opts.Backend)
+		if backend == "" {
+			backend = "auto"
+		}
+
+		switch {
+		case backend == "cpu" || opts.GPULayers == 0:
+			// CPU-only mode: prefer CPU-only libs to avoid GPU overhead.
+			candidates = []string{
+				"./lib/" + platformDir,
+				"~/.gotorch/lib",
+				"./lib",
+			}
+		case backend == "cuda":
+			// Force CUDA backend.
 			candidates = []string{
 				"./lib/" + platformDir + "_cuda",
 				"~/.gotorch/lib",
-				"./lib/" + platformDir,
-				"./lib",
 			}
-		} else {
-			// CPU-only mode: prefer CPU-only libs to avoid CUDA overhead.
+		case backend == "vulkan":
+			// Force Vulkan backend.
 			candidates = []string{
-				"./lib/" + platformDir,
+				"./lib/" + platformDir + "_vulkan",
 				"~/.gotorch/lib",
+			}
+		case backend == "metal":
+			// Force Metal backend (Apple Silicon).
+			candidates = []string{
+				"./lib/" + platformDir + "_metal",
+				"~/.gotorch/lib",
+			}
+		default:
+			// Auto mode: try Vulkan first (faster, smaller, cross-platform),
+			// then CUDA, Metal (Apple Silicon UMA), HIP, SYCL.
+			candidates = []string{
+				"./lib/" + platformDir + "_vulkan",
+				"./lib/" + platformDir + "_cuda",
+				"./lib/" + platformDir + "_metal",
+				"./lib/" + platformDir + "_hip",
+				"./lib/" + platformDir + "_sycl",
+				"~/.gotorch/lib",
+				"./lib/" + platformDir,
 				"./lib",
 			}
 		}
@@ -79,6 +150,15 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 		return nil, fmt.Errorf("load llama.cpp libraries from %s: %w", libPath, err)
 	}
 
+	// Fix: Some environments (Docker, IDE shells) set CUDA_VISIBLE_DEVICES=-1
+	// which hides all GPUs from the CUDA runtime. If GPU layers are requested
+	// (positive count or -1 for auto-all) and the variable blocks GPU access, override it.
+	if opts.GPULayers != 0 {
+		if cvd := os.Getenv("CUDA_VISIBLE_DEVICES"); cvd == "-1" || cvd == "" {
+			os.Setenv("CUDA_VISIBLE_DEVICES", "0")
+		}
+	}
+
 	// Initialize the backend.
 	llama.Init()
 
@@ -97,6 +177,11 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 	}
 	if opts.BatchSize == 0 {
 		opts.BatchSize = 2048
+	}
+
+	// Phase 5: Auto GPU layers (-1 means offload everything).
+	if opts.GPULayers == -1 {
+		opts.GPULayers = 999 // llama.cpp clamps to actual layer count
 	}
 
 	// Phase 3: Auto-enable flash attention on GPU mode.
@@ -131,6 +216,32 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 	ctxParams.NThreadsBatch = int32(opts.Threads)
 	ctxParams.NBatch = uint32(opts.BatchSize)
 
+	// Continuous batching: allow multiple concurrent sequences.
+	if opts.MaxSlots > 1 {
+		ctxParams.NSeqMax = uint32(opts.MaxSlots)
+	}
+
+	// Phase 5: KV cache quantization.
+	switch strings.ToLower(opts.KVCacheType) {
+	case "q8_0", "q8":
+		ctxParams.TypeK = llama.GGMLTypeQ8_0
+		ctxParams.TypeV = llama.GGMLTypeQ8_0
+		fmt.Println("[GOTorch] KV cache: q8_0 (50% VRAM reduction)")
+	case "q4_0", "q4":
+		ctxParams.TypeK = llama.GGMLTypeQ4_0
+		ctxParams.TypeV = llama.GGMLTypeQ4_0
+		fmt.Println("[GOTorch] KV cache: q4_0 (75% VRAM reduction)")
+	case "f16", "":
+		// Default: f16, no change needed.
+	default:
+		fmt.Printf("[GOTorch] Warning: unknown kv-cache-type %q, using f16\n", opts.KVCacheType)
+	}
+
+	// Phase 5: KV cache defragmentation threshold.
+	if opts.DefragThreshold > 0 {
+		ctxParams.DefragThold = opts.DefragThreshold
+	}
+
 	// Enable flash attention for faster inference (auto mode detects support).
 	if opts.FlashAttention {
 		ctxParams.FlashAttentionType = llama.FlashAttentionTypeEnabled
@@ -159,15 +270,16 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 	name = strings.TrimSuffix(name, ".gguf")
 
 	engine := &TorchEngine{
-		model:     model,
-		ctx:       ctx,
-		vocab:     vocab,
-		sampler:   sampler,
-		tokenBuf:  make([]byte, 256), // pre-allocated to avoid per-token heap allocation
-		modelName: name,
-		modelPath: modelPath,
-		opts:      opts,
-		loaded:    true,
+		model:       model,
+		ctx:         ctx,
+		vocab:       vocab,
+		sampler:     sampler,
+		tokenBuf:    make([]byte, 256), // pre-allocated to avoid per-token heap allocation
+		modelName:   name,
+		modelPath:   modelPath,
+		opts:        opts,
+		loaded:      true,
+		prefixCache: NewPrefixCache(opts.PrefixCacheSize),
 	}
 
 	// Record load metrics.
@@ -197,6 +309,73 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 		fmt.Printf("[GOTorch] Model warmup complete\n")
 	}
 
+	// --- Phase 4A: Load Go-native tokenizer from GGUF metadata ---
+	goTok, tokErr := tokenizer.NewFromGGUF(modelPath)
+	if tokErr != nil {
+		fmt.Printf("[GOTorch] Go tokenizer unavailable (using FFI fallback): %v\n", tokErr)
+	} else {
+		engine.goTokenizer = goTok
+		engine.hasGoTokenizer = true
+		fmt.Printf("[GOTorch] Go-native tokenizer loaded: %d tokens, %d merges\n",
+			goTok.VocabSize, len(goTok.MergeRank))
+	}
+
+	// --- Speculative Decoding: Load draft model if configured ---
+	if opts.DraftModelPath != "" {
+		fmt.Printf("[GOTorch] Loading draft model: %s\n", opts.DraftModelPath)
+
+		specTokens := opts.SpeculativeTokens
+		if specTokens == 0 {
+			specTokens = 5
+		}
+
+		draftGPU := opts.DraftGPULayers
+		if draftGPU == 0 {
+			draftGPU = opts.GPULayers
+		}
+
+		draftParams := llama.ModelDefaultParams()
+		draftParams.NGpuLayers = int32(draftGPU)
+
+		draftModel, draftErr := llama.ModelLoadFromFile(opts.DraftModelPath, draftParams)
+		if draftErr != nil {
+			fmt.Printf("[GOTorch] Draft model load failed (continuing without speculative decoding): %v\n", draftErr)
+		} else {
+			draftCtxParams := llama.ContextDefaultParams()
+			draftCtxParams.NCtx = uint32(opts.ContextSize)
+			draftCtxParams.NThreads = int32(opts.Threads)
+			draftCtxParams.NThreadsBatch = int32(opts.Threads)
+			draftCtxParams.NBatch = uint32(opts.BatchSize)
+			if opts.FlashAttention {
+				draftCtxParams.FlashAttentionType = llama.FlashAttentionTypeEnabled
+			}
+
+			draftCtx, draftCtxErr := llama.InitFromModel(draftModel, draftCtxParams)
+			if draftCtxErr != nil {
+				fmt.Printf("[GOTorch] Draft context init failed: %v\n", draftCtxErr)
+				llama.ModelFree(draftModel)
+			} else {
+				draftVocab := llama.ModelGetVocab(draftModel)
+				draftSamplerParams := llama.DefaultSamplerParams()
+				draftSampler := llama.NewSampler(draftModel, llama.DefaultSamplers, draftSamplerParams)
+
+				engine.draftModel = draftModel
+				engine.draftCtx = draftCtx
+				engine.draftVocab = draftVocab
+				engine.draftSampler = draftSampler
+				engine.hasDraft = true
+
+				// Warmup draft model.
+				if err := llama.Warmup(draftCtx, draftModel); err != nil {
+					fmt.Printf("[GOTorch] Draft warmup warning: %v\n", err)
+				}
+
+				fmt.Printf("[GOTorch] Speculative decoding enabled: draft=%s, speculative_tokens=%d\n",
+					opts.DraftModelPath, specTokens)
+			}
+		}
+	}
+
 	return engine, nil
 }
 
@@ -213,9 +392,24 @@ func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, para
 	prompt := BuildPrompt(messages)
 
 	// Tokenize the prompt.
-	tokens := llama.Tokenize(e.vocab, prompt, true, false)
-	if len(tokens) == 0 {
-		return "", fmt.Errorf("tokenization produced no tokens")
+	// Phase 4A: prefer Go-native tokenizer (no FFI overhead).
+	var tokens []llama.Token
+	if e.hasGoTokenizer {
+		goTokens := e.goTokenizer.Encode(prompt, true)
+		tokens = make([]llama.Token, len(goTokens))
+		for i, t := range goTokens {
+			tokens[i] = llama.Token(t)
+		}
+		// DEBUG: compare with FFI tokenization to catch encoding mismatches.
+		ffiTokens := llama.Tokenize(e.vocab, prompt, true, false)
+		if len(tokens) != len(ffiTokens) {
+			fmt.Printf("[GOTorch] TOKEN MISMATCH: Go=%d tokens, FFI=%d tokens\n", len(tokens), len(ffiTokens))
+		} else {
+			fmt.Printf("[GOTorch] Token count OK: %d tokens (Go == FFI)\n", len(tokens))
+		}
+	} else {
+		tokens = llama.Tokenize(e.vocab, prompt, true, false)
+		fmt.Printf("[GOTorch] FFI tokenized: %d tokens\n", len(tokens))
 	}
 
 	// Reset sampler state for this request.
@@ -227,10 +421,32 @@ func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, para
 	}
 
 	// Process prompt tokens.
+	// Phase 4B: Check prefix cache for pre-computed KV state.
 	promptStart := time.Now()
-	batch := llama.BatchGetOne(tokens)
-	if _, err := llama.Decode(e.ctx, batch); err != nil {
-		return "", fmt.Errorf("decode prompt: %w", err)
+	cacheHit := false
+	var batch llama.Batch
+
+	if e.opts.PrefixCacheSize > 0 {
+		if entry, ok := e.prefixCache.Lookup(prompt); ok {
+			// Cache hit: restore KV state, skip prompt decode entirely.
+			if _, err := e.prefixCache.Restore(e.ctx, entry); err == nil {
+				cacheHit = true
+			}
+		}
+	}
+
+	if !cacheHit {
+		batch = llama.BatchGetOne(tokens)
+		if _, err := llama.Decode(e.ctx, batch); err != nil {
+			return "", fmt.Errorf("decode prompt: %w", err)
+		}
+		// Save to prefix cache for future requests with same prompt.
+		if e.opts.PrefixCacheSize > 0 {
+			if err := e.prefixCache.Save(e.ctx, prompt, tokens); err != nil {
+				// Non-fatal: log warning but continue.
+				fmt.Printf("[GOTorch] Prefix cache save warning: %v\n", err)
+			}
+		}
 	}
 	promptDuration := time.Since(promptStart)
 
@@ -262,6 +478,99 @@ func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, para
 		default:
 		}
 
+		// --- Speculative Decoding Path ---
+		// If a draft model is loaded, generate N draft tokens and verify with the main model.
+		if e.hasDraft && i > 0 {
+			specTokens := e.opts.SpeculativeTokens
+			if specTokens == 0 {
+				specTokens = 5
+			}
+
+			// Step 1: Generate draft tokens with the small model.
+			llama.Synchronize(e.ctx)
+			draftTokens := make([]llama.Token, 0, specTokens)
+
+			// Feed the last main-model token to the draft model first.
+			lastToken := llama.SamplerSample(e.sampler, e.ctx, -1)
+			if e.isEOG(lastToken) {
+				break
+			}
+
+			// Decode last token through draft model to sync state.
+			draftBatch := llama.BatchGetOne([]llama.Token{lastToken})
+			llama.Decode(e.draftCtx, draftBatch)
+
+			// Accept the verified token from main model.
+			piece := e.tokenToText(lastToken)
+			if len(piece) > 0 {
+				result.WriteString(piece)
+				completionTokens++
+				i++
+			}
+
+			// Generate draft candidates.
+			for d := 0; d < specTokens && (i+d) < maxTokens; d++ {
+				llama.Synchronize(e.draftCtx)
+				dt := llama.SamplerSample(e.draftSampler, e.draftCtx, -1)
+				if e.isEOG(dt) {
+					break
+				}
+				draftTokens = append(draftTokens, dt)
+				db := llama.BatchGetOne([]llama.Token{dt})
+				llama.Decode(e.draftCtx, db)
+			}
+
+			if len(draftTokens) == 0 {
+				// Draft model hit EOG, push last token through main model.
+				batch = llama.BatchGetOne([]llama.Token{lastToken})
+				llama.Decode(e.ctx, batch)
+				continue
+			}
+
+			// Step 2: Verify draft tokens with main model in one batch.
+			verifyBatch := llama.BatchGetOne(draftTokens)
+			llama.Decode(e.ctx, verifyBatch)
+			llama.Synchronize(e.ctx)
+
+			// Step 3: Accept matching tokens, reject from first mismatch.
+			accepted := 0
+			for _, dt := range draftTokens {
+				mainToken := llama.SamplerSample(e.sampler, e.ctx, int32(accepted))
+				if mainToken == dt {
+					// Match! Accept this token for free.
+					piece := e.tokenToText(dt)
+					if len(piece) > 0 {
+						result.WriteString(piece)
+						completionTokens++
+					}
+					accepted++
+				} else {
+					// Mismatch. Use the main model's token instead.
+					piece := e.tokenToText(mainToken)
+					if len(piece) > 0 {
+						result.WriteString(piece)
+						completionTokens++
+					}
+					break
+				}
+			}
+
+			i += accepted
+
+			// Prepare main model for next iteration.
+			if accepted > 0 {
+				lastAccepted := draftTokens[accepted-1]
+				batch = llama.BatchGetOne([]llama.Token{lastAccepted})
+				llama.Decode(e.ctx, batch)
+			}
+
+			// Reset draft sampler for next speculation round.
+			llama.SamplerReset(e.draftSampler)
+			continue
+		}
+
+		// --- Standard Sequential Path (no draft model) ---
+
 		// Synchronize: wait for any pending GPU computation to finish
 		// before reading results. On the first iteration this is a no-op
 		// since prompt decode completed synchronously above.
@@ -273,15 +582,24 @@ func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, para
 		token := llama.SamplerSample(e.sampler, e.ctx, -1)
 
 		// Check for end of generation.
-		if llama.VocabIsEOG(e.vocab, token) {
+		if e.isEOG(token) {
 			break
 		}
 
-		// Convert token to text using pre-allocated buffer (zero alloc per token).
-		n := llama.TokenToPiece(e.vocab, token, e.tokenBuf, 0, true)
-		if n > 0 {
-			result.Write(e.tokenBuf[:n])
+		// Convert token to text.
+		// Phase 4A: Go-native lookup (zero FFI, zero alloc via string interning).
+		piece := e.tokenToText(token)
+		if len(piece) > 0 {
+			result.WriteString(piece)
 			completionTokens++
+			// Stream token delta if streaming is active.
+			if e.streamCh != nil {
+				select {
+				case e.streamCh <- piece:
+				case <-ctx.Done():
+					return result.String(), ctx.Err()
+				}
+			}
 		}
 
 		// Phase 3: Only check stop sequences when they exist.
@@ -335,6 +653,17 @@ func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, para
 	return result.String(), nil
 }
 
+// CompleteStream runs inference and sends each token delta to the provided channel.
+// The channel is closed when generation completes. The full result is also returned.
+func (e *TorchEngine) CompleteStream(ctx context.Context, messages []ChatMessage, params CompletionParams, ch chan string) (string, error) {
+	e.streamCh = ch
+	defer func() {
+		e.streamCh = nil
+		close(ch)
+	}()
+	return e.Complete(ctx, messages, params)
+}
+
 // GetStats returns a snapshot of engine performance stats.
 func (e *TorchEngine) GetStats() EngineStats {
 	return e.Stats.Snapshot()
@@ -352,6 +681,12 @@ func (e *TorchEngine) Close() error {
 
 	if !e.loaded {
 		return nil
+	}
+
+	// Free draft model resources if speculative decoding was enabled.
+	if e.hasDraft {
+		llama.ModelFree(e.draftModel)
+		e.hasDraft = false
 	}
 
 	llama.Close()

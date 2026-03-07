@@ -26,6 +26,35 @@ type EngineOpts struct {
 	NumaStrategy int `json:"numa_strategy" yaml:"numa_strategy"`
 	// BatchSize is the logical batch size for prompt processing. Default: 2048.
 	BatchSize int `json:"batch_size" yaml:"batch_size"`
+	// KVCacheType controls quantization of the KV cache. Options: "f16" (default), "q8_0", "q4_0".
+	// q8_0 halves KV cache VRAM with minimal quality loss. q4_0 quarters it.
+	KVCacheType string `json:"kv_cache_type,omitempty" yaml:"kv_cache_type"`
+	// DefragThreshold triggers KV cache defragmentation when fragmentation exceeds this ratio.
+	// Default: -1 (disabled). Recommended: 0.1 for long-running sessions.
+	DefragThreshold float32 `json:"defrag_threshold,omitempty" yaml:"defrag_threshold"`
+	// MaxSlots is the number of concurrent inference slots for continuous batching.
+	// Default: 1 (sequential mode). Higher values enable multi-request batching.
+	MaxSlots int `json:"max_slots,omitempty" yaml:"max_slots"`
+	// Backend selects the GPU compute backend. Options: "auto" (default), "cuda", "vulkan", "cpu".
+	// "auto" tries CUDA first, then Vulkan, then HIP, then CPU-only.
+	Backend string `json:"backend,omitempty" yaml:"backend"`
+
+	// PrefixCacheSize sets the maximum number of KV states to cache for identical system prompts.
+	// Default: 16. Set to 0 to disable prefix caching.
+	PrefixCacheSize int `json:"prefix_cache_size,omitempty" yaml:"prefix_cache_size"`
+
+	// --- Speculative Decoding (Phase 3 Stretch) ---
+
+	// DraftModelPath is the path to a small draft model for speculative decoding.
+	// When set, the draft model generates candidate tokens that the main model verifies
+	// in a single batch pass. Matching tokens are accepted for free, giving N tokens
+	// for the cost of 1 main-model forward pass. If empty, standard sequential generation is used.
+	DraftModelPath string `json:"draft_model,omitempty" yaml:"draft_model"`
+	// DraftGPULayers is GPU layers for the draft model. Default: same as GPULayers.
+	DraftGPULayers int `json:"draft_gpu_layers,omitempty" yaml:"draft_gpu_layers"`
+	// SpeculativeTokens is how many tokens the draft model predicts ahead per step. Default: 5.
+	// Higher values = more speculative work but bigger wins when predictions match.
+	SpeculativeTokens int `json:"speculative_tokens,omitempty" yaml:"speculative_tokens"`
 }
 
 // CompletionParams controls inference behavior per request.
