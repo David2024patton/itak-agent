@@ -1,0 +1,40 @@
+name: iTaK Torch Backend Builds
+
+on:
+  push:
+    branches: [ "master", "main" ]
+    paths:
+      - 'scripts/build_backends.go'
+      - '.github/workflows/build-backends.yml'
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  build-macos-metal:
+    name: Build Metal (macOS ARM64)
+    runs-on: macos-14 # Uses Apple Silicon M1 runner
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        
+    - name: Install dependencies
+      run: brew install cmake
+
+    - name: Run Backend Builder (Metal)
+      run: go run scripts/build_backends.go -backends="metal"
+
+    - name: Verify Artifact Creation
+      run: |
+        if [ ! -f "lib/darwin_arm64_metal/libllama.dylib" ]; then
+          echo "Metal build failed! libllama.dylib not found."
+          exit 1
+        fi
+        if [ ! -f "lib/darwin_arm64_metal/ggml-metal.metal" ]; then
+          echo "Warning: ggml-metal.metal source file not copied."
+        fi
+        echo "Successfully built and extracted macOS Metal backend!"
+        ls -la lib/darwin_arm64_metal/
