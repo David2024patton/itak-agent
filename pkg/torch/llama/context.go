@@ -84,8 +84,9 @@ var (
 	// LLAMA_API float * llama_get_embeddings(struct llama_context * ctx);
 	getEmbeddingsFunc ffi.Fun
 
+	// Zero-CGO purego bindings for maximum performance
 	// LLAMA_API float * llama_get_logits_ith(struct llama_context * ctx, int32_t i);
-	getLogitsIthFunc ffi.Fun
+	getLogitsIthFast func(ctx Context, i int32) *float32
 
 	// Token logits obtained from the last call to llama_decode()
 	// The logits for which llama_batch.logits[i] != 0 are stored contiguously
@@ -94,7 +95,7 @@ var (
 	// Cols: n_vocab
 	// TODO: deprecate in favor of llama_get_logits_ith() (ref: https://github.com/ggml-org/llama.cpp/pull/14853#issuecomment-3113143522)
 	// LLAMA_API float * llama_get_logits(struct llama_context * ctx);
-	getLogitsFunc ffi.Fun
+	getLogitsFast func(ctx Context) *float32
 
 	// LLAMA_API uint32_t llama_n_ctx(const struct llama_context * ctx);
 	nCtxFunc ffi.Fun
@@ -202,13 +203,8 @@ func loadContextFuncs(lib ffi.Lib) error {
 		return loadError("llama_get_embeddings", err)
 	}
 
-	if getLogitsIthFunc, err = lib.Prep("llama_get_logits_ith", &ffi.TypePointer, &ffi.TypePointer, &ffi.TypeSint32); err != nil {
-		return loadError("llama_get_logits_ith", err)
-	}
-
-	if getLogitsFunc, err = lib.Prep("llama_get_logits", &ffi.TypePointer, &ffi.TypePointer); err != nil {
-		return loadError("llama_get_logits", err)
-	}
+	purego.RegisterLibFunc(&getLogitsIthFast, lib.Addr, "llama_get_logits_ith")
+	purego.RegisterLibFunc(&getLogitsFast, lib.Addr, "llama_get_logits")
 
 	if nCtxFunc, err = lib.Prep("llama_n_ctx", &ffi.TypeUint32, &ffi.TypePointer); err != nil {
 		return loadError("llama_n_ctx", err)
@@ -419,8 +415,8 @@ func GetLogitsIth(ctx Context, i int32, nVocab int) ([]float32, error) {
 	if ctx == 0 {
 		return nil, errInvalidContext
 	}
-	var logitsPtr *float32
-	getLogitsIthFunc.Call(unsafe.Pointer(&logitsPtr), unsafe.Pointer(&ctx), &i)
+
+	logitsPtr := getLogitsIthFast(ctx, i)
 
 	if logitsPtr == nil {
 		return nil, nil
@@ -435,8 +431,9 @@ func GetLogits(ctx Context, nTokens, nVocab int) ([]float32, error) {
 	if ctx == 0 {
 		return nil, errInvalidContext
 	}
-	var result *float32
-	getLogitsFunc.Call(unsafe.Pointer(&result), unsafe.Pointer(&ctx))
+
+	result := getLogitsFast(ctx)
+
 	if result == nil || nTokens <= 0 || nVocab <= 0 {
 		return nil, nil
 	}

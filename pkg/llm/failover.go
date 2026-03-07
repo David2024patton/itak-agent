@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/David2024patton/GOAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
 )
 
 // FailoverClient wraps multiple LLM providers with automatic failover.

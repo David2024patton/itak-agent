@@ -12,7 +12,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/David2024patton/GOAgent/pkg/torch/llama"
+	"github.com/David2024patton/iTaKAgent/pkg/torch/llama"
 )
 
 // VisionEngine extends TorchEngine with multi-modal (vision/audio) support.
@@ -71,8 +71,8 @@ func NewVisionEngine(modelPath, mmprojPath string, opts EngineOpts) (*VisionEngi
 	supportsVision := llama.MtmdSupportVision(mtmdCtx)
 	supportsAudio := llama.MtmdSupportAudio(mtmdCtx)
 
-	fmt.Printf("[GOTorch] Vision: mmproj loaded in %s\n", mtmdDuration.Round(time.Millisecond))
-	fmt.Printf("[GOTorch] Vision: supports_vision=%v supports_audio=%v\n", supportsVision, supportsAudio)
+	fmt.Printf("[iTaK Torch] Vision: mmproj loaded in %s\n", mtmdDuration.Round(time.Millisecond))
+	fmt.Printf("[iTaK Torch] Vision: supports_vision=%v supports_audio=%v\n", supportsVision, supportsAudio)
 
 	return engine, nil
 }
@@ -206,7 +206,7 @@ func (e *VisionEngine) Complete(ctx context.Context, messages []ChatMessage, par
 
 		case llama.MtmdInputChunkTypeAudio:
 			// Audio support is experimental - skip for now.
-			fmt.Println("[GOTorch] Warning: audio chunk encountered but not yet supported")
+			fmt.Println("[iTaK Torch] Warning: audio chunk encountered but not yet supported")
 		}
 	}
 	promptDuration := time.Since(promptStart)

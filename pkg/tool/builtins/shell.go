@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/David2024patton/GOAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
 )
 
 // Default denied commands per OS. These are blocked unless explicitly overridden.

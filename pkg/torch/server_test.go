@@ -64,8 +64,8 @@ func TestServerModels(t *testing.T) {
 	if resp.Data[0].ID != "qwen3-0.6b" {
 		t.Errorf("model id = %q, want %q", resp.Data[0].ID, "qwen3-0.6b")
 	}
-	if resp.Data[0].OwnedBy != "gotorch" {
-		t.Errorf("owned_by = %q, want %q", resp.Data[0].OwnedBy, "gotorch")
+	if resp.Data[0].OwnedBy != "itaktorch" {
+		t.Errorf("owned_by = %q, want %q", resp.Data[0].OwnedBy, "itaktorch")
 	}
 }
 

@@ -1,6 +1,6 @@
-# GOAgent Master Feature List
+# iTaK Agent Master Feature List
 
-Feature checklist for the entire GOAgent ecosystem. Each feature has its source, description, and status.
+Feature checklist for the entire iTaK Agent ecosystem. Each feature has its source, description, and status.
 
 ## Legend
 - `[x]` Done
@@ -15,7 +15,7 @@ Feature checklist for the entire GOAgent ecosystem. Each feature has its source,
 - [x] **Focused Agent System** - Named manager agents (scout, operator, browser, researcher, coder) with defined scopes. *(Agent Zero)*
 - [x] **Per-Agent LLM Assignment** - Each agent can use a different LLM. Default to primary unless overridden. *(Original)*
 - [x] **Shell Safety / Self-Preservation** - Protected paths, denied commands. Agents can't break their own code. *(Original, Agent Zero)*
-- [x] **YAML Config** - All agents, tools, and providers defined in `goagent.yaml`. *(Agent Zero)*
+- [x] **YAML Config** - All agents, tools, and providers defined in `itakagent.yaml`. *(Agent Zero)*
 - [x] **Mandatory Task System** - Every request creates a checklist. Boss breaks into tasks per manager, managers break into sub-tasks per worker. This is how small LLMs work: everything becomes tiny tasks. *(Original - notes.md)*
 - [x] **Single-Call Router** - Script/template that routes prompts to correct managers in one LLM call instead of N calls. Reduces LLM usage. *(Original - notes.md)*
 - [ ] **Managers are Mini-Orchestrators** - Focused agents don't use tools directly. They orchestrate workers who do the actual work. *(Original - notes.md)*
@@ -26,11 +26,46 @@ Feature checklist for the entire GOAgent ecosystem. Each feature has its source,
 - [ ] **Auto Agent Creation** - If no agent exists for a task type, boss creates one on the fly. Tells user what it did but doesn't need permission. *(Original - notes.md)*
 - [ ] **7-10 Tool Cap per Agent** - Each agent gets max 7-10 tools. If more needed, split into another agent type. *(Original - notes.md)*
 - [ ] **Master Agent Registry** - Lookup table of all agent types and capabilities so the boss can pick the right one. *(Original - notes.md)*
-- [ ] **Kanban Task Board** - Drag-and-drop task board for visualizing agent work. ClickUp-style columns (To Do, In Progress, Done, Blocked). Dashboard and CLI views. *(ClickUp Super Agents, Original)*
+- [ ] **Kanban Task Board** - Visual workflow for watching AI build your project in real-time. *(ClickUp Super Agents, Original)*
+  - [ ] **AI-Driven Card Movement** - Watch cards move automatically between columns (Backlog, To Do, In Progress, Review, Testing, Done, Blocked) as the AI works. Each card = one task
+  - [ ] **Workflow Controls** - Global Pause/Continue/Stop buttons on the project header. Pause freezes all agents mid-work, Continue resumes from exact state, Stop aborts and rolls back
+  - [ ] **Manual Task Injection** - "+" button to add tasks manually to any column. AI picks them up in priority order or you can drag them into the active queue
+  - [ ] **Task Dependencies** - Draw dependency lines between cards. AI respects the order: "Don't start auth until database schema is done"
+  - [ ] **Card Detail View** - Click a card to see: agent assigned, LLM used, code diff, terminal output, time spent, tokens consumed, error logs
+  - [ ] **Live Code Preview** - Split view: Kanban on left, live code/browser preview on right. See the app build as cards move
+  - [ ] **Card Status Indicators** - Color-coded borders: green (success), yellow (in progress), red (failed/blocked), blue (waiting for human review)
+  - [ ] **Rollback per Card** - Right-click a Done card to rollback that specific task's changes (git revert under the hood)
+  - [ ] **Sprint/Phase Grouping** - Group cards into phases/sprints. See progress bars per phase. "Phase 1: 8/12 tasks done"
+  - [ ] **Agent Assignment Badge** - Each card shows which agent (Coder, Browser, Researcher, etc.) is working on it with a live heartbeat indicator
+  - [ ] **Time Estimates** - AI estimates time per card based on historical data. Shows expected vs actual completion time
+  - [ ] **Notification Bell** - Card-level notifications: "Task blocked - needs your input" or "Task failed - click to see error"
+  - [ ] **Export Board** - Export entire Kanban state as markdown, JSON, or image for documentation
+  - [ ] **Board Templates** - Pre-built board templates: "New Web App", "API Service", "Bug Fix Sprint", "Security Audit"
 - [ ] **Script Library (Worker Guides)** - Pre-built scripts that guide workers step-by-step through common tasks. "Holding a worker's hand" through complex operations. Triggerable by agents or events. *(Original - tasks.md)*
 - [ ] **Structured Autonomy** - Framework should feel and look fully autonomous to the user, but underneath it's well-structured with guardrails, scripts, and workflows controlling the chaos. *(Original - tasks.md)*
 - [ ] **Reflection Loops** - Advanced execution loops where agents constantly reflect on work they're doing. Self-correction before reporting back. *(ClickUp Super Agents)*
 - [ ] **Ambient Awareness** - Agents run quietly in background, monitoring context and responding instantly when relevant. Always-on intelligence layer. *(ClickUp Super Agents)*
+- [ ] **Any LLM, Anywhere** - All GO products (iTaK Agent, iTaK Torch, iTaK Shield, GOForge) can use any LLM - local via iTaK Torch or cloud-based (OpenAI, Anthropic, Google, etc.) - based on client requirements. No vendor lock-in. *(Original)*
+
+### Multi-Endpoint Architecture (Cross-Product)
+Every GO product exposes multiple endpoint types. Client chooses which protocols to enable based on their stack.
+
+| Pattern | Best For | Communication Style | Data Format |
+|---------|----------|-------------------|-------------|
+| REST | Standard web services, public APIs | Client asks, Server answers | JSON |
+| GraphQL | Complex UIs, mobile apps | Client requests specific shape | JSON |
+| gRPC | Microservices, high performance | Action-oriented RPC | Protobuf (Binary) |
+| Webhooks | Event notifications (payments, alerts) | Server pushes to Client URL | JSON |
+| WebSockets | Chat, live tracking, real-time feeds | Two-way constant connection | JSON, Binary |
+| SSE | Live feeds, dashboards, tickers | Server streams to Client | Text |
+
+- [ ] **REST API** - OpenAPI 3.0 spec, versioned endpoints, API key + JWT auth. Standard for all GO products
+- [ ] **GraphQL Endpoint** - Schema-first API for complex client queries. "Give me only the fields I need." Reduces over-fetching
+- [ ] **gRPC Service** - Protobuf-defined service contracts. Bidirectional streaming for agent-to-agent communication. 10x faster than REST for microservices
+- [ ] **Webhook Engine** - Register webhook URLs per event type. Retry with exponential backoff, HMAC signature verification, delivery receipts
+- [ ] **WebSocket Server** - Persistent connections for real-time data (live camera feeds, agent status, chat). Auto-reconnect, heartbeat, room-based subscriptions
+- [ ] **SSE (Server-Sent Events)** - Lightweight one-way streaming for dashboards, log tails, Kanban board updates. Works through proxies and firewalls where WebSocket can't
+- [ ] **Endpoint Documentation** - Auto-generated endpoint docs for every GO product. Swagger UI for REST, GraphQL Playground, gRPC reflection. Every endpoint is documented and testable
 
 ### BMAD-Inspired Orchestration Patterns
 Adopted from the [BMAD Method](https://github.com/bmad-code-org/BMAD-METHOD) - an agile AI-driven development framework with 12+ specialized personas and structured workflows.
@@ -70,7 +105,7 @@ Every skill gets scanned before it can execute. Downloaded, user-built, or agent
 
 ## 3. Agent Architecture
 
-GOAgent has **8 core agents** - distinct execution engines with unique tool access. Everything else is an **Agent Persona** - a skill pack loaded onto a core agent that specializes its behavior. Installing the "Sales" skill pack on a Researcher turns it into a "Sales Agent." Same engine, different knowledge and tools.
+iTaK Agent has **8 core agents** - distinct execution engines with unique tool access. Everything else is an **Agent Persona** - a skill pack loaded onto a core agent that specializes its behavior. Installing the "Sales" skill pack on a Researcher turns it into a "Sales Agent." Same engine, different knowledge and tools.
 
 ```
 Core Agent (Researcher) + Skill Pack (Sales)         = "Sales Agent"
@@ -129,7 +164,7 @@ Core Agent (Coder)      + Skill Pack (Game Dev)       = "Gamer Agent"
 - [ ] **Builder** - Creates new agents, skills, and tools on-the-fly. On the ignore list (can't edit itself). *(Original)*
   - Agent scaffolding: generates YAML config, system prompt, tool assignments
   - Skill creation: packages reusable workflows as GOHub-compatible skill packs
-  - Tool adapters: wraps external APIs/CLIs into GOAgent-compatible tools
+  - Tool adapters: wraps external APIs/CLIs into iTaK Agent-compatible tools
   - Validation: tests newly created agents before activating
 
 - [ ] **Embedder** - Dedicated embedding agent with CPU-only model for always-available vector search. *(Original)*
@@ -251,7 +286,7 @@ Specialized knowledge and workflows for specific industries. Each builds on top 
 - [ ] **Dynamic Agent Creation from Chat** - User creates new agents via chat or dashboard. *(Original)*
 - [ ] **No Permission Required** - Agents don't ask permission. They get the job done and report what they did. *(Original - notes.md)*
 - [ ] **Agent Analytics** - Measure productivity across agents, monitor trends, spot top performers. Usage stats per agent. *(ClickUp Super Agents)*
-- [ ] **Multi-User / Team Mode** - Multiple users on one GOAgent instance. Role-based access, agent ownership (my agents vs shared), shared knowledge graph with per-user privacy boundaries. *(Recommendation)*
+- [ ] **Multi-User / Team Mode** - Multiple users on one iTaK Agent instance. Role-based access, agent ownership (my agents vs shared), shared knowledge graph with per-user privacy boundaries. *(Recommendation)*
 
 ## 5. Memory System
 
@@ -303,10 +338,10 @@ Specialized knowledge and workflows for specific industries. Each builds on top 
 - [ ] **Offline Toggle** - Settings toggle for fully offline operation. *(Original)*
 - [ ] **Ollama Integration** - Auto-detect local Ollama instance, auto-install if missing. Pull models via Ollama CLI. *(Agent Zero)*
 - [ ] **Bundled Embed Model** - Ships with `qwen3-embedding` by default *(pending test vs `nomic-embed-text-v2-moe`)*. *(Original)*
-- [ ] **Install-Time Model Picker** - During first run, user selects their hardware tier and picks models from the marketplace. GOAgent pulls them via Ollama automatically. *(Original)*
+- [ ] **Install-Time Model Picker** - During first run, user selects their hardware tier and picks models from the marketplace. iTaK Agent pulls them via Ollama automatically. *(Original)*
 - [ ] **Model Marketplace UI** - Dashboard page showing all available local models organized by role. One-click install/remove. Size, RAM requirements, and quality ratings displayed. *(Original)*
 - [ ] **Hardware Auto-Detection** - Detect CPU cores, RAM, GPU presence at startup. Auto-recommend appropriate model tier. *(Original)*
-- [ ] **Go Offline Flow** - User downloads desired models while online, then toggles offline mode. GOAgent switches all routing to local models. *(Original)*
+- [ ] **Go Offline Flow** - User downloads desired models while online, then toggles offline mode. iTaK Agent switches all routing to local models. *(Original)*
 
 ### Local Model Catalog (Curated)
 
@@ -452,7 +487,7 @@ AI-powered teaching system that uses DOM manipulation, screen recording, and int
 
 ### Screen Recording & Narration
 - [ ] **Action Recording** - Record agent's browser/desktop actions as video. Every click, scroll, and keypress captured. *(Original)*
-- [ ] **AI Voice Narration** - Generate voice-over narration explaining each step as the agent performs it. Uses GOTorch local TTS or cloud TTS. *(Original)*
+- [ ] **AI Voice Narration** - Generate voice-over narration explaining each step as the agent performs it. Uses iTaK Torch local TTS or cloud TTS. *(Original)*
 - [ ] **Annotated Recordings** - Overlay mouse cursor highlights, click indicators, and text callouts on recordings. *(Original)*
 - [ ] **GIF Generation** - Auto-generate short GIFs of specific procedures. Perfect for documentation and quick reference. *(Original)*
 - [ ] **Tutorial Export** - Export tutorials as MP4, GIF, interactive HTML, or Markdown with embedded screenshots. Shareable via link. *(Original)*
@@ -495,14 +530,14 @@ The Teacher Agent doesn't just work in browsers. It teaches across platforms:
 ### Tutorial Marketplace (GOHub)
 - [ ] **Community Tutorials** - Users create and share tutorials on GOHub. Rate, review, and fork tutorials. *(Original)*
 - [ ] **Agent-Generated Docs** - Agent auto-generates documentation for any project it works on. Tutorials for the code it writes. *(Original)*
-- [ ] **Onboarding Packs** - Pre-built tutorial packs for common setups: "New developer onboarding", "DevOps basics", "GOAgent power user". *(Original)*
+- [ ] **Onboarding Packs** - Pre-built tutorial packs for common setups: "New developer onboarding", "DevOps basics", "iTaK Agent power user". *(Original)*
 
 ### Voice & TTS Engine (GOVoice)
 The voice layer that powers narrated tutorials, voice agents, and video content:
 
 | Engine | Type | Quality | Speed | Notes |
 |--------|------|---------|-------|-------|
-| **Piper TTS** | Local | Good | Very Fast | Go-compatible via CLI. Ships with GOAgent. No internet needed. |
+| **Piper TTS** | Local | Good | Very Fast | Go-compatible via CLI. Ships with iTaK Agent. No internet needed. |
 | **Kokoro TTS** | Local | Great | Fast | High-quality neural TTS. Runs on CPU. |
 | **Edge TTS** | Cloud (Free) | Great | Fast | Microsoft's free TTS API. No API key needed. |
 | **ElevenLabs** | Cloud (Paid) | Excellent | Fast | Best voice quality. Voice cloning. |
@@ -605,12 +640,12 @@ Appear in your own videos without recording yourself. AI-generated talking head 
 - [ ] **Gesture Generation** - Avatar uses natural hand gestures while speaking. Not a frozen head. *(Original)*
 - [ ] **Multiple Avatars** - Create different presenter personas for different channels/brands. *(Original)*
 - [ ] **Green Screen Mode** - Generate avatar with transparent background. Composite onto any scene. *(Original)*
-- [ ] **Local Processing (Default)** - Avatar generation runs locally via GOTorch + open-source models (SadTalker, Wav2Lip). No cloud dependency. *(Original)*
+- [ ] **Local Processing (Default)** - Avatar generation runs locally via iTaK Torch + open-source models (SadTalker, Wav2Lip). No cloud dependency. *(Original)*
 - [ ] **Cloud Fallback** - For higher quality, route to HeyGen or D-ID APIs. *(Original)*
 
 ## 12. GOForge (Live Preview + Container Runtime)
 
-Go-native live preview server and lightweight container runtime for agent workloads. Every project built by GOAgent gets a live URL instantly. Separate repo (`GOForge`) but embeddable into GOAgent as a library.
+Go-native live preview server and lightweight container runtime for agent workloads. Every project built by iTaK Agent gets a live URL instantly. Separate repo (`GOForge`) but embeddable into iTaK Agent as a library.
 
 ### GitHub Integration Pipeline
 - [ ] **Auto-Repo Creation** - Git Agent creates a private GitHub repo via API when a new project starts. *(Original)*
@@ -624,7 +659,7 @@ Go-native live preview server and lightweight container runtime for agent worklo
 - [ ] **Hot Reload** - New pushes trigger automatic rebuild and reload. User sees changes in seconds. *(Original)*
 - [ ] **Reverse Proxy** - Routes `project-name.localhost:PORT` to the correct running process. Clean URLs per project. *(Original)*
 - [ ] **Preview Dashboard** - Web UI showing all deployed projects, build status, logs, and URLs. *(Original)*
-- [ ] **Deploy API** - Simple REST API for GOAgent to trigger deploys and check status. One call = one deploy. *(Original)*
+- [ ] **Deploy API** - Simple REST API for iTaK Agent to trigger deploys and check status. One call = one deploy. *(Original)*
 
 ### Tier 1: Process Isolation (MVP)
 - [ ] **Process Groups** - Each project runs in its own process group. Isolated stdout/stderr. *(Original)*
@@ -693,7 +728,7 @@ Go-native live preview server and lightweight container runtime for agent worklo
 ## 16. MCP System
 
 - [ ] **MCP Client** - Connect to external MCP servers. *(Standard)*
-- [ ] **MCP Server** - Expose GOAgent tools as MCP server. Written in Go. *(Standard)*
+- [ ] **MCP Server** - Expose iTaK Agent tools as MCP server. Written in Go. *(Standard)*
 - [ ] **MCP Discovery** - Auto-discover and register from config. *(Standard)*
 - [ ] **Bundled MCP Servers** (user activates what they want):
   - [ ] GitHub - repo tasks, code reviews
@@ -757,7 +792,7 @@ Dedicated auth service for the GO* ecosystem. Fork from **Ory Hydra** (OAuth2/OI
 **Core Identity**
 - [ ] **OAuth2 / OIDC Server** - Industry-standard auth. Issues access tokens, refresh tokens, ID tokens. Any corporate client already speaks this protocol. *(Ory Hydra fork)*
 - [ ] **User Management** - Registration, login, password reset, email verification, profile management. *(Ory Kratos fork)*
-- [ ] **Single Sign-On (SSO)** - Log in once, access GOTorch, GOMedia, GODashboard, GOGateway, GOForge. One session across all services. *(Ory Hydra)*
+- [ ] **Single Sign-On (SSO)** - Log in once, access iTaK Torch, GOMedia, GODashboard, GOGateway, GOForge. One session across all services. *(Ory Hydra)*
 - [ ] **Service Accounts** - Machine-to-machine auth via client credentials grant. For GO*-to-GO* service communication. *(OAuth2 standard)*
 
 **Security**
@@ -776,10 +811,10 @@ Dedicated auth service for the GO* ecosystem. Fork from **Ory Hydra** (OAuth2/OI
 - [ ] **SCIM Provisioning** - Auto-sync users from corporate directory. When someone joins/leaves the company, GOAuth updates automatically. *(Enterprise standard)*
 
 **Deployment Modes**
-- [ ] **Embedded (Default)** - GOAuth runs as a library inside GOAgent. Zero extra processes. *(Original)*
+- [ ] **Embedded (Default)** - GOAuth runs as a library inside iTaK Agent. Zero extra processes. *(Original)*
 - [ ] **Standalone Service** - Run GOAuth as its own process for multi-machine setups. *(Original)*
 - [ ] **Auto-Pairing (Local)** - Services on same machine auto-discover via shared local secret. Zero config. *(Original)*
-- [ ] **Remote Pairing** - Cross-machine: `goagent pair <service-url>` exchanges keys via one-time code. *(Original)*
+- [ ] **Remote Pairing** - Cross-machine: `itakagent pair <service-url>` exchanges keys via one-time code. *(Original)*
 
 **GOAuth Mobile App (Authenticator)**
 - [ ] **Cross-Platform App** - Built with Fyne (Go GUI toolkit). Single codebase compiles to iOS, Android, Windows, macOS. *(Original, Fyne)*
@@ -787,7 +822,7 @@ Dedicated auth service for the GO* ecosystem. Fork from **Ory Hydra** (OAuth2/OI
 - [ ] **Push Approve/Deny** - "Login attempt from Windows PC in [City]. [Approve] [Deny]" notifications. *(Original)*
 - [ ] **Biometric Unlock** - Fingerprint/Face ID to approve auth requests. *(Original)*
 - [ ] **QR Pairing** - Scan QR code from GODashboard to pair phone with GOAuth server. *(Original)*
-- [ ] **Multi-Account** - Manage multiple GOAgent instances from one phone app. *(Original)*
+- [ ] **Multi-Account** - Manage multiple iTaK Agent instances from one phone app. *(Original)*
 - [ ] **PWA Fallback** - Progressive Web App version for browsers. No app store install needed. Offline TOTP via Service Worker. *(Original)*
 
 ## 20. Integrations & Skills
@@ -806,7 +841,7 @@ Dedicated auth service for the GO* ecosystem. Fork from **Ory Hydra** (OAuth2/OI
 - [ ] **Sonos** - Multi-room audio control. *(OpenClaw)*
 - [ ] **Shazam** - Song recognition. *(OpenClaw)*
 - [ ] **Weather** - Forecasts and conditions. Location-aware alerts. *(OpenClaw)*
-- [ ] **Camera / Webcam** - Photo and video capture from connected cameras/webcams. Agent can see the user and their environment via webcam feed, processed through vision models (moondream2, qwen3-vl) via GOTorch + GOMedia. *(OpenClaw, Original)*
+- [ ] **Camera / Webcam** - Photo and video capture from connected cameras/webcams. Agent can see the user and their environment via webcam feed, processed through vision models (moondream2, qwen3-vl) via iTaK Torch + GOMedia. *(OpenClaw, Original)*
 - [ ] **GIF Search** - Find and send the perfect GIF. Integrates into chat and social media agents. *(OpenClaw)*
 - [ ] **Peekaboo** - Quick screen capture and share. Lightweight alternative to full GOVision for simple screenshots. *(OpenClaw)*
 - [ ] **Genspark Integration** - [genspark.ai](https://www.genspark.ai/) AI-powered search engine. Research their agent-to-search patterns for deep web research capabilities. *(Original)*
@@ -821,20 +856,20 @@ Dedicated auth service for the GO* ecosystem. Fork from **Ory Hydra** (OAuth2/OI
 - [ ] **Chromebook** *(Linux layer)*
 - [ ] **Low-spec Hardware** - Target: old i7 mini PC, 16GB RAM (Dell OptiPlex 7060). *(Original)*
 
-## 22. GOTorch (Go-Native Inference Engine)
+## 22. iTaK Torch (Go-Native Inference Engine)
 
-Custom Go-native LLM inference runtime. No dependency on Ollama or any external tool. GOAgent loads and runs models by itself.
+Custom Go-native LLM inference runtime. No dependency on Ollama or any external tool. iTaK Agent loads and runs models by itself.
 
 - [ ] **GGUF Model Loader** - Load quantized GGUF models directly via CGo bindings to `llama.cpp`. No Ollama required. *(Original)*
 - [ ] **HuggingFace Model Pull** - Download models directly from HuggingFace Hub. Browse, search, and pull GGUF files by repo name. *(Original)*
 - [ ] **Ollama Registry Pull** - Also pull models from the Ollama registry if users prefer that catalog. Best of both worlds. *(Original)*
-- [ ] **Local File Support** - Point GOTorch at any local `.gguf` file and it just works. *(Original)*
-- [ ] **Model Cache** - Downloaded models stored in `~/.gotorch/models/`. No re-download. Shared across all GOAgent instances on the machine. *(Original)*
+- [ ] **Local File Support** - Point iTaK Torch at any local `.gguf` file and it just works. *(Original)*
+- [ ] **Model Cache** - Downloaded models stored in `~/.itaktorch/models/`. No re-download. Shared across all iTaK Agent instances on the machine. *(Original)*
 - [ ] **Runtime Model Swapping** - Hot-swap models at runtime. Boss says "switch coder to qwen2.5-coder" and it loads in seconds. *(Original)*
 - [ ] **Multi-Model Concurrent** - Run multiple models simultaneously (embedding + chat + coding). Memory-aware: only loads what fits in RAM. *(Original)*
 - [ ] **CPU Optimized** - AVX2/AVX-512 auto-detection for maximum CPU inference speed. No GPU required. *(Original)*
 - [ ] **GPU Acceleration (Optional)** - CUDA, ROCm, Metal support for users who have a GPU. Auto-detect and use if available. *(Original)*
-- [ ] **OpenAI-Compatible API** - GOTorch exposes a local `/v1/chat/completions` endpoint so GOGateway and all agents can talk to it like any cloud provider. *(Original)*
+- [ ] **OpenAI-Compatible API** - iTaK Torch exposes a local `/v1/chat/completions` endpoint so GOGateway and all agents can talk to it like any cloud provider. *(Original)*
 - [ ] **Quantization on Download** - Auto-quantize models to Q4_K_M during download if the user's hardware needs it. *(Original)*
 - [ ] **Inference Metrics** - Tokens/second, memory usage, model load time. Feed into GODashboard. *(Original)*
 - [ ] **Request Queue** - Thread-safe FIFO queue for inference requests. Multiple users/agents pushing prompts get queued and processed in order. Priority lanes for system-critical requests vs user chat. Backpressure: reject new requests when queue exceeds configurable depth. Queue depth visible in `/health` and GODashboard. *(Original)*
@@ -874,7 +909,7 @@ Custom Go-native LLM inference runtime. No dependency on Ollama or any external 
 - [ ] **Go 1.26 SIMD** - Experimental `simd/archsimd` package for 128/256/512-bit vector ops. Potential for embedding math acceleration. `GOEXPERIMENT=simd`. *(Go 1.26)*
 - [ ] **Go 1.26 runtime/secret** - Secure register/stack erasure for API key handling. `GOEXPERIMENT=runtimesecret`. *(Go 1.26)*
 - [ ] **Go 1.26 Green Tea GC** - Now default. 10-40% GC overhead reduction. Vector-accelerated small object scanning. *(Go 1.26)*
-- [ ] **Binary Size Optimization** - Use `goda` (dep graph) and `go-size-analyzer` (`gsa --web`) to audit and shrink GOTorch binary. Datadog achieved 77% reduction. *(Research Sweep)*
+- [ ] **Binary Size Optimization** - Use `goda` (dep graph) and `go-size-analyzer` (`gsa --web`) to audit and shrink iTaK Torch binary. Datadog achieved 77% reduction. *(Research Sweep)*
 
 ### Code Analysis Tools (from Ecosystem Research)
 - [ ] **gotreesitter** - Pure Go tree-sitter runtime. No CGo. Parser, lexer, query engine, incremental reparsing. Matches our purego philosophy. Use as code analysis skill for agents. `odvcencio/gotreesitter`. *(Research Sweep)*
@@ -936,15 +971,15 @@ Go-native alternative to yt-dlp targeting the top 15 social media platforms. Sin
 
 ### CLI & Library
 - [ ] **Standalone CLI** - `gomedia download URL`, `gomedia transcript URL`, `gomedia info URL`. *(Original)*
-- [ ] **Go Library** - Import as `pkg/media/` in GOAgent. Agents call it directly, no shell-out. *(Original)*
+- [ ] **Go Library** - Import as `pkg/media/` in iTaK Agent. Agents call it directly, no shell-out. *(Original)*
 - [ ] **yt-dlp Fallback** - If GOMedia doesn't support a platform, shell out to yt-dlp if installed. Graceful degradation. *(Original)*
 
 ## 24. API Server
 
-- [ ] **REST API** - Standalone HTTP API for external apps to interact with GOAgent. Send tasks, query agents, get results. *(Recommendation)*
+- [ ] **REST API** - Standalone HTTP API for external apps to interact with iTaK Agent. Send tasks, query agents, get results. *(Recommendation)*
 - [ ] **gRPC API** - High-performance binary protocol for Go-to-Go and mobile app integration. *(Recommendation)*
 - [ ] **API Key Auth** - Secure API access with generated API keys. Rate limiting per key. *(Recommendation)*
-- [ ] **Webhook Callbacks** - Register webhook URLs. GOAgent calls back when tasks complete. *(Recommendation)*
+- [ ] **Webhook Callbacks** - Register webhook URLs. iTaK Agent calls back when tasks complete. *(Recommendation)*
 
 ## 25. Observability & Export
 
@@ -957,12 +992,12 @@ Go-native alternative to yt-dlp targeting the top 15 social media platforms. Sin
 Features identified by asking: "If everything above was built, what would still be missing?"
 
 ### Installation & Distribution
-- [ ] **One-Line Installer** - `curl -sSL install.goagent.dev | sh` for Linux/Mac. PowerShell equivalent for Windows. Detects OS/arch, downloads binary, sets PATH. *(Recommendation)*
+- [ ] **One-Line Installer** - `curl -sSL install.itakagent.dev | sh` for Linux/Mac. PowerShell equivalent for Windows. Detects OS/arch, downloads binary, sets PATH. *(Recommendation)*
 - [ ] **Prerequisite Auto-Installer** - On first run, scan for all required dependencies (Go, Git, CMake, WSL, ffmpeg, etc.). Missing items are auto-installed with user confirmation. Windows: uses winget/choco. Linux: apt/dnf. Mac: brew. *(Original)*
-- [ ] **WSL-First on Windows** - On Windows, default to running inside WSL (Ubuntu). Installer checks for WSL, installs it if missing (`wsl --install`), then sets up GOAgent inside WSL. User can opt-out to native Windows mode via `--native` flag. WSL gives better Go/Linux compat, avoids firewall popups, and matches production Linux servers. *(Original)*
+- [ ] **WSL-First on Windows** - On Windows, default to running inside WSL (Ubuntu). Installer checks for WSL, installs it if missing (`wsl --install`), then sets up iTaK Agent inside WSL. User can opt-out to native Windows mode via `--native` flag. WSL gives better Go/Linux compat, avoids firewall popups, and matches production Linux servers. *(Original)*
 - [ ] **Auto-Updater** - Background check for new versions. Notifies user, downloads, restarts. Rollback if update fails. *(Recommendation)*
 - [ ] **Homebrew / Winget / Snap** - Package manager distribution for easy install and updates. *(Recommendation)*
-- [ ] **Docker Image** - Official `goagent/goagent` Docker image on GHCR. Multi-arch (amd64, arm64). *(Recommendation)*
+- [ ] **Docker Image** - Official `itakagent/itakagent` Docker image on GHCR. Multi-arch (amd64, arm64). *(Recommendation)*
 
 ### CLI Experience
 - [ ] **Interactive Setup Wizard** - First-run TUI wizard: choose providers, paste API keys, select hardware tier, pick default model. Beautiful terminal UI via `charmbracelet/bubbletea`. *(Recommendation)*
@@ -970,8 +1005,8 @@ Features identified by asking: "If everything above was built, what would still 
 - [ ] **CLI Themes** - Configurable terminal colors, emoji usage, output density (compact/verbose/json). *(Recommendation)*
 
 ### Documentation & Help
-- [ ] **Built-in Docs Server** - `goagent docs` starts a local docs site. API reference, tutorials, architecture guides. *(Recommendation)*
-- [ ] **`goagent help <topic>`** - Context-aware help. `goagent help agents` shows all agent types, `goagent help gotorch` shows model management. *(Recommendation)*
+- [ ] **Built-in Docs Server** - `itakagent docs` starts a local docs site. API reference, tutorials, architecture guides. *(Recommendation)*
+- [ ] **`itakagent help <topic>`** - Context-aware help. `itakagent help agents` shows all agent types, `itakagent help itaktorch` shows model management. *(Recommendation)*
 - [ ] **Example Projects** - Curated example projects showing real-world agent setups: "Build a blog with agents", "Automate social media", "Run a research pipeline". *(Recommendation)*
 - [ ] **Video Tutorials** - Agent-generated video walkthroughs (using GOMedia + GOVision to record and narrate). *(Recommendation)*
 
@@ -983,7 +1018,7 @@ Features identified by asking: "If everything above was built, what would still 
 ### Data Management
 - [ ] **Import/Export Wizard** - Migrate from other agent frameworks (Agent Zero, OpenClaw, LangChain). Import configs, memories, prompts. *(Recommendation)*
 - [ ] **Data Portability** - All user data exportable as standard formats (JSON, CSV, SQLite). No vendor lock-in. *(Recommendation)*
-- [ ] **Multi-Machine Sync** - Sync knowledge graphs, memories, and configs across multiple GOAgent instances. CRDTs or last-write-wins. *(Recommendation)*
+- [ ] **Multi-Machine Sync** - Sync knowledge graphs, memories, and configs across multiple iTaK Agent instances. CRDTs or last-write-wins. *(Recommendation)*
 
 ### Notifications & Alerts
 - [ ] **Notification Center** - Unified notification hub in GODashboard. Agent completions, errors, approvals needed, health alerts. *(Recommendation)*
@@ -991,10 +1026,10 @@ Features identified by asking: "If everything above was built, what would still 
 - [ ] **Quiet Hours** - Do Not Disturb mode. Batch non-urgent notifications. *(Recommendation)*
 
 ### Resilience & Recovery
-- [ ] **Graceful Degradation** - If GOTorch dies, auto-fallback to cloud providers. If internet dies, auto-fallback to local models. No user intervention. *(Recommendation)*
+- [ ] **Graceful Degradation** - If iTaK Torch dies, auto-fallback to cloud providers. If internet dies, auto-fallback to local models. No user intervention. *(Recommendation)*
 - [ ] **Task Persistence** - Running tasks survive process restarts. Resume from last checkpoint on reboot. *(Recommendation)*
-- [ ] **Disaster Recovery** - Full backup/restore of entire GOAgent state. Point-in-time recovery. *(Recommendation)*
-- [ ] **Migration CLI** - `goagent migrate` to move entire setup between machines. *(Recommendation)*
+- [ ] **Disaster Recovery** - Full backup/restore of entire iTaK Agent state. Point-in-time recovery. *(Recommendation)*
+- [ ] **Migration CLI** - `itakagent migrate` to move entire setup between machines. *(Recommendation)*
 
 ### Rate Limiting & Abuse Prevention
 - [ ] **Per-User Rate Limits** - In multi-user mode, prevent one user from consuming all resources. *(Recommendation)*
@@ -1006,21 +1041,21 @@ Features identified by asking: "If everything above was built, what would still 
 - [ ] **Locale-Aware Agents** - Agents respect user's date/time/currency formats. *(Recommendation)*
 
 ### Agent-to-Agent Communication
-- [ ] **A2A Protocol** - Google's Agent-to-Agent protocol for cross-framework agent communication. GOAgent agents can talk to agents from other platforms. *(Google A2A)*
+- [ ] **A2A Protocol** - Google's Agent-to-Agent protocol for cross-framework agent communication. iTaK Agent agents can talk to agents from other platforms. *(Google A2A)*
 - [ ] **Agent Discovery** - Publish agent capabilities so external agents can discover and invoke them. *(Google A2A)*
 
 ### Billing & Licensing (for SaaS/Enterprise)
 - [ ] **Usage Metering** - Track per-user, per-agent, per-project resource consumption for billing. *(Recommendation)*
 - [ ] **License Key System** - For commercial distribution. Free tier, Pro tier, Enterprise tier. *(Recommendation)*
-- [ ] **White-Label** - Remove GOAgent branding. Companies deploy under their own brand. *(Recommendation)*
+- [ ] **White-Label** - Remove iTaK Agent branding. Companies deploy under their own brand. *(Recommendation)*
 
 ### Telemetry (Opt-in)
-- [ ] **Anonymous Usage Stats** - Opt-in telemetry: which features are used, error rates, performance metrics. For improving GOAgent. *(Recommendation)*
+- [ ] **Anonymous Usage Stats** - Opt-in telemetry: which features are used, error rates, performance metrics. For improving iTaK Agent. *(Recommendation)*
 - [ ] **Crash Reporting** - Automatic crash reports with stack traces. Opt-in only. *(Recommendation)*
 
 ## 27. Autonomy Engine (GOPilot)
 
-The core differentiator. GOAgent should run unattended for hours, fix its own problems, and only bother the user when it genuinely can't proceed. This section covers everything needed to make that real.
+The core differentiator. iTaK Agent should run unattended for hours, fix its own problems, and only bother the user when it genuinely can't proceed. This section covers everything needed to make that real.
 
 ### Self-Correction & Error Recovery
 - [ ] **7-Step Escalation Chain** - On failure, the agent walks this ladder automatically before EVER asking the user:
@@ -1050,7 +1085,7 @@ The core differentiator. GOAgent should run unattended for hours, fix its own pr
 - [ ] **Escalation Routing** - Route difficult tasks to stronger models automatically. Simple tasks stay on cheap/fast models. Based on task complexity classification. *(Original)*
 
 ### Process Watchdogs
-- [ ] **Watchdog Process** - Separate lightweight process monitors GOAgent. Detects freezes, infinite loops, memory leaks. Auto-restart with state recovery. *(Original)*
+- [ ] **Watchdog Process** - Separate lightweight process monitors iTaK Agent. Detects freezes, infinite loops, memory leaks. Auto-restart with state recovery. *(Original)*
 - [ ] **Deadlock Detection** - Detect when agents are waiting on each other circularly. Auto-break the cycle by killing the youngest task. *(Original)*
 - [ ] **Stale Task Cleanup** - Tasks running beyond expected time with no progress get auto-killed. Configurable timeout per task type. *(Original)*
 - [ ] **Memory Leak Detection** - Monitor per-agent RAM usage over time. If growing without bound, restart that agent's process. *(Original)*
@@ -1058,7 +1093,7 @@ The core differentiator. GOAgent should run unattended for hours, fix its own pr
 
 ### Dependency & Environment Healing
 - [ ] **Dependency Doctor** - On startup and on error, check all external deps (git, ffmpeg, node, python, go). Auto-install missing ones. *(Original)*
-- [ ] **Config Validator** - On startup, validate entire goagent.yaml. Fix common misconfigs automatically (wrong paths, invalid ports, missing fields). *(Original)*
+- [ ] **Config Validator** - On startup, validate entire itakagent.yaml. Fix common misconfigs automatically (wrong paths, invalid ports, missing fields). *(Original)*
 - [ ] **Port Conflict Resolution** - If a port is in use, auto-pick next available. No manual intervention. *(Original)*
 - [ ] **Disk Space Monitor** - Alert and auto-clean (temp files, old logs, cached models) if disk space is low. *(Original)*
 - [ ] **Network Health Check** - Continuously verify internet connectivity and API reachability. Auto-switch to offline mode if connection drops, switch back when restored. *(Original)*
@@ -1085,7 +1120,7 @@ User-configurable autonomy from fully supervised to fully autonomous:
 
 ## 28. Small LLM Optimization Engine (GOSqueeze)
 
-Everything needed to make 1B-8B parameter models perform like 70B+ models. This is how GOAgent runs on a Dell OptiPlex with no GPU.
+Everything needed to make 1B-8B parameter models perform like 70B+ models. This is how iTaK Agent runs on a Dell OptiPlex with no GPU.
 
 ### Prompt Engineering for Small Models
 - [ ] **Prompt Compression** - Auto-compress context before sending to LLM. Summarize long tool outputs, trim irrelevant history, keep only what matters. *(Original)*
@@ -1151,12 +1186,12 @@ Items to investigate before implementation:
 - [ ] **aperturerobotics/go-quickjs-wasi-reactor** - QuickJS WASM runtime in Go. Sandboxed JS for agents. *(https://github.com/aperturerobotics/go-quickjs-wasi-reactor)*
 
 ### Original Research Queue
-- [ ] **steipete/canvas** - Go-based visual workspace by OpenClaw creator. Assess relevance for GOAgent's Canvas Agent / dashboard whiteboard feature. *(https://github.com/steipete/canvas)*
+- [ ] **steipete/canvas** - Go-based visual workspace by OpenClaw creator. Assess relevance for iTaK Agent's Canvas Agent / dashboard whiteboard feature. *(https://github.com/steipete/canvas)*
 - [ ] **steipete/wacli** - Go-based WhatsApp CLI. Evaluate for WhatsApp communication plugin. *(https://github.com/steipete/wacli)*
 - [ ] **openclaw/clawhub** - ClawHub registry source code. Study for GOHub marketplace architecture. *(https://github.com/openclaw/clawhub)*
 - [ ] **openclaw/skills** - OpenClaw skills repository. Mine for skill pack patterns and templates. *(https://github.com/openclaw/skills)*
 - [ ] **openclaw/lobster** - OpenClaw Lobster (Molty core). Study architecture patterns. *(https://github.com/openclaw/lobster)*
-- [ ] **openclaw/openclaw-ansible** - Ansible deployment playbooks. Reference for GOAgent deployment automation. *(https://github.com/openclaw/openclaw-ansible)*
+- [ ] **openclaw/openclaw-ansible** - Ansible deployment playbooks. Reference for iTaK Agent deployment automation. *(https://github.com/openclaw/openclaw-ansible)*
 - [ ] **draw.io MCP Server** - MCP server for draw.io diagram generation. *(https://github.com/lgazo/drawio-mcp-server)*
 - [ ] **Go container runtimes** - Study containerd, runc, Podman internals for Tier 2 container implementation. All written in Go. *(https://github.com/containerd/containerd, https://github.com/opencontainers/runc)*
 - [ ] **gogs/gogs** - Self-hosted Git service in Go. Reference for Git hosting patterns (we'll use GitHub API instead). *(https://github.com/gogs/gogs)*
@@ -1228,17 +1263,17 @@ Items to investigate before implementation:
 
 ---
 
-## PRIVATE: GOSecurity (AI-Powered Physical Security Monitoring)
+## PRIVATE: iTaK Shield (AI-Powered Physical Security Monitoring)
 
 > **Commercial product. Private repo.** Built on the public GO ecosystem.
 
-AI agent swarm that replaces call center operators for physical security monitoring. One GOAgent instance monitors 1000+ cameras, network devices, and solar-powered surveillance units.
+AI agent swarm that replaces call center operators for physical security monitoring. One iTaK Agent instance monitors 1000+ cameras, network devices, and solar-powered surveillance units.
 
-**Repo:** [GOSecurity](https://github.com/David2024patton/GOSecurity) (private)
+**Repo:** [iTaK Shield](https://github.com/David2024patton/iTaK Shield) (private)
 
 ### Core Capabilities
 - [ ] **Device Fleet Monitoring** - Poll 1000+ IPs via SNMP/HTTP/ICMP/Zabbix. Axis cameras, Cradlepoint routers, MicroHard LTE, Morningstar solar controllers, PoE switches, NVRs
-- [ ] **Vision Event Detection** - GOTorch runs moondream2/Qwen3-VL on camera snapshots. Detect people, vehicles, animals. Annotate screenshots with bounding boxes, labels, confidence scores, timestamps
+- [ ] **Vision Event Detection** - iTaK Torch runs moondream2/Qwen3-VL on camera snapshots. Detect people, vehicles, animals. Annotate screenshots with bounding boxes, labels, confidence scores, timestamps
 - [ ] **Multi-Camera Tracking** - Cross-reference detections across feeds. PTZ auto-slew to events. False positive learning per site
 - [ ] **Solar Power Optimization** - Correlate weather/GPS/season with Morningstar harvest data. Auto-generate optimized charge profiles. Predict battery depletion windows
 - [ ] **Automated Reporting** - Daily health, weekly trends, monthly optimization recommendations. Natural language via GOGateway LLMs
@@ -1252,21 +1287,448 @@ AI agent swarm that replaces call center operators for physical security monitor
 ECAM MSU stack: Axis cameras (fixed + PTZ), Cradlepoint IBR, MicroHard pMDDL, Morningstar controllers, PoE speakers, managed switches, environmental sensors
 
 ### Zabbix Integration
-Dual-mode monitoring: use Zabbix API as a data backend where clients already run it (no duplicate polling), or GOSecurity's native Go polling engine for lightweight single-binary deploys. Community templates provide pre-built SNMP OID mappings for hundreds of device types.
+Dual-mode monitoring: use Zabbix API as a data backend where clients already run it (no duplicate polling), or iTaK Shield's native Go polling engine for lightweight single-binary deploys. Community templates provide pre-built SNMP OID mappings for hundreds of device types.
 
 **References:**
 | Repo | Use |
 |---|---|
 | [zabbix/zabbix](https://github.com/zabbix/zabbix) | Core - SNMP OID mappings, trigger logic, device state detection patterns |
-| [zabbix-docker](https://github.com/zabbix/zabbix-docker) | Deployment - Docker compose for bundling Zabbix alongside GOSecurity |
+| [zabbix-docker](https://github.com/zabbix/zabbix-docker) | Deployment - Docker compose for bundling Zabbix alongside iTaK Shield |
 | [community-templates](https://github.com/zabbix/community-templates) | Gold mine - Pre-built templates for Cradlepoint, Axis, network gear OIDs |
 | [jjmartres/Zabbix](https://github.com/jjmartres/Zabbix) | Custom templates and monitoring scripts |
 | [itmicus/zabbix](https://github.com/itmicus/zabbix) | Additional community device templates |
 
 ### Network Security Monitoring
 Protect client networks from hackers and vulnerabilities using a dual-layer approach:
-- [ ] **DNS Sinkhole** - Route client DNS through GOSecurity. Log queries, block known malicious/C2 domains, detect unusual DNS patterns (DGA, tunneling). Lightweight, no agents required
+- [ ] **DNS Sinkhole** - Route client DNS through iTaK Shield. Log queries, block known malicious/C2 domains, detect unusual DNS patterns (DGA, tunneling). Lightweight, no agents required
 - [ ] **Endpoint Agent** - Lightweight Go agent on client servers/endpoints. File integrity monitoring, vulnerability scanning, log collection, anomaly detection (Wazuh/OSSEC style)
 - [ ] **Network Flow Analysis** - Ingest NetFlow/sFlow from managed switches. Detect port scans, lateral movement, data exfiltration, unusual traffic patterns
 - [ ] **Vulnerability Scanning** - Scheduled scans of client IP ranges. CVE matching against known services. Auto-generate remediation reports
 - [ ] **Threat Intel Feeds** - Integrate with open threat intelligence (AlienVault OTX, Abuse.ch, VirusTotal API). Correlate against client traffic
+
+### Intrusion Detection & Attack Tracing
+Automated detection, tracing, and documentation of network attacks:
+- [ ] **Auto-Capture Attacker IPs** - Log all malicious connection attempts (SYN floods, port scans, brute force, credential stuffing). Real-time source IP capture from endpoint firewall/IDS logs
+- [ ] **Reverse DNS + WHOIS Enrichment** - Auto-lookup every attacking IP: owner ISP/hosting, ASN, geolocation (city/country), abuse contact email. Cross-reference with threat intel databases
+- [ ] **VPN/Proxy/Tor Detection** - Check attacker IPs against known VPN provider ranges, Tor exit node lists, datacenter IP databases. Flag as "likely masked" with confidence level
+- [ ] **Behavioral Fingerprinting (JA3/JA4)** - Even behind VPNs, attackers leave fingerprints: TLS client hello (JA3/JA4 hashes), tool signatures (nmap, hydra, metasploit), timing patterns, HTTP headers. Correlate attacks across different source IPs to same actor
+- [ ] **Honeypot Deployment** - iTaK Shield agents auto-spin fake services (SSH, RDP, ONVIF cameras, web portals) on unused IPs. Attackers interact, revealing tools and techniques. Occasionally capture real IPs when attackers slip up
+- [ ] **Automated Incident Reports** - Generate forensic-grade incident reports with full evidence (timestamps, IPs, enrichment data, attack timeline). Ready for law enforcement referral or cyber insurance claims
+- [ ] **Automated Abuse Reports** - Auto-send abuse complaints to attacker's ISP/hosting provider with evidence packet
+
+### Active Defense System (Automated Response)
+AI-driven agents that don't just detect attacks - they stop them in real-time:
+- [ ] **Auto-Block via Firewall API** - On detecting attack patterns (brute force, port scan, SYN flood), agent pushes DROP rules directly to client firewalls (iptables, pfSense, Cradlepoint API). Attacker blocked in seconds, no human needed
+- [ ] **Adaptive Pattern Recognition** - AI detects slow/distributed attacks that evade simple rate limits (1 port/minute scans, credential stuffing from 50+ rotating IPs). Correlates via JA3 fingerprint and blocks all related IPs at once
+- [ ] **Honeypot Tripwire** - Any IP that touches a honeypot gets instantly blacklisted across the entire client fleet
+- [ ] **Outbound Exfil Detection** - Monitor for unusual outbound traffic patterns (large uploads, connections to known C2 IPs, DNS tunneling). Auto-throttle or block suspicious outbound connections
+- [ ] **CVE Auto-Response** - When new CVEs drop for deployed hardware (Cradlepoint, Axis, etc.), auto-scan all client devices and push priority alerts with remediation steps
+
+### Collective Defense Network (Fleet Advantage)
+The killer SaaS differentiator - every client makes every other client safer:
+- [ ] **Cross-Client Threat Sharing** - Attacker blocked at Client A -> proactively blocked at Clients B, C, D within seconds
+- [ ] **Private Threat Intel Feed** - iTaK Shield builds its own threat database from real attack data across all clients
+- [ ] **Network Effect Scaling** - More clients = better protection. Each new client adds intelligence to the collective defense
+- [ ] **Industry-Specific Patterns** - Recognize attack campaigns targeting security/surveillance industry specifically
+
+### ECAM Hardware Defense Matrix
+Device-specific active defense for MSU deployments:
+
+| Device | Defense Actions |
+|---|---|
+| **Cradlepoint** | Monitor via API, auto-block IPs on built-in firewall, detect SIM swap, alert on unusual cellular tower connections |
+| **Smart Switch** | Monitor port states, detect rogue devices on unused ports, auto-disable compromised ports |
+| **Axis Cameras** | Monitor ONVIF/RTSP auth, block brute force, detect firmware tampering, alert on config changes |
+| **PoE Speaker** | Monitor for unauthorized access, prevent audio hijacking |
+| **Morningstar** | Alert on unexpected Modbus commands, detect charge profile tampering |
+
+### Client Dashboard
+What the client sees on their SaaS portal:
+- [ ] **Live Attack Map** - Real-time visualization of blocked attacks with source geolocations
+- [ ] **Threat Score** - Current threat level with active attack count ("3 active attacks. All blocked.")
+- [ ] **Monthly Security Report** - "iTaK Shield blocked 14,782 malicious connections from 847 unique IPs across 23 countries. 0 successful breaches." - This report is what keeps clients paying
+- [ ] **Incident Timeline** - Chronological view of all security events with drill-down to forensic details
+
+### Licensing Model Options
+- **SaaS** - Per-device/month or per-site/month recurring revenue. Client accesses dashboard, you manage the backend
+- **Proprietary License** - One-time perpetual license + annual maintenance/support fee. Client runs iTaK Shield on their own infrastructure
+- **Managed Service** - You operate iTaK Shield on behalf of the client (SOC-as-a-Service). Highest margin, most involvement
+
+### Novel "First and Only" Features
+Capabilities no existing security platform offers:
+- [ ] **Physical-Cyber Event Correlation** - Camera offline at 2:47 AM + network brute force at 2:48 AM = coordinated attack. Correlate physical events (feed loss, motion, door sensors) with cyber events (port scans, login attempts, firewall probes). Nobody else does this
+- [ ] **Firmware Supply Chain Verification** - Hash-check camera/device firmware updates against known-good signatures before deployment. Block unauthorized/compromised firmware (SolarWinds-style supply chain attacks on physical security devices)
+- [ ] **Cellular/LTE Security** - Monitor Cradlepoint cellular connections for: IMSI catcher (Stingray) detection, SIM cloning/swapping, rogue base stations, cellular MITM attacks. Completely unmonitored attack surface for every remote deployment
+- [ ] **Camera Insider Threat Detection** - Detect suspicious config changes by authorized users: viewing angle changes, disabled motion detection, altered recording schedules, muted audio. Actions taken BEFORE committing a crime
+- [ ] **Autonomous Self-Healing** - For unmanned sites: auto-isolate compromised devices (disable switch port), restart services, rollback to last-known-good config, maintain other operations, alert SOC. All without human intervention
+- [ ] **Power Infrastructure Security** - Secure Morningstar Modbus (zero auth industrial protocol) and EFOY fuel cell management interfaces. Attacker kills power = entire site goes dark without touching a camera
+- [ ] **Compliance Report Auto-Generation** - Auto-generate NIST 800-53, SOC 2, PCI DSS compliance reports from monitoring data. Saves clients $50K+ in consulting fees. Revenue stream on its own
+- [ ] **Digital Chain of Custody** - Cryptographically sign video exports with timestamps, hash verification, tamper detection. Forensic-grade evidence admissible in court and valid for insurance claims
+
+### AI Video Analytics (iTaK Torch-Powered)
+On-device AI inference using iTaK Torch for real-time video analysis across camera feeds:
+
+#### Cross-Camera Re-Identification (Re-ID)
+Track the same target across multiple camera views. Core system that powers all tracking analytics:
+- [ ] **Person Re-ID** - Track individuals across cameras using appearance features (clothing, body shape, gait). No facial recognition required. Follow a person from Camera 1 parking lot -> Camera 3 entrance -> Camera 7 hallway
+- [ ] **Vehicle Re-ID** - Track vehicles by make, model, color, and visual features across cameras. Correlate with ALPR for positive ID
+- [ ] **Animal/Wildlife Re-ID** - Species classification and individual tracking. Critical for conservation sites, farms, and construction sites near wildlife areas
+- [ ] **Re-ID Timeline** - Generate complete movement timeline for any tracked target: "Subject first seen Camera 2 at 14:32, moved to Camera 5 at 14:35, exited via Camera 9 at 14:41"
+- [ ] **Cross-Site Re-ID** - Track targets across different client sites in the collective defense network. Shoplifter hits Store A, flagged at Store B automatically
+
+#### License Plate Recognition (ALPR/ANPR)
+- [ ] **Automatic Plate Reading** - Read plates from camera feeds in real-time. Support for US, EU, and international formats
+- [ ] **Watchlist Matching** - Alert on known plates (stolen vehicles, banned persons, VIP arrivals)
+- [ ] **Parking/Access Control** - Auto-authorize vehicles by plate for gated entries
+- [ ] **Historical Plate Search** - "Show me every time plate ABC-1234 appeared in the last 30 days"
+
+#### Behavioral Analytics
+- [ ] **Loitering Detection** - Alert when person/vehicle remains in an area beyond threshold time
+- [ ] **Perimeter Breach** - Detect unauthorized zone entry with directional tracking (crossed fence from outside to inside)
+- [ ] **Unusual Movement** - Running, crawling, erratic paths, backtracking. Patterns that deviate from normal foot traffic
+- [ ] **Tailgating Detection** - Multiple people entering through a single-authorization door access
+- [ ] **Wrong Direction** - Person/vehicle moving against expected flow (entering through an exit)
+
+#### Threat Detection
+- [ ] **Weapon Detection** - Real-time detection of firearms, knives, and other weapons in camera feeds
+- [ ] **Smoke/Fire Detection** - Early visual detection before traditional sensors trigger. Critical for unmanned sites
+- [ ] **Abandoned Object** - Detect bags, packages, or objects left unattended (bomb threat protocol)
+- [ ] **PPE Compliance** - Hard hats, high-vis vests, safety glasses detection for construction/industrial sites
+- [ ] **Crowd Density** - Monitor crowd size, detect overcrowding, alert when thresholds exceeded
+
+#### Intelligence & Analytics
+- [ ] **Heatmaps** - Traffic flow visualization across cameras. Where do people/vehicles go most? Useful for retail, security, and site planning
+- [ ] **Dwell Time Analytics** - How long do people spend in specific zones? Retail conversion, security risk scoring
+- [ ] **Occupancy Counting** - Real-time count of people in zones. Fire code compliance, capacity management
+- [ ] **Time-of-Day Patterns** - "Parking lot is busiest 7-9 AM. No activity after 11 PM. Activity at 2 AM = anomaly"
+- [ ] **Incident Video Compilation** - Auto-compile video clips from all cameras that captured a tracked target into a single incident timeline
+
+### Audio Analytics (Paired with Camera Feeds)
+- [ ] **Gunshot Detection** - Acoustic classification of gunfire. Auto-trigger camera Re-ID to find source visually. Alert with GPS coordinates
+- [ ] **Glass Break Detection** - Breaking glass sound classification. Trigger nearest camera PTZ to focus on source
+- [ ] **Distress/Scream Detection** - Detect screaming, yelling for help, aggressive voice tones
+- [ ] **Vehicle Collision Detection** - Crash sounds trigger auto-recording, incident report generation, emergency dispatch alert
+- [ ] **Audio-Visual Correlation** - Match audio events to camera-detected events for higher confidence alerting
+
+### Drone Detection & Tracking
+- [ ] **Visual Drone Detection** - AI identification of drones in camera feeds using iTaK Torch inference
+- [ ] **RF Signal Detection** - Monitor for drone controller frequencies (2.4GHz, 5.8GHz, DJI protocols)
+- [ ] **Flight Path Tracking** - Track drone movement across cameras, predict landing/return path
+- [ ] **Airspace Violation Alerts** - Define protected airspace zones, alert on any drone incursion
+- [ ] **Counter-Drone Logging** - Full forensic log of drone events for law enforcement (time, path, RF signature)
+
+### Dark Web Monitoring
+- [ ] **Credential Leak Scanning** - Monitor dark web forums, paste sites, and marketplaces for client credentials (emails, passwords, VPN creds)
+- [ ] **Network Access Sales** - Detect if access to client's network is being sold (RDP access, VPN accounts)
+- [ ] **Data Breach Detection** - Alert when client's proprietary data surfaces on dark web
+- [ ] **Threat Actor Tracking** - Monitor threat actors who have previously targeted client infrastructure
+
+### Access Control Integration
+- [ ] **Badge/Card Reader Integration** - Tie into HID, Lenel, and other access control systems via API
+- [ ] **Badge + Camera Correlation** - Badge swipe at Door A + person on Camera B = verified identity. Badge swipe but no person visible = cloned badge alert
+- [ ] **Tail Detection** - One badge swipe, two people entered. Detected via camera + access log mismatch
+- [ ] **Unauthorized Area Detection** - Visitor or employee enters zone their badge doesn't authorize. Camera Re-ID + badge zone comparison
+
+### Environmental Monitoring
+- [ ] **Temperature Alerting** - Monitor server rooms, equipment closets, outdoor enclosures. Alert on threshold breach
+- [ ] **Water/Flood Detection** - Sensor integration for water leak detection in critical areas
+- [ ] **Power Monitoring** - UPS status, battery levels, mains power loss. Auto-alert on power events
+- [ ] **HVAC Correlation** - Temp spike + HVAC offline = equipment at risk. Auto-notify maintenance
+
+### Backup & Recording Verification
+- [ ] **NVR Health Monitoring** - Verify NVR is recording, disk not full, no silent failures
+- [ ] **Recording Gap Detection** - "Camera 7 hasn't recorded in 48 hours despite being online" - prevent the "we needed footage but the drive was full" disaster
+- [ ] **Automatic Backup Verification** - Verify backup integrity on schedule. Hash-check recorded footage
+- [ ] **Storage Forecasting** - Predict when storage will fill based on current usage rates. Auto-alert before it happens
+
+### Government-Grade Security (Code-Only, Zero Cost)
+All features implementable in code. No paid certifications required to build - certifications only needed when actually selling to government.
+
+#### Cryptography & Data Protection
+- [ ] **FIPS 140-2/3 Compliant Crypto** - Use Go's BoringCrypto module (Google's FIPS-validated crypto). AES-256-GCM encryption, TLS 1.3 only, ECDSA/RSA-4096 signing. All free in Go stdlib
+- [ ] **Encryption Everywhere** - All data encrypted at rest (AES-256) and in transit (TLS 1.3). No plaintext storage ever. Database encryption, config encryption, log encryption
+- [ ] **Key Management** - Built-in key rotation, key escrow, and key destruction. HSM-ready architecture (plug in hardware when client has it)
+- [ ] **Data Classification Labels** - Tag all data as Unclassified, CUI, Sensitive, Restricted. Enforce handling rules per classification level
+- [ ] **Secure Deletion** - DoD 5220.22-M compliant data wiping. Multi-pass overwrite when data is deleted
+
+#### Authentication & Access Control
+- [ ] **CAC/PIV Smart Card Auth** - Support Common Access Card (military) and Personal Identity Verification (civilian) via PKCS#11 interface. No username/password
+- [ ] **Multi-Factor Authentication** - TOTP, FIDO2/WebAuthn, smart card. Enforce MFA for all access
+- [ ] **Role-Based Access Control (RBAC)** - Granular permissions: Admin, Operator, Viewer, Auditor, Maintenance. Each role sees only what they need
+- [ ] **Clearance-Level Filtering** - Users only see data matching their clearance level. Secret-cleared user can't see Top Secret data
+- [ ] **Session Management** - Automatic timeout (15 min gov standard), concurrent session limits, forced re-auth for sensitive actions
+- [ ] **Password Policy Engine** - Minimum 15 chars, complexity requirements, password history (24 previous), lockout after 3 failed attempts. All configurable per STIG
+
+#### Audit & Compliance
+- [ ] **STIG-Compliant Audit Trail** - Every action logged: who, what, when, from where, success/fail. Tamper-proof append-only logs with cryptographic chaining (blockchain-style integrity)
+- [ ] **7-Year Log Retention** - Compressed, encrypted, indexed log storage. Government requires minimum 7 years
+- [ ] **Audit Log Export** - Export in Syslog, CEF, LEEF, JSON formats for SIEM integration (Splunk, Elastic, ArcSight)
+- [ ] **Change Detection** - Log every configuration change with before/after state and who made it
+- [ ] **Compliance Dashboard** - Auto-map current security posture against NIST 800-53, NIST 800-171 (CUI), CJIS Security Policy. Show pass/fail per control
+- [ ] **NDAA Section 889 Scanner** - Scan network for prohibited manufacturers (Huawei, ZTE, Hikvision, Dahua, Hytera). Auto-flag non-compliant devices. Generate remediation report
+
+#### Air-Gap & Offline Operation
+- [ ] **100% Offline Mode** - Full functionality with zero internet. No cloud calls, no telemetry, no update checks. All AI via iTaK Torch local inference
+- [ ] **Offline Threat Intel Updates** - Load threat intelligence feeds via physical media (USB). Verify media integrity before import
+- [ ] **Local-Only AI** - All ML models run on-device. No data leaves the network. Ever
+- [ ] **Sneakernet Update System** - Software updates delivered via signed, encrypted USB packages. Verify digital signature before installing
+
+#### Government Facility Features
+- [ ] **Visitor Management System** - Check-in, badge issuance, escort assignment, movement tracking via Re-ID, check-out verification. Alert if visitor leaves escort
+- [ ] **Duress/Panic System** - Silent alarm activation (hardware panic button or software trigger). Auto-lockdown, camera focus on distress location, silent SOC notification
+- [ ] **SCIF Zone Protection** - Detect unauthorized wireless devices (phones, cameras, recording equipment) brought into restricted areas via RF monitoring
+- [ ] **Screen Watermarking** - Display classification level, user identity, and timestamp on all screens. Makes unauthorized photography traceable
+- [ ] **Continuity of Operations (COOP)** - Automatic failover to backup system. Geographic redundancy support. Recovery Time Objective < 60 seconds
+- [ ] **Secure Multi-Tenancy** - Multiple agencies/departments share infrastructure with complete data isolation. No cross-tenant data leakage possible
+- [ ] **Evidence Locker** - Secured, tamper-proof storage for forensic evidence. Chain of custody tracking, access logging, integrity verification. Court-admissible
+
+#### Future-Proofing
+- [ ] **Post-Quantum Cryptography** - Implement NIST PQ standards (ML-KEM/Kyber, ML-DSA/Dilithium) alongside current crypto. Ready for quantum computing threats before they arrive
+- [ ] **Plugin Architecture** - Modular system allows adding new device types, protocols, analytics models without core changes
+- [ ] **API-First Design** - Every feature accessible via authenticated REST API. Future UIs, integrations, and third-party tools plug in cleanly
+- [ ] **Model Hot-Swap** - Replace AI models (Re-ID, weapon detection, ALPR) without restarting the system. Drop in newer/better models as they become available
+- [ ] **Protocol Extensibility** - ONVIF, RTSP, Modbus, SNMP, BACnet, MQTT today. New protocols added as plugins. Industry standards change, iTaK Shield adapts
+- [ ] **Multi-Architecture** - Compiled for x86_64, ARM64 (Raspberry Pi, Jetson, Apple Silicon), RISC-V. Go cross-compilation makes this free
+
+### Blockchain Integrity Chain
+Use cryptographic chaining to make iTaK Shield's own data tamper-proof:
+- [ ] **Immutable Audit Chain** - Every log entry's hash includes the previous entry's hash. Tamper with one log = chain breaks, immediately detectable. Blockchain-style integrity without a blockchain
+- [ ] **Evidence Timestamping** - Anchor forensic evidence hashes to public blockchains (Bitcoin OP_RETURN, Ethereum) as cryptographic proof that evidence existed at a specific time. Court-admissible, unforgeable
+- [ ] **Configuration Integrity Chain** - Every device config change chained cryptographically. Prove exact state of every device at any point in history
+- [ ] **Firmware Signature Chain** - Track entire firmware version history per device. Prove no unauthorized firmware was ever installed
+- [ ] **Cross-Node Consensus** - Multiple iTaK Shield nodes verify each other's chains. Single compromised node can't rewrite history without other nodes detecting it
+
+### Crypto Threat Monitoring
+Detect cryptocurrency-related threats on client networks:
+- [ ] **Crypto Mining Detection** - Detect unauthorized mining: CPU/GPU usage anomalies, connections to known mining pools (Stratum protocol), ethash/randomx traffic patterns. Employees or hackers hijacking client hardware
+- [ ] **Cryptojacking Detection** - Browser-based mining scripts (Coinhive successors) running on client machines. Detect via network traffic to WebSocket mining proxies
+- [ ] **Ransomware Wallet Tracking** - On ransomware incident, trace Bitcoin/Monero wallet addresses through blockchain analysis. Map payment flows, identify exchange cashout points
+- [ ] **Sanctioned Wallet Detection** - Monitor for network traffic to wallets on OFAC sanctions list. Compliance requirement for government and financial clients
+- [ ] **DeFi/Smart Contract Monitoring** - Detect unauthorized smart contract interactions from client network. Flag connections to known rug-pull contracts, mixer services (Tornado Cash), or laundering protocols
+
+### Blockchain Network Protection
+Protect companies that operate blockchain infrastructure (exchanges, DeFi protocols, validators, Web3 platforms):
+
+#### Node & Infrastructure Security
+- [ ] **Node Health Monitoring** - Monitor blockchain nodes (Ethereum, Bitcoin, Solana, Polygon, etc.) for uptime, sync status, peer count, block height lag. Alert on desync or stalled nodes
+- [ ] **RPC Endpoint Protection** - Secure JSON-RPC, WebSocket, and gRPC endpoints. Rate limiting, authentication enforcement, DDoS protection. Block unauthorized access to node APIs
+- [ ] **Validator Defense** - Monitor validator nodes for slashing conditions, missed attestations, double-signing attempts. Alert before penalties hit. Protect validator keys
+- [ ] **P2P Network Monitoring** - Track peer connections for eclipse attacks (attacker surrounds your node with malicious peers to isolate it from the network). Detect suspicious peer behavior
+- [ ] **Mempool Surveillance** - Monitor pending transaction pool for sandwich attacks, front-running bots, and MEV extraction targeting client's transactions
+
+#### Wallet & Key Security
+- [ ] **Hot Wallet Monitoring** - Real-time alerts on unexpected withdrawals, unusual transaction sizes, transfers to unknown addresses. Configurable thresholds per wallet
+- [ ] **Private Key Exposure Detection** - Scan code repos, logs, configs, and environment variables for accidentally exposed private keys. Instant alert + auto-revoke if possible
+- [ ] **Multi-Sig Enforcement** - Verify multi-signature requirements are met before transactions execute. Alert on attempts to bypass multi-sig
+- [ ] **Whale Movement Alerts** - Track large value movements in/out of client wallets. Detect potential theft in progress
+- [ ] **Address Poisoning Detection** - Detect when attackers create lookalike addresses to trick users into sending funds to wrong wallet
+
+#### Smart Contract Defense
+- [ ] **Contract Interaction Monitoring** - Track all interactions with client's deployed smart contracts. Alert on unusual patterns, new contract callers, or unexpected function calls
+- [ ] **Reentrancy Detection** - Monitor for reentrancy attack patterns against client contracts in real-time
+- [ ] **Flash Loan Attack Detection** - Detect flash loan sequences targeting client's DeFi protocols (large borrow -> price manipulation -> profit -> repay in one block)
+- [ ] **Governance Attack Monitoring** - Track voting power accumulation, proposal submissions, and execution. Alert on hostile governance takeover attempts
+- [ ] **Bridge Security** - Monitor cross-chain bridge operations for unauthorized mints, double-spends, or oracle manipulation
+
+#### Compliance & Forensics
+- [ ] **Transaction Graph Analysis** - Map the flow of funds through client's ecosystem. Identify suspicious patterns, circular transactions, wash trading
+- [ ] **AML/KYC Enforcement Integration** - Flag transactions involving addresses linked to sanctioned entities, darknet markets, or known fraud rings (using Chainalysis/Elliptic-style analysis)
+- [ ] **Regulatory Reporting** - Auto-generate SAR (Suspicious Activity Reports) and CTR (Currency Transaction Reports) from detected anomalies
+- [ ] **Incident Forensics** - Full chain-of-events reconstruction after a hack: what was exploited, how funds moved, where they went, can they be recovered
+
+### Financial Institution Network Protection
+Protect banks, credit unions, and financial service providers. One of the highest-paying security verticals.
+
+#### Transaction & Fraud Monitoring
+- [ ] **Real-Time Transaction Anomaly Detection** - AI monitors transaction patterns per account. Flag anomalies: unusual amounts, frequency, locations, recipient patterns. "Account averaging $200 transfers just sent $47,000 to an offshore account"
+- [ ] **Wire Transfer / SWIFT Monitoring** - Monitor SWIFT messages and wire transfers for unauthorized or manipulated transactions. Alert on transactions to sanctioned countries or known fraud accounts
+- [ ] **Card Skimmer Detection** - Monitor ATM and POS terminal network connections for unauthorized data exfiltration (card skimmers phone home to attacker servers)
+- [ ] **Account Takeover Detection** - Detect credential stuffing, SIM swap attacks, and social engineering attempts against customer accounts
+- [ ] **Insider Trading Correlation** - Monitor for unusual data access patterns before major financial events. Employee accessing accounts they don't normally touch
+
+#### Branch & ATM Physical Security
+- [ ] **ATM Tamper Detection** - Camera-based detection of skimmer installation, card trap devices, shoulder surfing. Correlate with ATM network events
+- [ ] **Branch Camera Analytics** - Loitering outside vault, after-hours presence, safe zone violations. Cross-camera Re-ID for tracking suspects across branches
+- [ ] **Night Drop Monitoring** - Camera monitoring of after-hours deposit drops. Detect tampering, theft attempts, or suspicious behavior
+- [ ] **Drive-Through Security** - License plate + facial tracking at drive-through lanes. Correlate with transaction data for fraud investigation
+- [ ] **Vault Access Monitoring** - Dual-control verification via camera: two authorized personnel required, camera confirms both present. Alert if vault opened by single person
+
+#### Regulatory Compliance (Banking-Specific)
+- [ ] **PCI DSS Compliance** - Auto-validate Payment Card Industry Data Security Standard controls. Cardholder data environment segmentation verification, access logging, encryption status
+- [ ] **GLBA Safeguards Rule** - Gramm-Leach-Bliley Act compliance monitoring. Track access to customer financial data, verify encryption, audit trail for all customer record access
+- [ ] **SOX Monitoring** - Sarbanes-Oxley compliance. Monitor financial system access controls, segregation of duties, change management on financial applications
+- [ ] **FFIEC CAT Assessment** - Auto-generate Federal Financial Institutions Examination Council Cybersecurity Assessment Tool responses from monitoring data
+- [ ] **BSA/AML Automated Filing** - Bank Secrecy Act compliance. Auto-generate Suspicious Activity Reports (SARs) and Currency Transaction Reports (CTRs) when thresholds are met
+
+#### Financial Network Segmentation
+- [ ] **SWIFT Network Isolation** - Monitor and enforce isolation of SWIFT terminals from general network. Alert on any unauthorized connection attempts to/from SWIFT zone
+- [ ] **Cardholder Data Environment (CDE) Monitoring** - Continuous verification that CDE network segments remain isolated. Detect any cross-segment traffic violations
+- [ ] **Core Banking System Protection** - Monitor connections to core banking platforms (FIS, Fiserv, Jack Henry). Detect unauthorized access, unusual query patterns, data extraction attempts
+- [ ] **Third-Party Vendor Access Control** - Monitor vendor remote access sessions in real-time. Record, audit, and terminate if suspicious. Many bank breaches come through vendor connections
+
+### Monitoring & Dashboard Resources
+Reference implementations for building iTaK Shield's Grafana-based dashboards:
+
+| Repository | Purpose |
+|---|---|
+| [grafana/grafana-zabbix](https://github.com/grafana/grafana-zabbix) | Official Zabbix plugin for Grafana. Reference for building custom iTaK Shield Grafana data source plugins. Shows plugin architecture, data source config, query builders, and alerting integration |
+
+#### Grafana Plugin Development Notes
+- iTaK Shield can expose its data as a Grafana data source plugin (like grafana-zabbix does)
+- This means clients with existing Grafana deployments can add iTaK Shield as a data source alongside their other monitoring
+- Plugin architecture: React frontend + Go backend (perfect - we already use Go)
+- Enables custom dashboards: attack maps, camera status grids, threat scores, compliance scorecards
+- Can also build standalone iTaK Shield dashboards using Grafana's embedding/iframe mode
+
+### Healthcare Network Protection (HIPAA)
+Protect hospitals, clinics, health systems, and medical device networks.
+
+#### Patient Data (PHI) Protection
+- [ ] **PHI Access Monitoring** - Track every access to Protected Health Information. Who viewed which patient records, when, from where. Alert on unusual access patterns (nurse accessing celebrity patient records, bulk record exports)
+- [ ] **EHR System Protection** - Monitor Electronic Health Record systems (Epic, Cerner, Meditech) for unauthorized access, data exports, and privilege escalation
+- [ ] **Medical Device Network Isolation** - Monitor and enforce segmentation between medical devices (infusion pumps, ventilators, MRI machines) and general IT network. FDA requires this
+- [ ] **DICOM/PACS Security** - Monitor medical imaging traffic (X-rays, MRIs, CTs). Detect unauthorized access to imaging servers, data exfiltration of patient scans
+- [ ] **Prescription Monitoring** - Detect unusual prescription patterns that may indicate fraud, diversion, or compromised credentials (doctor account writing 100 opioid prescriptions at 3 AM)
+
+#### Medical Device Security
+- [ ] **IoMT Device Inventory** - Auto-discover and inventory all Internet of Medical Things devices on the network. Track firmware versions, known vulnerabilities, communication patterns
+- [ ] **Infusion Pump Monitoring** - Detect unauthorized dosage changes, firmware tampering, or network attacks on connected infusion pumps. Patient safety critical
+- [ ] **Implant Communication Security** - Monitor wireless communications to/from connected implants (pacemakers, insulin pumps). Detect replay attacks or unauthorized commands
+- [ ] **Biomedical Equipment Alerts** - Monitor critical life-support equipment uptime. Ventilator offline, heart monitor disconnected = immediate escalation with camera verification of the room
+
+#### Hospital Physical Security
+- [ ] **Infant Abduction Prevention** - Camera Re-ID tracking of infants (via ankle tag correlation) and adults in maternity ward. Alert on infant moving toward exits without authorized personnel
+- [ ] **Pharmacy Access Control** - Camera + badge verification for controlled substance access. Dual-control enforcement via video. Detect tailgating into pharmacy
+- [ ] **Emergency Department Monitoring** - Weapon detection, aggressive behavior recognition, loitering. Protect staff and patients in high-risk areas
+- [ ] **Patient Elopement Detection** - Track at-risk patients (dementia, psych holds) via camera Re-ID. Alert if patient approaches exits or restricted areas
+- [ ] **Surgical Suite Integrity** - Camera verification of authorized personnel only in OR. PPE compliance (gowns, masks, gloves). Detect unauthorized entry
+
+#### HIPAA Compliance Automation
+- [ ] **HIPAA Security Rule Mapping** - Auto-map iTaK Shield controls to HIPAA Security Rule requirements (Administrative, Physical, Technical safeguards). Show pass/fail per requirement
+- [ ] **Breach Notification Generator** - On detected PHI breach, auto-generate HHS breach notification with all required fields (individuals affected, data types, timeline). 60-day notification deadline countdown
+- [ ] **Business Associate Monitoring** - Track third-party vendor access to PHI systems. Verify BAA compliance, audit vendor sessions, alert on scope violations
+- [ ] **Risk Assessment Automation** - Auto-generate HIPAA-required annual risk assessment from monitoring data. Identify gaps, recommend remediation
+
+### Energy & Utilities Network Protection (NERC CIP)
+Protect power plants, substations, water treatment, oil/gas, and critical infrastructure.
+
+#### SCADA/ICS Protection
+- [ ] **SCADA Protocol Monitoring** - Deep packet inspection for Modbus, DNP3, IEC 61850, IEC 104, OPC-UA. Detect unauthorized commands, parameter changes, or reconnaissance
+- [ ] **PLC/RTU Protection** - Monitor Programmable Logic Controllers and Remote Terminal Units for unauthorized firmware uploads, logic changes, or reboot commands
+- [ ] **HMI Access Control** - Track who accesses Human-Machine Interfaces. Alert on unauthorized logins, unusual command sequences, or access from unexpected locations
+- [ ] **Process Value Monitoring** - Track critical process values (voltage, pressure, flow rate, temperature). AI learns normal ranges and alerts on anomalies that could indicate attack or equipment failure
+- [ ] **Safety Instrumented System (SIS) Protection** - Monitor safety systems separately from process control. Detect attempts to disable safety mechanisms (Triton/TRISIS attack pattern)
+
+#### Smart Grid & Power Monitoring
+- [ ] **AMI/Smart Meter Security** - Monitor Advanced Metering Infrastructure for meter tampering, unauthorized firmware, command injection, and data manipulation
+- [ ] **DER Security** - Protect Distributed Energy Resources (solar inverters, battery storage, wind turbines). Monitor for unauthorized control commands via Modbus/SunSpec
+- [ ] **Grid Stability Monitoring** - Detect coordinated attacks that could destabilize the power grid (simultaneous load manipulation, frequency injection)
+- [ ] **DERMS Protection** - Secure Distributed Energy Resource Management Systems from unauthorized aggregation commands that could cause blackouts
+
+#### Substation & Facility Physical Security
+- [ ] **Perimeter Intrusion Detection** - Camera + fence sensor integration. Detect cutting, climbing, or tunneling at substations. Cross-camera Re-ID tracking of intruder
+- [ ] **Transformer Monitoring** - Camera-based detection of physical attacks on transformers (shooting, arson). Combined with temperature/vibration sensors
+- [ ] **Drone Surveillance** - Enhanced drone detection for critical infrastructure. Power lines, substations, and generation facilities are high-value drone targets
+- [ ] **Copper Theft Detection** - Detect unauthorized vehicles, cutting tools, or humans near cable runs and transformer yards during off-hours
+- [ ] **Environmental Compliance Camera** - Monitor for environmental violations (spills, emissions) with visual AI. Auto-document for EPA/regulatory reporting
+
+#### NERC CIP Compliance Automation
+- [ ] **CIP-002 Asset Identification** - Auto-inventory and classify all Bulk Electric System (BES) cyber assets. Maintain required asset lists
+- [ ] **CIP-005 Electronic Security Perimeter** - Continuous monitoring of Electronic Security Perimeter boundaries. Detect unauthorized connections, verify firewall rules
+- [ ] **CIP-007 System Security Management** - Track patches, ports/services, malware prevention, and security event monitoring per NERC requirements
+- [ ] **CIP-010 Configuration Management** - Baseline configuration tracking for all BES assets. Auto-detect and alert on unauthorized changes. Maintain 35-day change records
+- [ ] **CIP-011 Information Protection** - Track access to BES Cyber System Information. Enforce classification, storage, and disposal requirements
+- [ ] **Evidence Package Generator** - Auto-compile NERC CIP audit evidence packages from monitoring data. Each control mapped to evidence with timestamps
+
+### Real-Time Geographic Tracking & Prediction
+Track targets across cameras with map overlay and predict movement when they leave camera coverage.
+
+#### Geo-Mapped Camera System
+- [ ] **Camera GPS Registration** - Each camera tagged with exact GPS coordinates, field-of-view angle, and range. System knows exactly what geographic area each camera covers
+- [ ] **Live Map Overlay** - Real-time target positions plotted on a map (OpenStreetMap for offline/free, Google Maps API for online). Shows which camera is actively tracking the target
+- [ ] **Camera Coverage Heatmap** - Visual map showing covered vs. blind spot areas. Helps clients identify where they need additional cameras
+- [ ] **Dead Zone Mapping** - System knows where cameras can't see. When a target enters a dead zone, it calculates which camera should pick them up next based on direction of travel
+
+#### Predictive Tracking
+- [ ] **Direction-of-Travel Prediction** - When target exits camera view, AI calculates trajectory based on last known speed and heading. "Subject was heading northeast at walking pace, likely heading toward Oak Street"
+- [ ] **Street-Level Prediction** - Using downloaded street map data (OpenStreetMap), predict which streets/intersections the target will hit based on available paths from last known position
+- [ ] **Vehicle Route Prediction** - For tracked vehicles, predict likely route using road network data. "Vehicle heading south on I-95, next camera coverage at Exit 47 in approximately 3 minutes"
+- [ ] **ETA to Next Camera** - Calculate estimated time of arrival at the next camera in the coverage area based on speed and predicted route. Alert operator: "Subject should appear on Camera 12 in approximately 45 seconds"
+- [ ] **Historical Path Learning** - AI learns common movement patterns over time. "People leaving Building A at 5 PM typically walk to Parking Lot C." Use learned patterns to improve predictions
+
+#### Multi-Channel Real-Time Notifications
+Alert the right people through every channel simultaneously:
+- [ ] **Email Alerts** - Rich HTML emails with embedded map screenshots, target photos, incident details. Configurable per-user, per-alert-type
+- [ ] **SMS/Text Alerts** - Immediate text messages for critical events. Include GPS coordinates, target description, camera ID. Works with Twilio, AWS SNS, or direct carrier APIs
+- [ ] **Automated Phone Calls** - Voice call alerts for highest-priority events (active shooter, perimeter breach, vault tampering). Text-to-speech reads the alert. Requires acknowledgment (press 1 to confirm)
+- [ ] **Push Notifications** - Mobile app push notifications with target photo and live map link. One tap opens the live tracking view
+- [ ] **Webhook Integration** - Fire webhooks to any external system (Slack, Teams, PagerDuty, ServiceNow, IFTTT). JSON payload with full incident data
+- [ ] **Live Dashboard Feed** - Real-time event stream on the iTaK Shield dashboard. Map updates every second showing target movement
+- [ ] **Escalation Chains** - If first responder doesn't acknowledge in X minutes, auto-escalate to next person. Keep escalating until someone responds
+- [ ] **Alert Grouping** - Related alerts grouped into incidents. Don't send 47 separate "motion detected" alerts - send one "ongoing perimeter breach incident" with a live tracking link
+
+#### Geographic Intelligence
+- [ ] **Offline Map Support** - Download and cache OpenStreetMap tiles for offline operation. Critical for air-gapped and remote sites
+- [ ] **Geofencing** - Draw virtual boundaries on the map. Alert when tracked target enters or exits a geofence zone
+- [ ] **Multi-Site Map View** - Single map showing all client sites with real-time status. Zoom from global overview into individual camera feeds
+- [ ] **BOLO Broadcasting** - Be On the Lookout: broadcast target description (Re-ID features, plate number, vehicle description) to all cameras across all sites. Every camera actively searching for the target
+- [ ] **Law Enforcement Handoff Package** - One-click export: target photos from every camera, movement timeline, predicted direction, map with last known position, all video clips. Ready to hand to police on arrival
+
+### iTaK Shield Voice Agent (TTS)
+The iTaK Shield agent speaks. Customizable voice for automated calls, PA announcements, and real-time narration of incidents.
+
+#### Voice Configuration
+- [ ] **Custom Voice Setup** - Choose from multiple TTS voices (male/female, various accents, tones). Set different voices per alert type: calm voice for routine, urgent voice for critical
+- [ ] **Voice Cloning** - Clone a specific person's voice (security director, facility manager) so alerts sound like they're coming from a recognized authority. Uses iTaK Torch local TTS inference
+- [ ] **Multi-Language TTS** - Generate alerts in English, Spanish, French, Mandarin, etc. Auto-detect recipient's preferred language
+- [ ] **Local TTS Engine** - All voice synthesis runs on-device via iTaK Torch. No cloud API calls, no data leaving the network. Works in air-gapped environments
+- [ ] **Voice Profiles** - Save multiple voice profiles per deployment. "Professional" for client-facing, "Military" for government, "Calm" for healthcare
+
+#### Automated Voice Actions
+- [ ] **PA System Announcements** - iTaK Shield speaks over building PA system. "Attention: unauthorized person detected in Parking Lot B. Security to Parking Lot B immediately"
+- [ ] **Phone Call Alerts** - AI-generated voice calls to security personnel, facility managers, or law enforcement. Reads incident details, requests acknowledgment
+- [ ] **Two-Way Voice** - Speak to intruders through camera-connected speakers. "You are being recorded. Security has been dispatched to your location"
+- [ ] **Incident Narration** - Real-time voice narration of tracked incidents for dispatchers: "Subject is now moving south through the lobby toward the east exit. Wearing dark jacket, blue jeans"
+- [ ] **Voice Command Interface** - Security operators can issue voice commands to iTaK Shield: "Track that person," "Lock down Building C," "Show me Camera 12"
+
+### Messaging Platform Integration
+Send alerts through every platform people actually use:
+
+#### Direct Messaging
+- [ ] **WhatsApp Business API** - Send alerts via WhatsApp with photos, videos, maps, and voice messages. Supports WhatsApp voice calls for critical alerts
+- [ ] **Signal Integration** - End-to-end encrypted alerts via Signal for maximum security. Text, images, and files
+- [ ] **Telegram Bot** - Dedicated iTaK Shield Telegram bot per deployment. Real-time alerts with inline buttons for acknowledgment
+- [ ] **SMS/MMS** - Traditional text messages with attached photos via Twilio, Vonage, or AWS SNS. Fallback when internet-based messaging is unavailable
+- [ ] **Microsoft Teams** - Post alerts to Teams channels with adaptive cards. Click-through to live camera feeds
+- [ ] **Slack** - Webhook-based alerts to Slack channels. Rich formatting with target photos, maps, and action buttons
+- [ ] **Discord** - Webhook alerts for organizations using Discord for communications
+
+#### Voice Calling Platforms
+- [ ] **WhatsApp Voice Calls** - Automated voice calls through WhatsApp using iTaK Shield's TTS voice
+- [ ] **SIP/VoIP Calling** - Direct SIP trunk integration for automated phone calls to any number. No third-party service needed if client has SIP infrastructure
+- [ ] **Twilio Voice** - Automated phone calls via Twilio API. Programmable IVR: "Press 1 to acknowledge, Press 2 for more details, Press 3 to dispatch police"
+- [ ] **PBX Integration** - Integrate with client's existing phone system (Cisco, Avaya, FreePBX). Ring security desk phone directly with incident details
+
+### Emergency Dispatch Integration
+Connect directly to 911 centers and law enforcement.
+
+#### RapidSOS Integration (911 Direct)
+RapidSOS connects to 4,800+ 911 centers (PSAPs) across the USA. Their API lets iTaK Shield send data directly to police/fire/EMS dispatch.
+- [ ] **RapidSOS 911 API** - Send automated digital dispatch requests directly to 911 centers via RapidSOS API. Pre-populate dispatch with: GPS coordinates, incident type, target description, camera photos
+- [ ] **Video-to-911** - Stream live camera feeds directly to the 911 dispatcher via RapidSOS. Dispatcher sees what iTaK Shield sees in real-time
+- [ ] **Photo Transfer** - Send target photos, license plate captures, and weapon detection screenshots directly to responding officers' mobile terminals
+- [ ] **Incident Data Package** - Automatically transmit full incident data to CAD (Computer-Aided Dispatch) systems: location, timeline, target movement history, severity classification
+- [ ] **RapidSOS Sandbox** - Development sandbox environment for testing 911 integration without triggering real dispatch
+
+#### Direct Law Enforcement Integration
+- [ ] **CAD System Integration** - Connect to police department CAD systems (Motorola Solutions, Tyler Technologies, Hexagon). Push alerts directly into dispatch queue
+- [ ] **NIBRS Reporting** - Auto-format incident reports per FBI's National Incident-Based Reporting System standard for law enforcement
+- [ ] **Blue Alert Integration** - Receive and act on Blue Alerts (law enforcement officers in danger), AMBER Alerts, and Silver Alerts. Auto-activate BOLO scanning on all cameras
+- [ ] **License Plate Database Query** - Query NCIC (National Crime Information Center) and state DMV databases for plate lookups (requires law enforcement authorization)
+- [ ] **ShotSpotter/SoundThinking Integration** - Correlate iTaK Shield's gunshot detection with municipal ShotSpotter/SoundThinking acoustic sensor networks for precise triangulation
+- [ ] **Real-Time Crime Center Feed** - Push iTaK Shield's live data directly to municipal Real-Time Crime Centers (RTCCs). Many major cities (NYC, Chicago, Houston, Atlanta) operate RTCCs that aggregate security feeds
+
+#### Private Security Dispatch
+- [ ] **Guard Tour Verification** - Camera Re-ID verifies security guards complete patrol routes on schedule. Alert if guard doesn't appear at checkpoint
+- [ ] **Mobile Guard App** - Security guards receive alerts, acknowledge incidents, upload photos, and check in via mobile app
+- [ ] **SOC Ticketing** - Every alert creates a ticket. Track response time, resolution, and follow-up. Audit trail for every incident

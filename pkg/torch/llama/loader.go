@@ -3,7 +3,7 @@ package llama
 import (
 	"fmt"
 
-	"github.com/David2024patton/GOAgent/pkg/torch/loader"
+	"github.com/David2024patton/iTaKAgent/pkg/torch/loader"
 )
 
 var libPath string
@@ -91,11 +91,11 @@ func Load(path string) error {
 	// This is non-fatal: text-only models work fine without it.
 	mtmdLib, mtmdErr := loader.LoadLibrary(path, "mtmd")
 	if mtmdErr != nil {
-		fmt.Printf("[GOTorch] Vision: mtmd library not loaded: %v\n", mtmdErr)
+		fmt.Printf("[iTaK Torch] Vision: mtmd library not loaded: %v\n", mtmdErr)
 	} else {
 		if err := loadMtmdFuncs(mtmdLib); err != nil {
 			// Log but don't fail - vision support is optional
-			fmt.Printf("[GOTorch] Warning: mtmd loaded but functions failed: %v\n", err)
+			fmt.Printf("[iTaK Torch] Warning: mtmd loaded but functions failed: %v\n", err)
 		}
 	}
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/David2024patton/GOAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
 )
 
 // Skill represents a loaded skill from a SKILL.md file.

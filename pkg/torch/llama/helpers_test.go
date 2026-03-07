@@ -7,10 +7,10 @@ import (
 )
 
 func testSetup(t *testing.T) {
-	if os.Getenv("GOTORCH_LIB") == "" {
-		t.Fatal("no GOTORCH_LIB set for tests")
+	if os.Getenv("ITAK_TORCH_LIB") == "" {
+		t.Fatal("no ITAK_TORCH_LIB set for tests")
 	}
-	testPath := os.Getenv("GOTORCH_LIB")
+	testPath := os.Getenv("ITAK_TORCH_LIB")
 	if err := Load(testPath); err != nil {
 		t.Fatal("unable to load library", err.Error())
 	}
@@ -71,10 +71,10 @@ func testLoraAdaptorFileName(t *testing.T) string {
 }
 
 func benchmarkSetup(b *testing.B) {
-	if os.Getenv("GOTORCH_LIB") == "" {
-		b.Fatal("no GOTORCH_LIB set for tests")
+	if os.Getenv("ITAK_TORCH_LIB") == "" {
+		b.Fatal("no ITAK_TORCH_LIB set for tests")
 	}
-	testPath := os.Getenv("GOTORCH_LIB")
+	testPath := os.Getenv("ITAK_TORCH_LIB")
 	if err := Load(testPath); err != nil {
 		b.Fatal("unable to load library", err.Error())
 	}

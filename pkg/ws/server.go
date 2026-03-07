@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/David2024patton/GOAgent/pkg/debug"
-	"github.com/David2024patton/GOAgent/pkg/eventbus"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
 	"github.com/gorilla/websocket"
 )
 

@@ -1,11 +1,13 @@
-module github.com/David2024patton/GOAgent
+module github.com/David2024patton/iTaKAgent
 
-go 1.24.0
+go 1.26.0
 
 require (
 	github.com/ebitengine/purego v0.10.0
 	github.com/go-rod/rod v0.116.2
 	github.com/go-rod/stealth v0.4.9
+	github.com/gogpu/gputypes v0.2.0
+	github.com/gogpu/wgpu v0.19.6
 	github.com/gorilla/websocket v1.5.3
 	github.com/jupiterrider/ffi v0.6.0
 	golang.org/x/sys v0.41.0
@@ -13,6 +15,8 @@ require (
 )
 
 require (
+	github.com/go-webgpu/goffi v0.4.2 // indirect
+	github.com/gogpu/naga v0.14.5 // indirect
 	github.com/ysmood/fetchup v0.2.3 // indirect
 	github.com/ysmood/goob v0.4.0 // indirect
 	github.com/ysmood/got v0.40.0 // indirect

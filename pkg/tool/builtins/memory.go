@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/David2024patton/GOAgent/pkg/memory"
+	"github.com/David2024patton/iTaKAgent/pkg/memory"
 )
 
 // ─── memory_save ───────────────────────────────────────────────────

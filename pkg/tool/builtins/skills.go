@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/David2024patton/GOAgent/pkg/skill"
+	"github.com/David2024patton/iTaKAgent/pkg/skill"
 )
 
 // SkillListTool lists all available skills.

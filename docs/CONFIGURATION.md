@@ -1,11 +1,11 @@
 # Configuration Reference
 
-Everything in GOAgent is controlled by a single YAML file. By default, GOAgent looks for `goagent.yaml` in the current directory, but you can pass any path:
+Everything in iTaK Agent is controlled by a single YAML file. By default, iTaK Agent looks for `itakagent.yaml` in the current directory, but you can pass any path:
 
 ```bash
-goagent run                      # uses ./goagent.yaml
-goagent run my-config.yaml       # uses my-config.yaml
-goagent run configs/prod.yaml    # uses configs/prod.yaml
+itakagent run                      # uses ./itakagent.yaml
+itakagent run my-config.yaml       # uses my-config.yaml
+itakagent run configs/prod.yaml    # uses configs/prod.yaml
 ```
 
 ## Environment Variables
@@ -22,15 +22,15 @@ Set the variable before running:
 ```bash
 # Linux/macOS
 export NVIDIA_API_KEY="nvapi-xxxxx"
-./goagent run
+./itakagent run
 
 # Windows (PowerShell)
 $env:NVIDIA_API_KEY = "nvapi-xxxxx"
-.\goagent.exe run
+.\itakagent.exe run
 
 # Windows (CMD)
 set NVIDIA_API_KEY=nvapi-xxxxx
-goagent.exe run
+itakagent.exe run
 ```
 
 ## Complete Config Reference
@@ -74,7 +74,7 @@ integrations:               # Optional. External API connections
 
 ## Config Validation Rules
 
-When GOAgent loads your config, it checks for these errors:
+When iTaK Agent loads your config, it checks for these errors:
 
 | Rule | Error Message |
 |---|---|
@@ -172,6 +172,6 @@ agents:
 ## Security Notes
 
 - **Never commit API keys** to git. Use `${ENV_VAR}` references
-- `goagent.yaml` is in `.gitignore` by default  -  your live config stays local
+- `itakagent.yaml` is in `.gitignore` by default  -  your live config stays local
 - `configs/example.yaml` uses `${ENV_VAR}` placeholders and is safe to commit
 - The `shell` tool can execute **any command**  -  only deploy to trusted environments

@@ -30,3 +30,15 @@ data/
 
 # Memory
 memory/
+
+# Models and Large Binaries
+models/
+*.gguf
+gotorch_*
+itaktorch_*
+webgpu-spike*
+
+# Logs
+*.log
+
+.agent/

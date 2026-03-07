@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/David2024patton/GOAgent/pkg/debug"
-	"github.com/David2024patton/GOAgent/pkg/eventbus"
-	"github.com/David2024patton/GOAgent/pkg/llm"
-	"github.com/David2024patton/GOAgent/pkg/memory"
-	"github.com/David2024patton/GOAgent/pkg/tool"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
+	"github.com/David2024patton/iTaKAgent/pkg/llm"
+	"github.com/David2024patton/iTaKAgent/pkg/memory"
+	"github.com/David2024patton/iTaKAgent/pkg/tool"
 )
 
 // focusedSystemPrompt builds the system prompt for a focused agent.
@@ -27,7 +27,7 @@ func focusedSystemPrompt(cfg AgentConfig) string {
 	}
 
 	sb.WriteString(`
-You are a FOCUSED AGENT in the GOAgent framework.
+You are a FOCUSED AGENT in the iTaKAgent framework.
 You receive specific tasks from the Orchestrator and execute them using your tools.
 
 HOW TO WORK:

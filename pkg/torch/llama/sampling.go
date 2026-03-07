@@ -4,7 +4,8 @@ import (
 	"math"
 	"unsafe"
 
-	"github.com/David2024patton/GOAgent/pkg/torch/utils"
+	"github.com/David2024patton/iTaKAgent/pkg/torch/utils"
+	"github.com/ebitengine/purego"
 	"github.com/jupiterrider/ffi"
 )
 
@@ -129,8 +130,9 @@ var (
 	// LLAMA_API struct llama_sampler * llama_sampler_init_infill(const struct llama_vocab * vocab);
 	samplerInitInfillFunc ffi.Fun
 
+	// Zero-CGO purego binding for maximum performance
 	// LLAMA_API llama_token llama_sampler_sample(struct llama_sampler * smpl, struct llama_context * ctx, int32_t idx);
-	samplerSampleFunc ffi.Fun
+	samplerSampleFast func(smpl Sampler, ctx Context, idx int32) int32
 
 	// LLAMA_API void  llama_sampler_accept(struct llama_sampler * smpl, llama_token token);
 	samplerAcceptFunc ffi.Fun
@@ -254,9 +256,7 @@ func loadSamplingFuncs(lib ffi.Lib) error {
 		return loadError("llama_sampler_init_infill", err)
 	}
 
-	if samplerSampleFunc, err = lib.Prep("llama_sampler_sample", &ffi.TypeSint32, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypeSint32); err != nil {
-		return loadError("llama_sampler_sample", err)
-	}
+	purego.RegisterLibFunc(&samplerSampleFast, lib.Addr, "llama_sampler_sample")
 
 	if samplerAcceptFunc, err = lib.Prep("llama_sampler_accept", &ffi.TypeVoid, &ffi.TypePointer, &ffi.TypeSint32); err != nil {
 		return loadError("llama_sampler_accept", err)
@@ -545,8 +545,7 @@ func SamplerSample(smpl Sampler, ctx Context, idx int32) Token {
 		return TokenNull
 	}
 
-	var result ffi.Arg
-	samplerSampleFunc.Call(unsafe.Pointer(&result), unsafe.Pointer(&smpl), unsafe.Pointer(&ctx), &idx)
+	result := samplerSampleFast(smpl, ctx, idx)
 
 	return Token(result)
 }

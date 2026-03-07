@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/David2024patton/GOAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
 )
 
 // Client is the interface for all LLM providers.

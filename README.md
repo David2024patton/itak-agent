@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="docs/images/logo.png" alt="GOAgent Logo" width="280"/>
-  <h1>GOAgent</h1>
+  <img src="docs/images/logo.png" alt="iTaK Agent Logo" width="280"/>
+  <h1>iTaK Agent</h1>
   <p><strong>An AI agent framework written in Go. One boss delegates to focused agents who get work done.</strong></p>
   <p>Runs on small local models. No expensive API bills required.</p>
 
@@ -15,9 +15,9 @@
 
 ---
 
-## What Is GOAgent?
+## What Is iTaK Agent?
 
-GOAgent is an AI agent framework built in **Go**. It's a different approach from Python-based frameworks like CrewAI, LangGraph, and AutoGen. Instead of needing expensive, massive models, GOAgent is designed to work with **smaller, efficient models** you can run locally.
+iTaK Agent is an AI agent framework built in **Go**. It's a different approach from Python-based frameworks like CrewAI, LangGraph, and AutoGen. Instead of needing expensive, massive models, iTaK Agent is designed to work with **smaller, efficient models** you can run locally.
 
 The core idea: **keep the boss simple and the agents focused.**
 
@@ -118,22 +118,22 @@ flowchart TD
 ### 1. Clone and Build
 
 ```bash
-git clone https://github.com/David2024patton/GOAgent.git
-cd GOAgent
-go build -o goagent ./cmd/goagent/
+git clone https://github.com/David2024patton/iTaKAgent.git
+cd iTaK Agent
+go build -o itakagent ./cmd/itakagent/
 ```
 
-This creates a single `goagent` binary (or `goagent.exe` on Windows).
+This creates a single `itakagent` binary (or `itakagent.exe` on Windows).
 
 ### 2. Set Up Your Config
 
 Copy the example config and add your API key:
 
 ```bash
-cp configs/example.yaml goagent.yaml
+cp configs/example.yaml itakagent.yaml
 ```
 
-Open `goagent.yaml` and change the API key:
+Open `itakagent.yaml` and change the API key:
 
 ```yaml
 orchestrator:
@@ -149,12 +149,12 @@ orchestrator:
 ### 3. Run It
 
 ```bash
-./goagent run
+./itakagent run
 ```
 
 You'll see:
 ```
-GOAgent v0.1.0 - 2 agents ready. Type a message (Ctrl+C to quit).
+iTaK Agent v0.1.0 - 2 agents ready. Type a message (Ctrl+C to quit).
 
 >
 ```
@@ -181,7 +181,7 @@ Tokyo
 
 ## Configuration Guide
 
-The config file (`goagent.yaml`) controls everything. Here's a full example:
+The config file (`itakagent.yaml`) controls everything. Here's a full example:
 
 ```yaml
 # ORCHESTRATOR
@@ -348,12 +348,12 @@ Returns: "HTTP 200\n\n{...response body...}"
 
 ## Debug Mode
 
-GOAgent has three logging levels:
+iTaK Agent has three logging levels:
 
 ### Quiet Mode (default)
 
 ```bash
-./goagent run
+./itakagent run
 ```
 
 Only shows the final response. Warnings and errors show up if something goes wrong.
@@ -361,7 +361,7 @@ Only shows the final response. Warnings and errors show up if something goes wro
 ### Verbose Mode
 
 ```bash
-./goagent run --verbose
+./itakagent run --verbose
 ```
 
 Shows key decisions: which agent was picked, what tools were called, success or failure.
@@ -381,7 +381,7 @@ Shows key decisions: which agent was picked, what tools were called, success or 
 ### Debug Mode
 
 ```bash
-./goagent run --debug
+./itakagent run --debug
 ```
 
 Shows **everything**: JSON payloads, token counts, HTTP timing, tool arguments, full results. Use this when something isn't working:
@@ -401,9 +401,9 @@ Shows **everything**: JSON payloads, token counts, HTTP timing, tool arguments, 
 ## Project Structure
 
 ```
-GOAgent/
+iTaK Agent/
 ├── cmd/
-│   └── goagent/
+│   └── itakagent/
 │       └── main.go              # CLI entrypoint (run, version, help)
 │
 ├── pkg/
@@ -435,12 +435,12 @@ GOAgent/
 │
 ├── docs/
 │   ├── images/
-│   │   └── logo.png             # GOAgent logo
+│   │   └── logo.png             # iTaK Agent logo
 │   ├── CONFIGURATION.md         # Configuration deep-dive
 │   ├── TOOLS.md                 # Tool reference
 │   └── ARCHITECTURE.md          # Architecture explanation
 │
-├── goagent.yaml                 # Your active config (not committed)
+├── itakagent.yaml                 # Your active config (not committed)
 ├── go.mod
 ├── go.sum
 ├── .gitignore
@@ -452,7 +452,7 @@ GOAgent/
 
 | File | What to edit it for |
 |---|---|
-| `goagent.yaml` | Change API keys, add/remove agents, change models |
+| `itakagent.yaml` | Change API keys, add/remove agents, change models |
 | `configs/example.yaml` | Reference config. Don't edit directly, copy it |
 | `pkg/agent/types.go` | Add new fields to agent config |
 | `pkg/agent/orchestrator.go` | Change how the boss reasons or delegates |
@@ -462,13 +462,13 @@ GOAgent/
 | `pkg/llm/client.go` | Add support for non-OpenAI API formats |
 | `pkg/config/config.go` | Add new config options |
 | `pkg/debug/logger.go` | Change log formatting or add new log levels |
-| `cmd/goagent/main.go` | Add new CLI commands or flags |
+| `cmd/itakagent/main.go` | Add new CLI commands or flags |
 
 ---
 
 ## Adding a New Agent
 
-Want to add a "Writer" agent? Just add it to your `goagent.yaml`:
+Want to add a "Writer" agent? Just add it to your `itakagent.yaml`:
 
 ```yaml
 agents:
@@ -487,7 +487,7 @@ agents:
     max_loops: 6
 ```
 
-That's it. Restart GOAgent and the boss will automatically know about the writer agent and can hand off writing tasks to it.
+That's it. Restart iTaK Agent and the boss will automatically know about the writer agent and can hand off writing tasks to it.
 
 ---
 
@@ -524,7 +524,7 @@ func (m *MyTool) Execute(ctx context.Context, args map[string]interface{}) (stri
 }
 ```
 
-Then register it in `cmd/goagent/main.go`:
+Then register it in `cmd/itakagent/main.go`:
 
 ```go
 func buildToolCatalog() map[string]tool.Tool {
@@ -544,7 +544,7 @@ Rebuild, and now any agent with `my_tool` in its `tools` list can use it.
 
 ## Supported LLM Providers
 
-GOAgent works with any API that uses the OpenAI `/v1/chat/completions` format:
+iTaK Agent works with any API that uses the OpenAI `/v1/chat/completions` format:
 
 | Provider | `api_base` | Notes |
 |---|---|---|
@@ -558,13 +558,13 @@ GOAgent works with any API that uses the OpenAI `/v1/chat/completions` format:
 
 ---
 
-## The GOAgent Ecosystem
+## The iTaK Agent Ecosystem
 
-GOAgent is the core framework, but it's part of a bigger system:
+iTaK Agent is the core framework, but it's part of a bigger system:
 
 | Project | What It Does |
 |---|---|
-| **GOAgent** | Core agent framework. Boss + focused agents + tools. |
+| **iTaK Agent** | Core agent framework. Boss + focused agents + tools. |
 | **GOGateway** | Standalone LLM gateway. Routes requests across 42+ providers with failover, rate limiting, and cost tracking. |
 | **GOForge** | Live preview server + container runtime. Builds and hosts projects in real time as agents write code. GitHub integration. |
 | **GODashboard** | Web-based dashboard. Chat, agent monitoring, task board, cost tracking. |

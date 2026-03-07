@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/David2024patton/GOAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
 )
 
 // EvalResult holds the outcome of a single evaluation run.

@@ -101,7 +101,7 @@ func (f *FileWriteTool) Execute(ctx context.Context, args map[string]interface{}
 		protAbs, _ := filepath.Abs(protected)
 		if protAbs != "" && strings.HasPrefix(strings.ToLower(absPath), strings.ToLower(protAbs)) {
 			return fmt.Sprintf("BLOCKED: Cannot write to protected path %q. "+
-				"This path is part of GOAgent's core and is protected by self-preservation guardrails.", protAbs), nil
+				"This path is part of iTaKAgent's core and is protected by self-preservation guardrails.", protAbs), nil
 		}
 	}
 

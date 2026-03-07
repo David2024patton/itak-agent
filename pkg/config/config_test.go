@@ -8,7 +8,7 @@ import (
 
 func TestLoadValidConfig(t *testing.T) {
 	tmp := t.TempDir()
-	cfgPath := filepath.Join(tmp, "goagent.yaml")
+	cfgPath := filepath.Join(tmp, "itakagent.yaml")
 
 	yaml := `
 orchestrator:
@@ -54,7 +54,7 @@ shell_safety:
 
 func TestLoadDefaults(t *testing.T) {
 	tmp := t.TempDir()
-	cfgPath := filepath.Join(tmp, "goagent.yaml")
+	cfgPath := filepath.Join(tmp, "itakagent.yaml")
 
 	yaml := `
 orchestrator:
@@ -86,7 +86,7 @@ agents:
 
 func TestLoadEnvExpansion(t *testing.T) {
 	tmp := t.TempDir()
-	cfgPath := filepath.Join(tmp, "goagent.yaml")
+	cfgPath := filepath.Join(tmp, "itakagent.yaml")
 
 	os.Setenv("TEST_GOAGENT_MODEL", "my-special-model")
 	defer os.Unsetenv("TEST_GOAGENT_MODEL")
@@ -115,7 +115,7 @@ agents:
 
 func TestLoadInheritLLM(t *testing.T) {
 	tmp := t.TempDir()
-	cfgPath := filepath.Join(tmp, "goagent.yaml")
+	cfgPath := filepath.Join(tmp, "itakagent.yaml")
 
 	yaml := `
 orchestrator:
@@ -143,7 +143,7 @@ agents:
 
 func TestLoadBadYAML(t *testing.T) {
 	tmp := t.TempDir()
-	cfgPath := filepath.Join(tmp, "goagent.yaml")
+	cfgPath := filepath.Join(tmp, "itakagent.yaml")
 	os.WriteFile(cfgPath, []byte("orchestrator:\n  llm:\n    - invalid\n    model: [broken: yaml: {{{"), 0644)
 
 	_, err := Load(cfgPath)
@@ -153,7 +153,7 @@ func TestLoadBadYAML(t *testing.T) {
 }
 
 func TestLoadMissingFile(t *testing.T) {
-	_, err := Load("/nonexistent/path/goagent.yaml")
+	_, err := Load("/nonexistent/path/itakagent.yaml")
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}

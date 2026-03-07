@@ -35,7 +35,7 @@ var levelColors = map[Level]string{
 
 const colorReset = "\033[0m"
 
-// Logger is the GOAgent structured logger.
+// Logger is the iTaKAgent structured logger.
 type Logger struct {
 	mu       sync.Mutex
 	level    Level

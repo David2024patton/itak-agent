@@ -1,0 +1,32 @@
+[Unit]
+Description=GOTorch LLM Inference Server
+Documentation=https://github.com/David2024patton/GOAgent
+After=network.target
+
+[Service]
+Type=simple
+User=skynet
+WorkingDirectory=/home/skynet/GOAgent
+ExecStart=/home/skynet/GOAgent/gotorch serve --models-dir /home/skynet/.gotorch/models --max-models 2 --port 41950 --gpu-layers 0 --backend cpu
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gotorch
+
+# Resource governance
+LimitNOFILE=65536
+MemoryMax=2G
+
+# Health check watchdog: if no WATCHDOG=1 within WatchdogSec, systemd kills the service.
+# The companion health-watchdog.sh script handles the notification.
+WatchdogSec=120
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/skynet/.gotorch
+
+[Install]
+WantedBy=multi-user.target

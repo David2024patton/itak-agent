@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/David2024patton/GOAgent/pkg/llm"
+	"github.com/David2024patton/iTaKAgent/pkg/llm"
 )
 
 // Registry holds all registered tools and provides lookup + LLM schema generation.

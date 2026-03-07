@@ -7,21 +7,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/David2024patton/GOAgent/pkg/debug"
-	"github.com/David2024patton/GOAgent/pkg/eventbus"
-	"github.com/David2024patton/GOAgent/pkg/llm"
-	"github.com/David2024patton/GOAgent/pkg/memory"
-	"github.com/David2024patton/GOAgent/pkg/task"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
+	"github.com/David2024patton/iTaKAgent/pkg/llm"
+	"github.com/David2024patton/iTaKAgent/pkg/memory"
+	"github.com/David2024patton/iTaKAgent/pkg/task"
 )
 
 // delegationSystemPrompt is the baked-in system prompt for the orchestrator.
 // It tells the LLM to ONLY reason and delegate  -  never use tools.
 // %d = agent count, %s = data directory, %s = agent descriptions
-const delegationSystemPrompt = `You are GOAgent  -  a lightweight, sovereign AI agent framework written in Go.
+const delegationSystemPrompt = `You are iTaKAgent  -  a lightweight, sovereign AI agent framework written in Go.
 
 ABOUT YOU:
-- You are GOAgent v0.2.0, created by David Patton
-- GitHub: https://github.com/David2024patton/GOAgent
+- You are iTaKAgent v0.2.0, created by David Patton
+- GitHub: https://github.com/David2024patton/iTaKAgent
 - You are purpose-built for 30B-parameter models and smaller (like NVIDIA Nemotron)
 - Your architecture: Orchestrator-Delegate pattern  -  you reason and route, focused agents execute with tools
 - You have built-in memory (session + persistent + archive), skills, guardrails, and time-travel debugging
@@ -43,7 +43,7 @@ ANSWER DIRECTLY (from the AVAILABLE AGENTS section below) when asked about:
 - "what agents/tools do you have"  -  list them from the AVAILABLE AGENTS section
 - "what can you do"  -  describe your capabilities based on your agents and their tools
 - Pure greetings: "hi", "hello", "hey"
-- Identity questions: "what are you", "who made you", "what is GOAgent"
+- Identity questions: "what are you", "who made you", "what is iTaKAgent"
 
 DELEGATE TO SCOUT (never guess) when asked about:
 - "how many skills/messages/conversations are there"  -  scout checks the filesystem
@@ -85,7 +85,7 @@ ONLY if the question is a pure greeting or identity question, respond:
 
 
 // synthesisSystemPrompt is used when the orchestrator combines agent results.
-const synthesisSystemPrompt = `You are the GOAgent Orchestrator synthesizing results.
+const synthesisSystemPrompt = `You are the iTaKAgent Orchestrator synthesizing results.
 Given the original user request and the results from your focused agents, create a clear, helpful final response.
 Be concise. Present the information naturally  -  don't mention agents or delegation mechanics to the user.`
 
@@ -167,7 +167,7 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 	}
 
 	// Status: Thinking
-	o.status("GOAgent Thinking...")
+	o.status("iTaKAgent Thinking...")
 
 	debug.Info("orchestrator", "Calling LLM for delegation decision...")
 	resp, err := o.LLMClient.Chat(ctx, messages, nil) // no tools for orchestrator
@@ -228,7 +228,7 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 		)
 	}
 
-	o.status(fmt.Sprintf("GOAgent Task: %s", taskList.Summary()))
+	o.status(fmt.Sprintf("iTaKAgent Task: %s", taskList.Summary()))
 
 	// Step 4: Execute delegations with task tracking.
 	results := make([]Result, 0, len(delegation.Delegations))
@@ -249,7 +249,7 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 
 		// Mark task as running.
 		taskList.Start(taskID)
-		o.status(fmt.Sprintf("GOAgent Delegating to %s...", dtask.Agent))
+		o.status(fmt.Sprintf("iTaKAgent Delegating to %s...", dtask.Agent))
 
 		debug.Separator(dtask.Agent)
 		debug.Info("orchestrator", "-> Delegating [%d/%d] to %q: %s",
@@ -312,7 +312,7 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 
 	// Step 4: Synthesize results.
 	debug.Separator("orchestrator")
-	o.status("GOAgent Synthesizing...")
+	o.status("iTaKAgent Synthesizing...")
 	debug.Info("orchestrator", "Synthesizing %d result(s)...", len(results))
 	finalResponse, err := o.synthesize(ctx, userMessage, results)
 	if err != nil {

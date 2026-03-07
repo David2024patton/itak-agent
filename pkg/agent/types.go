@@ -1,12 +1,12 @@
 package agent
 
 import (
-	"github.com/David2024patton/GOAgent/pkg/debug"
-	"github.com/David2024patton/GOAgent/pkg/eventbus"
-	"github.com/David2024patton/GOAgent/pkg/llm"
-	"github.com/David2024patton/GOAgent/pkg/memory"
-	"github.com/David2024patton/GOAgent/pkg/task"
-	"github.com/David2024patton/GOAgent/pkg/tool"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
+	"github.com/David2024patton/iTaKAgent/pkg/llm"
+	"github.com/David2024patton/iTaKAgent/pkg/memory"
+	"github.com/David2024patton/iTaKAgent/pkg/task"
+	"github.com/David2024patton/iTaKAgent/pkg/tool"
 )
 
 

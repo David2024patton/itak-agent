@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/David2024patton/GOAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
 )
 
 // ChainRunner executes agents sequentially  -  each agent's output becomes the next agent's input.

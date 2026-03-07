@@ -1,4 +1,4 @@
-# GOAgent Example Configuration
+# iTaK Agent Example Configuration
 # Environment variables are expanded: ${NVIDIA_API_KEY} → actual value
 
 orchestrator:

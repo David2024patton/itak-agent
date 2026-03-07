@@ -5,13 +5,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/David2024patton/GOAgent/pkg/agent"
-	"github.com/David2024patton/GOAgent/pkg/llm"
+	"github.com/David2024patton/iTaKAgent/pkg/agent"
+	"github.com/David2024patton/iTaKAgent/pkg/llm"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Config is the top-level GOAgent configuration.
+// Config is the top-level iTaKAgent configuration.
 type Config struct {
 	Orchestrator OrchestratorYAML            `yaml:"orchestrator"`
 	Agents       []AgentYAML                 `yaml:"agents"`
@@ -81,7 +81,7 @@ type Integration struct {
 	Endpoint string `yaml:"endpoint,omitempty"`
 }
 
-// Load reads and parses a GOAgent config file, expanding environment variables.
+// Load reads and parses a iTaKAgent config file, expanding environment variables.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

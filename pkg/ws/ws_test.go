@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/David2024patton/GOAgent/pkg/eventbus"
+	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
 	"github.com/gorilla/websocket"
 )
 

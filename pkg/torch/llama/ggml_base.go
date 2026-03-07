@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/David2024patton/GOAgent/pkg/torch/utils"
+	"github.com/David2024patton/iTaKAgent/pkg/torch/utils"
 	"github.com/jupiterrider/ffi"
 )
 

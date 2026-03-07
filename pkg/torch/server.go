@@ -12,10 +12,12 @@ import (
 	"time"
 )
 
-// Server is the OpenAI-compatible HTTP server for GOTorch.
+// Server is the OpenAI-compatible HTTP server for iTaKTorch.
 // It wraps an Engine and serves chat completions on localhost.
 type Server struct {
 	engine    Engine
+	registry  *ModelRegistry // optional: multi-model serving
+	scheduler *Scheduler
 	port      int
 	server    *http.Server
 	startTime time.Time
@@ -31,11 +33,27 @@ func WithLogger(l *log.Logger) ServerOption {
 	return func(s *Server) { s.logger = l }
 }
 
-// NewServer creates a GOTorch server bound to the given port.
+// WithRegistry enables multi-model serving via a ModelRegistry.
+// When set, the server resolves the "model" field in requests to dynamically
+// load engines from the models directory.
+func WithRegistry(r *ModelRegistry) ServerOption {
+	return func(s *Server) { s.registry = r }
+}
+
+// NewServer creates a iTaKTorch server bound to the given port.
 func NewServer(engine Engine, port int, opts ...ServerOption) *Server {
+	// Create scheduler: use continuous batching if the engine supports it.
+	var scheduler *Scheduler
+	if te, ok := engine.(*TorchEngine); ok && te.opts.MaxSlots > 1 {
+		scheduler = NewBatchScheduler(te, 64, te.opts.MaxSlots)
+	} else {
+		scheduler = NewScheduler(engine, 64)
+	}
+
 	s := &Server{
-		engine: engine,
-		port:   port,
+		engine:    engine,
+		scheduler: scheduler,
+		port:      port,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -54,6 +72,10 @@ func NewServer(engine Engine, port int, opts ...ServerOption) *Server {
 		WriteTimeout: 120 * time.Second,
 	}
 
+	// Start scheduler immediately so requests can be processed
+	// both via server.Start() and direct httptest.ServeHTTP().
+	s.scheduler.Start()
+
 	return s
 }
 
@@ -67,9 +89,9 @@ func (s *Server) debugf(format string, args ...interface{}) {
 // Start starts the HTTP server. Blocks until the server is stopped.
 func (s *Server) Start() error {
 	s.startTime = time.Now()
-	fmt.Printf("[GOTorch] Server starting on http://localhost:%d\n", s.port)
-	fmt.Printf("[GOTorch] Model: %s\n", s.engine.ModelName())
-	fmt.Printf("[GOTorch] Endpoints:\n")
+	fmt.Printf("[iTaK Torch] Server starting on http://localhost:%d\n", s.port)
+	fmt.Printf("[iTaK Torch] Model: %s\n", s.engine.ModelName())
+	fmt.Printf("[iTaK Torch] Endpoints:\n")
 	fmt.Printf("  POST /v1/chat/completions\n")
 	fmt.Printf("  GET  /v1/models\n")
 	fmt.Printf("  GET  /health\n")
@@ -83,6 +105,7 @@ func (s *Server) Start() error {
 
 // Stop gracefully shuts down the server.
 func (s *Server) Stop() error {
+	s.scheduler.Stop()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return s.server.Shutdown(ctx)
@@ -128,6 +151,19 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	s.debugf("[INF] model=%s msgs=%d max_tokens=%d", req.Model, len(req.Messages), req.MaxTokens)
 
+	// Resolve engine: use registry if available, otherwise fall back to single engine.
+	engine := s.engine
+	if s.registry != nil && req.Model != "" {
+		// Multi-model mode: resolve from registry.
+		resolved, err := s.registry.GetOrLoad(req.Model)
+		if err != nil {
+			s.debugf("[ERR] model resolution: %v", err)
+			writeError(w, http.StatusNotFound, fmt.Sprintf("model not found: %v", err))
+			return
+		}
+		engine = resolved
+	}
+
 	// Build completion params from request.
 	params := CompletionParams{
 		MaxTokens: req.MaxTokens,
@@ -147,31 +183,62 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		params.MaxTokens = 512
 	}
 
-	// Run inference.
-	result, err := s.engine.Complete(r.Context(), req.Messages, params)
+	// Submit to scheduler queue (Phase 4B: concurrent request handling).
+	// In multi-model mode, create an ad-hoc scheduler for the resolved engine.
+	scheduler := s.scheduler
+	if s.registry != nil && engine != s.engine {
+		scheduler = NewScheduler(engine, 64)
+		scheduler.Start()
+		defer scheduler.Stop()
+	}
+
+	inferReq := &InferenceRequest{
+		Messages: req.Messages,
+		Params:   params,
+		Ctx:      r.Context(),
+	}
+
+	// SSE streaming path.
+	if req.Stream {
+		s.handleStreamingResponse(w, r, inferReq)
+		return
+	}
+
+	scheduler.Submit(inferReq)
+
+	// Wait for result from the scheduler.
+	var inferResult InferenceResult
+	select {
+	case inferResult = <-inferReq.ResultCh:
+	case <-r.Context().Done():
+		s.debugf("[ERR] client disconnected while waiting in queue")
+		return
+	}
+
+	result := inferResult.Text
 	elapsed := time.Since(start)
 
-	if err != nil {
-		s.debugf("[ERR] inference failed after %s: %v", elapsed, err)
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("inference error: %v", err))
+	if inferResult.Err != nil {
+		s.debugf("[ERR] inference failed after %s: %v", elapsed, inferResult.Err)
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("inference error: %v", inferResult.Err))
 		return
 	}
 
 	// Use actual token counts from engine metrics (much more accurate than char estimates).
-	stats := s.engine.GetStats()
+	runStats := engine.GetStats()
 	promptTokens := 0
 	completionTokens := 0
-	if stats.LastMetrics != nil {
-		promptTokens = stats.LastMetrics.PromptTokens
-		completionTokens = stats.LastMetrics.CompletionTokens
+	if runStats.LastMetrics != nil {
+		promptTokens = runStats.LastMetrics.PromptTokens
+		completionTokens = runStats.LastMetrics.CompletionTokens
 	}
 
 	// Build response in OpenAI format.
 	resp := ChatResponse{
-		ID:      fmt.Sprintf("gotorch-%d", time.Now().UnixNano()),
+		ID:      fmt.Sprintf("itaktorch-%d", time.Now().UnixNano()),
 		Object:  "chat.completion",
 		Created: time.Now().Unix(),
-		Model:   s.engine.ModelName(),
+		Model:   engine.ModelName(),
 		Choices: []ChatChoice{
 			{
 				Index: 0,
@@ -191,13 +258,75 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	// Log with performance data.
 	tokSec := 0.0
-	if stats.LastMetrics != nil {
-		tokSec = stats.LastMetrics.TokensPerSecond
+	if runStats.LastMetrics != nil {
+		tokSec = runStats.LastMetrics.TokensPerSecond
 	}
 	s.debugf("[RES] 200 OK in %s | %d tok | %.1f tok/s", elapsed, resp.Usage.TotalTokens, tokSec)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// handleStreamingResponse sends SSE (Server-Sent Events) for streaming chat completions.
+// Follows OpenAI's streaming format: chat.completion.chunk objects with delta content.
+func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request, inferReq *InferenceRequest) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming not supported")
+		return
+	}
+
+	// Create stream channel for token deltas.
+	inferReq.StreamCh = make(chan string, 16)
+	s.scheduler.Submit(inferReq)
+
+	// Set SSE headers.
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+
+	id := fmt.Sprintf("itaktorch-%d", time.Now().UnixNano())
+	model := s.engine.ModelName()
+	created := time.Now().Unix()
+
+	// Send role chunk first (OpenAI convention).
+	roleChunk := fmt.Sprintf(`{"id":"%s","object":"chat.completion.chunk","created":%d,"model":"%s","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}`, id, created, model)
+	fmt.Fprintf(w, "data: %s\n\n", roleChunk)
+	flusher.Flush()
+
+	// Stream token deltas.
+	for delta := range inferReq.StreamCh {
+		// Escape JSON special characters in delta content.
+		escaped := strings.NewReplacer(
+			`\`, `\\`,
+			`"`, `\"`,
+			"\n", `\n`,
+			"\r", `\r`,
+			"\t", `\t`,
+		).Replace(delta)
+
+		chunk := fmt.Sprintf(`{"id":"%s","object":"chat.completion.chunk","created":%d,"model":"%s","choices":[{"index":0,"delta":{"content":"%s"},"finish_reason":null}]}`, id, created, model, escaped)
+		fmt.Fprintf(w, "data: %s\n\n", chunk)
+		flusher.Flush()
+	}
+
+	// Wait for final result to get error status.
+	select {
+	case result := <-inferReq.ResultCh:
+		if result.Err != nil {
+			s.debugf("[ERR] streaming inference failed: %v", result.Err)
+		}
+	case <-r.Context().Done():
+		return
+	}
+
+	// Send finish chunk.
+	finishChunk := fmt.Sprintf(`{"id":"%s","object":"chat.completion.chunk","created":%d,"model":"%s","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`, id, created, model)
+	fmt.Fprintf(w, "data: %s\n\n", finishChunk)
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	flusher.Flush()
 }
 
 // handleModels handles GET /v1/models.
@@ -209,15 +338,24 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := ModelsResponse{
-		Object: "list",
-		Data: []ModelInfo{
+	var data []ModelInfo
+	if s.registry != nil {
+		// Multi-model mode: list all available models from disk.
+		data = s.registry.ListAvailable()
+	} else {
+		// Single-model mode: just the loaded model.
+		data = []ModelInfo{
 			{
 				ID:      s.engine.ModelName(),
 				Object:  "model",
-				OwnedBy: "gotorch",
+				OwnedBy: "itaktorch",
 			},
-		},
+		}
+	}
+
+	resp := ModelsResponse{
+		Object: "list",
+		Data:   data,
 	}
 
 	s.debugf("[RES] 200 OK models=%d", len(resp.Data))
@@ -262,6 +400,28 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 				"sys_mb":  fmt.Sprintf("%.1f", stats.PostLoadRes.SysMB),
 			},
 		},
+		"scheduler": map[string]interface{}{
+			"queue_depth":       s.scheduler.QueueDepth(),
+			"total_processed":   s.scheduler.Stats().TotalProcessed,
+			"total_dropped":     s.scheduler.Stats().TotalDropped,
+			"avg_wait_ms":       fmt.Sprintf("%.1f", s.scheduler.Stats().AvgWaitMs),
+			"avg_processing_ms": fmt.Sprintf("%.1f", s.scheduler.Stats().AvgProcessingMs),
+		},
+	}
+
+	// Add registry stats if multi-model mode is enabled.
+	if s.registry != nil {
+		rStats := s.registry.Stats()
+		resp["registry"] = map[string]interface{}{
+			"loaded_models": rStats.LoadedModels,
+			"max_models":    rStats.MaxModels,
+			"models_dir":    rStats.ModelsDir,
+			"total_loads":   rStats.TotalLoads,
+			"total_evicts":  rStats.TotalEvicts,
+			"cache_hits":    rStats.CacheHits,
+			"cache_misses":  rStats.CacheMisses,
+			"loaded_names":  rStats.LoadedNames,
+		}
 	}
 
 	// Add last request metrics if available.
@@ -332,7 +492,7 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	userAgent := r.Header.Get("User-Agent")
 	if !strings.Contains(userAgent, "Mozilla") {
 		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprintf(w, "GOTorch is running.\nUptime: %s\n", time.Since(s.startTime).Round(time.Second))
+		fmt.Fprintf(w, "iTaKTorch is running.\nUptime: %s\n", time.Since(s.startTime).Round(time.Second))
 		return
 	}
 
@@ -347,7 +507,7 @@ const landingPageHTML = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GOTorch</title>
+<title>iTaKTorch</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -437,7 +597,7 @@ const landingPageHTML = `<!DOCTYPE html>
 <div class="bg-glow"></div>
 <div class="card">
   <div class="torch-icon">&#128293;</div>
-  <div class="logo">GOTorch</div>
+  <div class="logo">iTaKTorch</div>
   <div class="status"><div class="pulse"></div> Running</div>
   <div class="info">
     <div class="info-row"><span class="label">Uptime</span><span class="value">%s</span></div>
@@ -452,8 +612,8 @@ const landingPageHTML = `<!DOCTYPE html>
   <div class="ecosystem">
     <h3>Ecosystem</h3>
     <div class="eco-links">
-      <a class="eco-link" href="https://github.com/David2024patton/GOAgent" target="_blank">GOAgent</a>
-      <a class="eco-link" href="https://github.com/David2024patton/GOTorch" target="_blank">GOTorch</a>
+      <a class="eco-link" href="https://github.com/David2024patton/iTaKAgent" target="_blank">iTaKAgent</a>
+      <a class="eco-link" href="https://github.com/David2024patton/iTaKTorch" target="_blank">iTaKTorch</a>
       <a class="eco-link" href="https://github.com/David2024patton/GOBrowser" target="_blank">GOBrowser</a>
       <a class="eco-link" href="https://github.com/David2024patton/GODashboard" target="_blank">GODashboard</a>
       <a class="eco-link" href="https://github.com/David2024patton/GOMedia" target="_blank">GOMedia</a>
@@ -461,7 +621,7 @@ const landingPageHTML = `<!DOCTYPE html>
       <a class="eco-link" href="https://github.com/David2024patton/GOGateway" target="_blank">GOGateway</a>
     </div>
   </div>
-  <div class="footer">GOAgent Framework | Go-Native Inference Engine</div>
+  <div class="footer">iTaKAgent Framework | Go-Native Inference Engine</div>
 </div>
 </body>
 </html>`

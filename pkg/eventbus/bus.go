@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/David2024patton/GOAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
 )
 
 // ── Topic constants ────────────────────────────────────────────────

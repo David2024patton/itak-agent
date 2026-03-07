@@ -41,7 +41,7 @@ func (m *MockEngine) Complete(ctx context.Context, messages []ChatMessage, param
 
 	// Return a simple response based on the last user message.
 	last := messages[len(messages)-1]
-	return fmt.Sprintf("[GOTorch Mock / %s] Received: %q", m.name, last.Content), nil
+	return fmt.Sprintf("[iTaKTorch Mock / %s] Received: %q", m.name, last.Content), nil
 }
 
 func (m *MockEngine) ModelName() string {

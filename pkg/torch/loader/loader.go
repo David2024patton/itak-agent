@@ -9,17 +9,17 @@ import (
 	"github.com/jupiterrider/ffi"
 )
 
-// LoadLibrary The path can be an empty string to use the location as set by the GOTORCH_LIB env variable.
+// LoadLibrary The path can be an empty string to use the location as set by the ITAK_TORCH_LIB env variable.
 // The lib should be the "short name" for the library, for example:
 // gguf, llama, mtmd
 func LoadLibrary(path, lib string) (ffi.Lib, error) {
-	if path == "" && os.Getenv("GOTORCH_LIB") != "" {
-		path = os.Getenv("GOTORCH_LIB")
+	if path == "" && os.Getenv("ITAK_TORCH_LIB") != "" {
+		path = os.Getenv("ITAK_TORCH_LIB")
 	}
 
 	// Ensure the library path is set
 	if path == "" {
-		return ffi.Lib{}, fmt.Errorf("library path not specified and GOTORCH_LIB env variable not set")
+		return ffi.Lib{}, fmt.Errorf("library path not specified and ITAK_TORCH_LIB env variable not set")
 	}
 
 	// Tell the OS to search our lib directory for dependent shared libraries.

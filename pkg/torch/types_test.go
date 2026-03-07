@@ -27,7 +27,7 @@ func TestChatRequestJSON(t *testing.T) {
 
 func TestChatResponseJSON(t *testing.T) {
 	resp := ChatResponse{
-		ID:      "gotorch-123",
+		ID:      "itaktorch-123",
 		Object:  "chat.completion",
 		Created: 1000,
 		Model:   "test-model",
@@ -54,8 +54,8 @@ func TestChatResponseJSON(t *testing.T) {
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("unmarshal roundtrip: %v", err)
 	}
-	if parsed.ID != "gotorch-123" {
-		t.Errorf("id = %q, want %q", parsed.ID, "gotorch-123")
+	if parsed.ID != "itaktorch-123" {
+		t.Errorf("id = %q, want %q", parsed.ID, "itaktorch-123")
 	}
 	if len(parsed.Choices) != 1 {
 		t.Fatalf("choices len = %d, want 1", len(parsed.Choices))
@@ -69,7 +69,7 @@ func TestChatResponseJSON(t *testing.T) {
 }
 
 func TestModelInfoJSON(t *testing.T) {
-	info := ModelInfo{ID: "qwen3-0.6b", Object: "model", OwnedBy: "gotorch"}
+	info := ModelInfo{ID: "qwen3-0.6b", Object: "model", OwnedBy: "itaktorch"}
 	data, err := json.Marshal(info)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)

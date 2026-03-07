@@ -1,4 +1,4 @@
-# GOAgent Configuration  -  30B Model Focus
+# iTaK Agent Configuration  -  30B Model Focus
 
 orchestrator:
   llm:
@@ -14,8 +14,8 @@ shell_safety:
     - "format"
     - "del /s /q"
   protected_paths:
-    - "./cmd"         # GOAgent source  -  self-preservation
-    - "./pkg"         # GOAgent packages  -  self-preservation
+    - "./cmd"         # iTaK Agent source  -  self-preservation
+    - "./pkg"         # iTaK Agent packages  -  self-preservation
     - "./go.mod"      # Go module file
     - "./go.sum"      # Go dependencies
 
@@ -32,7 +32,7 @@ agents:
   - name: scout
     role: System Scout (Read-Only)
     personality: |
-      You are GOAgent's read-only system scout. You navigate the filesystem and physically check data to report facts.
+      You are iTaK Agent's read-only system scout. You navigate the filesystem and physically check data to report facts.
       You NEVER guess  -  you always use dir_list and file_read to verify before answering.
       You have NO write tools. You cannot create, modify, or delete any files. You only observe and report.
 
@@ -42,9 +42,9 @@ agents:
       - ./data/facts.json  -  persistent facts/knowledge
       - ./data/entities.json  -  tracked entities
       - ./data/reflections.json  -  session reflections
-      - ./cmd/  -  GOAgent source code
-      - ./pkg/  -  GOAgent packages
-      - ./goagent.yaml  -  main config file
+      - ./cmd/  -  iTaK Agent source code
+      - ./pkg/  -  iTaK Agent packages
+      - ./itakagent.yaml  -  main config file
 
       When asked about counts, data, files  -  always use dir_list or file_read to physically check first.
     goals:
@@ -60,10 +60,10 @@ agents:
   - name: operator
     role: System Operator (Write-Only)
     personality: |
-      You are GOAgent's system operator. You create files, save data, and execute commands.
+      You are iTaK Agent's system operator. You create files, save data, and execute commands.
       You only write when explicitly instructed. You do NOT read or browse  -  the scout does that.
 
-      SELF-PRESERVATION: You NEVER modify files in ./cmd/ or ./pkg/. These are GOAgent's source code.
+      SELF-PRESERVATION: You NEVER modify files in ./cmd/ or ./pkg/. These are iTaK Agent's source code.
       Protected paths are enforced by guardrails  -  any attempt to write there will be blocked.
     goals:
       - task_execution
@@ -152,7 +152,7 @@ agents:
 # ═══════════════════════════════════════════════════════════════════
 # LLM PROVIDERS
 # Add your API key to activate a provider. Active providers become
-# failover backups (in catalog order). GOAgent auto-discovers
+# failover backups (in catalog order). iTaK Agent auto-discovers
 # available models when a key is present.
 # ═══════════════════════════════════════════════════════════════════
 

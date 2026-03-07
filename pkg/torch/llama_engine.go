@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/David2024patton/GOAgent/pkg/torch/llama"
-	"github.com/David2024patton/GOAgent/pkg/torch/tokenizer"
+	"github.com/David2024patton/iTaKAgent/pkg/torch/llama"
+	"github.com/David2024patton/iTaKAgent/pkg/torch/tokenizer"
 )
 
 // TorchEngine implements the Engine interface using the forked yzma/llama.cpp
@@ -71,10 +71,10 @@ func (e *TorchEngine) isEOG(token llama.Token) bool {
 
 // NewTorchEngine creates an engine that loads a GGUF model via llama.cpp.
 // libPath is the directory containing the llama.cpp shared libraries.
-// If empty, checks the GOTORCH_LIB environment variable.
+// If empty, checks the ITAK_TORCH_LIB environment variable.
 func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 	// Find the llama.cpp shared libraries.
-	libPath := os.Getenv("GOTORCH_LIB")
+	libPath := os.Getenv("ITAK_TORCH_LIB")
 	if libPath == "" {
 		// Smart lib selection based on --backend flag and GPU config.
 		// This prevents CUDA DLL contamination that causes 2.5x slowdown on CPU workloads.
@@ -91,26 +91,26 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 			// CPU-only mode: prefer CPU-only libs to avoid GPU overhead.
 			candidates = []string{
 				"./lib/" + platformDir,
-				"~/.gotorch/lib",
+				"~/.itaktorch/lib",
 				"./lib",
 			}
 		case backend == "cuda":
 			// Force CUDA backend.
 			candidates = []string{
 				"./lib/" + platformDir + "_cuda",
-				"~/.gotorch/lib",
+				"~/.itaktorch/lib",
 			}
 		case backend == "vulkan":
 			// Force Vulkan backend.
 			candidates = []string{
 				"./lib/" + platformDir + "_vulkan",
-				"~/.gotorch/lib",
+				"~/.itaktorch/lib",
 			}
 		case backend == "metal":
 			// Force Metal backend (Apple Silicon).
 			candidates = []string{
 				"./lib/" + platformDir + "_metal",
-				"~/.gotorch/lib",
+				"~/.itaktorch/lib",
 			}
 		default:
 			// Auto mode: try Vulkan first (faster, smaller, cross-platform),
@@ -121,7 +121,7 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 				"./lib/" + platformDir + "_metal",
 				"./lib/" + platformDir + "_hip",
 				"./lib/" + platformDir + "_sycl",
-				"~/.gotorch/lib",
+				"~/.itaktorch/lib",
 				"./lib/" + platformDir,
 				"./lib",
 			}
@@ -139,10 +139,10 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 			}
 		}
 	}
-	fmt.Printf("[GOTorch] Using libs from: %s\n", libPath)
+	fmt.Printf("[iTaK Torch] Using libs from: %s\n", libPath)
 
 	if libPath == "" {
-		return nil, fmt.Errorf("llama.cpp libraries not found. Set GOTORCH_LIB env variable or run 'gotorch install'")
+		return nil, fmt.Errorf("llama.cpp libraries not found. Set ITAK_TORCH_LIB env variable or run 'itaktorch install'")
 	}
 
 	// Load the shared libraries.
@@ -165,7 +165,7 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 	// Initialize NUMA if configured.
 	if opts.NumaStrategy > 0 {
 		llama.NumaInit(llama.NumaStrategy(opts.NumaStrategy))
-		fmt.Printf("[GOTorch] NUMA strategy: %d\n", opts.NumaStrategy)
+		fmt.Printf("[iTaK Torch] NUMA strategy: %d\n", opts.NumaStrategy)
 	}
 
 	// Apply smart defaults.
@@ -226,15 +226,15 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 	case "q8_0", "q8":
 		ctxParams.TypeK = llama.GGMLTypeQ8_0
 		ctxParams.TypeV = llama.GGMLTypeQ8_0
-		fmt.Println("[GOTorch] KV cache: q8_0 (50% VRAM reduction)")
+		fmt.Println("[iTaK Torch] KV cache: q8_0 (50% VRAM reduction)")
 	case "q4_0", "q4":
 		ctxParams.TypeK = llama.GGMLTypeQ4_0
 		ctxParams.TypeV = llama.GGMLTypeQ4_0
-		fmt.Println("[GOTorch] KV cache: q4_0 (75% VRAM reduction)")
+		fmt.Println("[iTaK Torch] KV cache: q4_0 (75% VRAM reduction)")
 	case "f16", "":
 		// Default: f16, no change needed.
 	default:
-		fmt.Printf("[GOTorch] Warning: unknown kv-cache-type %q, using f16\n", opts.KVCacheType)
+		fmt.Printf("[iTaK Torch] Warning: unknown kv-cache-type %q, using f16\n", opts.KVCacheType)
 	}
 
 	// Phase 5: KV cache defragmentation threshold.
@@ -288,41 +288,41 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 	engine.Stats.PreLoadRes = preLoad
 	engine.Stats.PostLoadRes = postLoad
 
-	fmt.Printf("[GOTorch] Model loaded in %s\n", loadDuration.Round(time.Millisecond))
-	fmt.Printf("[GOTorch] %s\n", preLoad.String())
-	fmt.Printf("[GOTorch] %s\n", postLoad.String())
+	fmt.Printf("[iTaK Torch] Model loaded in %s\n", loadDuration.Round(time.Millisecond))
+	fmt.Printf("[iTaK Torch] %s\n", preLoad.String())
+	fmt.Printf("[iTaK Torch] %s\n", postLoad.String())
 
 	// Print system capabilities.
 	sysInfo := llama.PrintSystemInfo()
 	if sysInfo != "" {
-		fmt.Printf("[GOTorch] System: %s\n", sysInfo)
+		fmt.Printf("[iTaK Torch] System: %s\n", sysInfo)
 	}
-	fmt.Printf("[GOTorch] Optimizations: mmap=%v mlock=%v gpu_offload=%v flash_attn=%v threads=%d batch=%d\n",
+	fmt.Printf("[iTaK Torch] Optimizations: mmap=%v mlock=%v gpu_offload=%v flash_attn=%v threads=%d batch=%d\n",
 		llama.SupportsMmap(), opts.UseMlock, llama.SupportsGpuOffload(),
 		opts.FlashAttention, opts.Threads, opts.BatchSize)
 
 	// Warmup: triggers GPU kernel JIT compilation for common tensor shapes,
 	// reducing latency on first real request.
 	if err := llama.Warmup(ctx, model); err != nil {
-		fmt.Printf("[GOTorch] Warmup warning: %v\n", err)
+		fmt.Printf("[iTaK Torch] Warmup warning: %v\n", err)
 	} else {
-		fmt.Printf("[GOTorch] Model warmup complete\n")
+		fmt.Printf("[iTaK Torch] Model warmup complete\n")
 	}
 
 	// --- Phase 4A: Load Go-native tokenizer from GGUF metadata ---
 	goTok, tokErr := tokenizer.NewFromGGUF(modelPath)
 	if tokErr != nil {
-		fmt.Printf("[GOTorch] Go tokenizer unavailable (using FFI fallback): %v\n", tokErr)
+		fmt.Printf("[iTaK Torch] Go tokenizer unavailable (using FFI fallback): %v\n", tokErr)
 	} else {
 		engine.goTokenizer = goTok
 		engine.hasGoTokenizer = true
-		fmt.Printf("[GOTorch] Go-native tokenizer loaded: %d tokens, %d merges\n",
+		fmt.Printf("[iTaK Torch] Go-native tokenizer loaded: %d tokens, %d merges\n",
 			goTok.VocabSize, len(goTok.MergeRank))
 	}
 
 	// --- Speculative Decoding: Load draft model if configured ---
 	if opts.DraftModelPath != "" {
-		fmt.Printf("[GOTorch] Loading draft model: %s\n", opts.DraftModelPath)
+		fmt.Printf("[iTaK Torch] Loading draft model: %s\n", opts.DraftModelPath)
 
 		specTokens := opts.SpeculativeTokens
 		if specTokens == 0 {
@@ -339,7 +339,7 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 
 		draftModel, draftErr := llama.ModelLoadFromFile(opts.DraftModelPath, draftParams)
 		if draftErr != nil {
-			fmt.Printf("[GOTorch] Draft model load failed (continuing without speculative decoding): %v\n", draftErr)
+			fmt.Printf("[iTaK Torch] Draft model load failed (continuing without speculative decoding): %v\n", draftErr)
 		} else {
 			draftCtxParams := llama.ContextDefaultParams()
 			draftCtxParams.NCtx = uint32(opts.ContextSize)
@@ -352,7 +352,7 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 
 			draftCtx, draftCtxErr := llama.InitFromModel(draftModel, draftCtxParams)
 			if draftCtxErr != nil {
-				fmt.Printf("[GOTorch] Draft context init failed: %v\n", draftCtxErr)
+				fmt.Printf("[iTaK Torch] Draft context init failed: %v\n", draftCtxErr)
 				llama.ModelFree(draftModel)
 			} else {
 				draftVocab := llama.ModelGetVocab(draftModel)
@@ -367,10 +367,10 @@ func NewTorchEngine(modelPath string, opts EngineOpts) (*TorchEngine, error) {
 
 				// Warmup draft model.
 				if err := llama.Warmup(draftCtx, draftModel); err != nil {
-					fmt.Printf("[GOTorch] Draft warmup warning: %v\n", err)
+					fmt.Printf("[iTaK Torch] Draft warmup warning: %v\n", err)
 				}
 
-				fmt.Printf("[GOTorch] Speculative decoding enabled: draft=%s, speculative_tokens=%d\n",
+				fmt.Printf("[iTaK Torch] Speculative decoding enabled: draft=%s, speculative_tokens=%d\n",
 					opts.DraftModelPath, specTokens)
 			}
 		}
@@ -403,13 +403,13 @@ func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, para
 		// DEBUG: compare with FFI tokenization to catch encoding mismatches.
 		ffiTokens := llama.Tokenize(e.vocab, prompt, true, false)
 		if len(tokens) != len(ffiTokens) {
-			fmt.Printf("[GOTorch] TOKEN MISMATCH: Go=%d tokens, FFI=%d tokens\n", len(tokens), len(ffiTokens))
+			fmt.Printf("[iTaK Torch] TOKEN MISMATCH: Go=%d tokens, FFI=%d tokens\n", len(tokens), len(ffiTokens))
 		} else {
-			fmt.Printf("[GOTorch] Token count OK: %d tokens (Go == FFI)\n", len(tokens))
+			fmt.Printf("[iTaK Torch] Token count OK: %d tokens (Go == FFI)\n", len(tokens))
 		}
 	} else {
 		tokens = llama.Tokenize(e.vocab, prompt, true, false)
-		fmt.Printf("[GOTorch] FFI tokenized: %d tokens\n", len(tokens))
+		fmt.Printf("[iTaK Torch] FFI tokenized: %d tokens\n", len(tokens))
 	}
 
 	// Reset sampler state for this request.
@@ -444,7 +444,7 @@ func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, para
 		if e.opts.PrefixCacheSize > 0 {
 			if err := e.prefixCache.Save(e.ctx, prompt, tokens); err != nil {
 				// Non-fatal: log warning but continue.
-				fmt.Printf("[GOTorch] Prefix cache save warning: %v\n", err)
+				fmt.Printf("[iTaK Torch] Prefix cache save warning: %v\n", err)
 			}
 		}
 	}
@@ -579,7 +579,35 @@ func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, para
 		}
 
 		// Sample next token (reads GPU results, must be after Synchronize).
-		token := llama.SamplerSample(e.sampler, e.ctx, -1)
+		sampleStart := time.Now()
+
+		var token llama.Token
+		// ZERO-CGO SAMPLER:
+		// 1. Extract raw Logits via Shared Memory Pointer (No CGO Penalty)
+		nVocab := int(llama.VocabNTokens(e.vocab))
+		// -1 gets the logits for the last token in the batch
+		logits, err := llama.GetLogitsIth(e.ctx, -1, nVocab)
+
+		if err == nil && len(logits) > 0 {
+			// 2. Pure Go Sampling Math (Greedy / ArgMax for max performance)
+			var maxVal float32 = -1e9
+			var maxIdx int32 = 0
+			// Iterate the Go slice which points directly to the C++ memory array
+			for idx, val := range logits {
+				if val > maxVal {
+					maxVal = val
+					maxIdx = int32(idx)
+				}
+			}
+			token = llama.Token(maxIdx)
+			// Inform the C++ sampler of the accepted token to keep internal state (like penalties) synced
+			llama.SamplerAccept(e.sampler, token)
+		} else {
+			// Fallback to FFI Sampler if shared memory extraction fails
+			token = llama.SamplerSample(e.sampler, e.ctx, -1)
+		}
+
+		LogTrace("PureGo Sampler took %v", time.Since(sampleStart))
 
 		// Check for end of generation.
 		if e.isEOG(token) {
@@ -588,7 +616,9 @@ func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, para
 
 		// Convert token to text.
 		// Phase 4A: Go-native lookup (zero FFI, zero alloc via string interning).
+		textStart := time.Now()
 		piece := e.tokenToText(token)
+		LogTrace("TokenToText took %v", time.Since(textStart))
 		if len(piece) > 0 {
 			result.WriteString(piece)
 			completionTokens++
@@ -620,10 +650,12 @@ func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, para
 		// Prepare next batch with the sampled token and issue decode.
 		// Decode returns immediately on CUDA - GPU works asynchronously
 		// while we loop back to do CPU work (cancel check, etc).
+		decodeStart := time.Now()
 		batch = llama.BatchGetOne([]llama.Token{token})
 		if _, err := llama.Decode(e.ctx, batch); err != nil {
 			return result.String(), fmt.Errorf("decode token %d: %w", i, err)
 		}
+		LogTrace("Decode block took %v", time.Since(decodeStart))
 	}
 
 	genDuration := time.Since(genStart)

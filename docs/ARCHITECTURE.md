@@ -2,7 +2,7 @@
 
 ## Overview
 
-GOAgent follows an **orchestrator-delegate** pattern. The core idea: split the AI work into two distinct roles so each one stays simple enough for a 30B model to handle well.
+iTaK Agent follows an **orchestrator-delegate** pattern. The core idea: split the AI work into two distinct roles so each one stays simple enough for a 30B model to handle well.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -71,7 +71,7 @@ Most AI agent frameworks (LangGraph, CrewAI, AutoGen) give a single agent access
 - The model gets confused choosing between 15+ tools
 - Conversation history fills up fast
 
-### GOAgent's Solution
+### iTaK Agent's Solution
 
 | Design Rule | Why |
 |---|---|
@@ -154,4 +154,4 @@ Final Response to User
 | **Tool Registry** | `pkg/tool/registry.go` | Stores tools, generates LLM function-calling schemas |
 | **Config** | `pkg/config/config.go` | YAML parsing, env var expansion, validation |
 | **Debug Logger** | `pkg/debug/logger.go` | Structured logging with levels and colors |
-| **CLI** | `cmd/goagent/main.go` | Parses flags, initializes everything, runs REPL |
+| **CLI** | `cmd/itakagent/main.go` | Parses flags, initializes everything, runs REPL |

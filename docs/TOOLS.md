@@ -196,7 +196,7 @@ func (s *SearchTool) Execute(ctx context.Context, args map[string]interface{}) (
 
 ### Step 2: Register in the Catalog
 
-Edit `cmd/goagent/main.go` and add your tool to the catalog:
+Edit `cmd/itakagent/main.go` and add your tool to the catalog:
 
 ```go
 func buildToolCatalog() map[string]tool.Tool {
@@ -214,7 +214,7 @@ func buildToolCatalog() map[string]tool.Tool {
 
 ### Step 3: Assign to an Agent
 
-Update your `goagent.yaml`:
+Update your `itakagent.yaml`:
 
 ```yaml
 agents:
@@ -228,7 +228,7 @@ agents:
 ### Step 4: Rebuild
 
 ```bash
-go build -o goagent ./cmd/goagent/
+go build -o itakagent ./cmd/itakagent/
 ```
 
 The orchestrator will now see `web_search` in the researcher's tool list and can delegate search tasks to it.

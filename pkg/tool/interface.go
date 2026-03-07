@@ -2,7 +2,7 @@ package tool
 
 import "context"
 
-// Tool is the interface every GOAgent tool must implement.
+// Tool is the interface every iTaKAgent tool must implement.
 type Tool interface {
 	// Name returns the unique tool identifier.
 	Name() string
