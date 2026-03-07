@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/David2024patton/iTaKAgent/pkg/torch/llama"
 	"github.com/David2024patton/iTaKAgent/pkg/torch/tokenizer"
@@ -48,14 +49,19 @@ type TorchEngine struct {
 
 // tokenToText converts a token ID to its text representation.
 // Phase 4A: uses Go-native vocab lookup (zero FFI) when available.
+// Phase 7B: uses unsafe.String to eliminate per-token heap allocation.
+//
+//go:nosplit
 func (e *TorchEngine) tokenToText(token llama.Token) string {
 	if e.hasGoTokenizer {
 		return e.goTokenizer.DecodeToken(int32(token))
 	}
-	// FFI fallback.
+	// FFI fallback with zero-copy string (unsafe.String avoids heap alloc).
 	n := llama.TokenToPiece(e.vocab, token, e.tokenBuf, 0, true)
 	if n > 0 {
-		return string(e.tokenBuf[:n])
+		// unsafe.String: returns a string header pointing directly at tokenBuf memory.
+		// Safe here because tokenBuf is pre-allocated and lives for the engine's lifetime.
+		return unsafe.String(&e.tokenBuf[0], n)
 	}
 	return ""
 }
@@ -589,14 +595,17 @@ func (e *TorchEngine) Complete(ctx context.Context, messages []ChatMessage, para
 		logits, err := llama.GetLogitsIth(e.ctx, -1, nVocab)
 
 		if err == nil && len(logits) > 0 {
-			// 2. Pure Go Sampling Math (Greedy / ArgMax for max performance)
+			// 2. Phase 7B: Unsafe Pointer Arithmetic ArgMax
+			// Bypasses Go's per-element bounds checking on the ~151k vocab scan.
+			// Direct pointer math: ptr + i*sizeof(float32) for raw memory traversal.
 			var maxVal float32 = -1e9
 			var maxIdx int32 = 0
-			// Iterate the Go slice which points directly to the C++ memory array
-			for idx, val := range logits {
+			basePtr := unsafe.Pointer(&logits[0])
+			for j := 0; j < nVocab; j++ {
+				val := *(*float32)(unsafe.Add(basePtr, uintptr(j)*4))
 				if val > maxVal {
 					maxVal = val
-					maxIdx = int32(idx)
+					maxIdx = int32(j)
 				}
 			}
 			token = llama.Token(maxIdx)

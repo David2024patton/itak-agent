@@ -284,10 +284,27 @@ iTaK Torch wall-clock includes full request lifecycle; Ollama "native" uses `eva
 > [!NOTE]
 > Ollama's "native eval" (90.4 tok/s) excludes prompt processing time. The wall-clock comparison is more honest: **iTaK Torch ~52.5 tok/s vs Ollama ~73.7 tok/s (Ollama 40% faster on wall clock)**. Our Pure Go sampler trades some decode speed for zero-CGO overhead and GC-free operation. Phase 4 (Ring Buffer KV) and Phase 5 (WebGPU WGSL) are the next levers to close this gap.
 
+### Phase 7B: Unsafe Hot-Path Optimizations (March 7, 2026)
+
+Applied three `unsafe` package optimizations to the token generation hot path:
+1. **`unsafe.String`** in `tokenToText` -- eliminates per-token heap allocation by returning a string header pointing directly at the pre-allocated buffer memory.
+2. **Pointer arithmetic ArgMax** -- replaces `range logits` (Go bounds checking per element) with direct `unsafe.Add` pointer math on the ~151k vocab float32 array.
+3. **`//go:nosplit` pragma** -- prevents stack-split checks on the sampler function.
+
+**Windows Desktop (Beast) - CPU, 5 Runs**
+| Version | Avg tok/s | Individual Runs | Delta |
+| :--- | :--- | :--- | :--- |
+| **Phase 7 (before unsafe)** | **52.5** | 49.9, 52.2, 54.9, 52.0, 53.6 | Baseline |
+| **Phase 7B (with unsafe)** | **56.2** | 56.3, 54.0, 59.0, 58.2, 53.3 | **+7%** |
+
+> [!NOTE]
+> The 7% gain is real but modest because the true bottleneck is the C++ decode step (matrix multiplication, ~18ms/token) not the Go sampling overhead (~0.5ms/token). The unsafe optimizations squeezed the last juice out of the Go-side hot path. The next major leap requires attacking the decode itself (Vulkan/WebGPU compute shaders or async pipelining).
+
 > [!NOTE] 
 > **Testing Assets Location:** 
 > Benchmark scripts are organized in `scripts/benchmark/` with READMEs.
 > Models are stored in `models/` (gitignored) on both Beast and Skynet.
 > - Base H2H Script: `scripts/benchmark/bench_h2h.py`
+> - GPU H2H (3-way): `scripts/benchmark/bench_h2h_gpu.py`
 > - PowerShell Tracker: `scripts/benchmark/benchmark.ps1`
 > - Skynet TTFT: `scripts/benchmark/skynet_bench.py`
