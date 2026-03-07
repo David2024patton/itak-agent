@@ -269,8 +269,25 @@ Phase 7 eliminated the CGO bridge overhead on the critical token generation hot-
 > [!IMPORTANT]
 > The Beast improvement is dramatic (78% uncached) because the i9's 32 threads amplify the CGO elimination. Each of the 32 threads was previously hitting the C-Go bridge wall. On Skynet's 12-thread i7, the cached path still improved 7%, and uncached is within noise margin.
 
+### Phase 7: Head-to-Head vs Ollama (March 7, 2026)
+
+Direct CPU comparison using `qwen2.5-0.5b` model. Ollama forced to CPU via `num_gpu: 0` runtime option (default Ollama uses CUDA GPU).
+iTaK Torch wall-clock includes full request lifecycle; Ollama "native" uses `eval_count/eval_duration` from its `/api/chat` response.
+
+**Windows Desktop (Beast) - CPU, 5 Runs**
+| Engine | Avg tok/s | Individual Runs | Measurement |
+| :--- | :--- | :--- | :--- |
+| **iTaK Torch** | **52.5** | 49.9, 52.2, 54.9, 52.0, 53.6 | Wall clock |
+| **Ollama** | **90.4** | 93.7, 88.0, 89.3, 90.6, 89.7 | Native eval metric |
+| **Ollama** | **~73.7** | (incl. prompt processing overhead) | Wall clock |
+
+> [!NOTE]
+> Ollama's "native eval" (90.4 tok/s) excludes prompt processing time. The wall-clock comparison is more honest: **iTaK Torch ~52.5 tok/s vs Ollama ~73.7 tok/s (Ollama 40% faster on wall clock)**. Our Pure Go sampler trades some decode speed for zero-CGO overhead and GC-free operation. Phase 4 (Ring Buffer KV) and Phase 5 (WebGPU WGSL) are the next levers to close this gap.
+
 > [!NOTE] 
 > **Testing Assets Location:** 
-> To prevent redownloading models or rewriting scripts for future tests, the official benchmark assets are permanently stored in the `e:\.agent\iTaK Agent\` directory:
-> - Model: `e:\.agent\iTaK Agent\qwen2.5-0.5b-instruct-q4_k_m.gguf`
-> - Python TTFT Benchmark Script: `e:\.agent\iTaK Agent\skynet_bench.py` (Local testing script that fires 2 requests sequentially).
+> Benchmark scripts are organized in `scripts/benchmark/` with READMEs.
+> Models are stored in `models/` (gitignored) on both Beast and Skynet.
+> - Base H2H Script: `scripts/benchmark/bench_h2h.py`
+> - PowerShell Tracker: `scripts/benchmark/benchmark.ps1`
+> - Skynet TTFT: `scripts/benchmark/skynet_bench.py`
