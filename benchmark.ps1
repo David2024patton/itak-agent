@@ -60,7 +60,7 @@ function Send-InferenceRequest($Port, $MaxTokens, $Prompt) {
     } | ConvertTo-Json -Depth 5
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $resp = Invoke-RestMethod -Uri "http://localhost:$Port/v1/chat/completions" `
+    $resp = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/v1/chat/completions" `
         -Method POST -ContentType "application/json" -Body $body -TimeoutSec 60
     $sw.Stop()
 
@@ -126,7 +126,7 @@ Write-Host "[wait] Waiting for server on port $Port..." -ForegroundColor Yellow
 $ready = $false
 for ($i = 0; $i -lt 60; $i++) {
     try {
-        $health = Invoke-RestMethod -Uri "http://localhost:$Port/v1/models" -TimeoutSec 2 -ErrorAction SilentlyContinue
+        $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/v1/models" -TimeoutSec 2 -ErrorAction SilentlyContinue
         if ($health) { $ready = $true; break }
     }
     catch {}

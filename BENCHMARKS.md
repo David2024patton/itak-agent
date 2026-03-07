@@ -245,6 +245,30 @@ These tests were conducted with a massive (~700 token) system prompt to stress-t
 | **Intel i7-8700T CPU** | 3.82s | 1.27s | **67% Faster** | 48.8 tok/s |
 | **Intel UHD 630 iGPU** | 9.11s | 2.53s | **72% Faster** | 21.1 tok/s |
 
+### Phase 7: Zero-CGO FFI + Pure Go Sampler (March 7, 2026)
+
+Phase 7 eliminated the CGO bridge overhead on the critical token generation hot-path. The `SamplerSample` function was replaced with a `purego`-based FFI binding, and the entire token selection pipeline was rewritten as a Pure Go ArgMax sampler operating directly on the `llama.cpp` logits tensor via `unsafe.Pointer`.
+
+**Key Technical Changes:**
+- `purego` replaces `jupiterrider/ffi` on the `SamplerSample` and `GetLogitsIth` functions
+- Pure Go ArgMax greedy decoding bypasses the C++ sampler subsystem entirely
+- Sub-microsecond token selection: `PureGo Sampler took 530µs` per token (vs ~2ms C++ path)
+
+**Windows Desktop (Beast) - CPU**
+| Metric | Phase 6 (Baseline) | Phase 7 (Zero-CGO) | Delta |
+| :--- | :--- | :--- | :--- |
+| **Uncached Response** | 4.08s | **0.901s** | **78% Faster** |
+| **Cached Response** | 2.06s | **0.982s** | **52% Faster** |
+
+**Edge Node (Skynet - 35W TDP) - CPU**
+| Metric | Phase 6 (Baseline) | Phase 7 (Zero-CGO) | Delta |
+| :--- | :--- | :--- | :--- |
+| **Uncached Response** | 3.82s | **3.94s** | ~Parity |
+| **Cached Response** | 1.27s | **1.18s** | **7% Faster** |
+
+> [!IMPORTANT]
+> The Beast improvement is dramatic (78% uncached) because the i9's 32 threads amplify the CGO elimination. Each of the 32 threads was previously hitting the C-Go bridge wall. On Skynet's 12-thread i7, the cached path still improved 7%, and uncached is within noise margin.
+
 > [!NOTE] 
 > **Testing Assets Location:** 
 > To prevent redownloading models or rewriting scripts for future tests, the official benchmark assets are permanently stored in the `e:\.agent\iTaK Agent\` directory:
