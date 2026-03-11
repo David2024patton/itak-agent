@@ -121,8 +121,117 @@ func main() {
 		}
 	}
 	if configPath == "" {
-		fmt.Fprintln(os.Stderr, "Error: No config file found. Create itakagent.yaml or use --config=path")
-		os.Exit(1)
+		// Launch interactive setup wizard if no config is found
+		fmt.Println("🤖 Welcome to iTaK Agent! It looks like this is your first time.")
+		fmt.Println("Let's get you set up with a configuration file (itakagent.yaml).")
+		fmt.Println()
+
+		reader := bufio.NewReader(os.Stdin)
+
+		fmt.Println("Are you using a Local Model (Ollama) or a Cloud API (OpenAI/NVIDIA)?")
+		fmt.Println("1) Local Model (Ollama)")
+		fmt.Println("2) Cloud API (OpenAI or compatible)")
+		fmt.Print("Choice [1/2]: ")
+		choice, _ := reader.ReadString('\n')
+		choice = strings.TrimSpace(choice)
+
+		var apiBase, apiKey, model string
+
+		if choice == "1" {
+			apiBase = "http://localhost:11434/v1"
+			apiKey = "ollama"
+			fmt.Print("Enter your local model name (e.g., llama3, qwen2.5-coder): ")
+			model, _ = reader.ReadString('\n')
+			model = strings.TrimSpace(model)
+		} else {
+			fmt.Print("Enter the API Base URL (e.g., https://api.openai.com/v1): ")
+			apiBase, _ = reader.ReadString('\n')
+			apiBase = strings.TrimSpace(apiBase)
+
+			fmt.Print("Enter your API Key: ")
+			apiKey, _ = reader.ReadString('\n')
+			apiKey = strings.TrimSpace(apiKey)
+
+			fmt.Print("Enter the Model Name (e.g., gpt-4o): ")
+			model, _ = reader.ReadString('\n')
+			model = strings.TrimSpace(model)
+		}
+
+		// Generate the default YAML config
+		defaultConfig := fmt.Sprintf(`# iTaK Agent Configuration
+
+orchestrator:
+  llm:
+    api_base: "%s"
+    api_key: "%s"
+    model: "%s"
+  max_delegations: 5
+
+shell_safety:
+  denied_cmds:
+    - "format"
+    - "del /s /q"
+  protected_paths:
+    - "./cmd"
+    - "./pkg"
+    - "./go.mod"
+    - "./go.sum"
+
+memory:
+  window_size: 20
+  auto_reflect: true
+  auto_entities: true
+  session_workspace: true
+  neo4j:
+    enabled: false
+    uri: "bolt://localhost:7687"
+    username: "neo4j"
+    password: "password"
+
+data_dir: "./data"
+
+agents:
+  - name: "scout"
+    role: "System Scout (Read-Only)"
+    system_prompt: |
+      You are iTaK Agent's read-only system scout. You navigate the filesystem and physically check data to report facts.
+      You NEVER guess - you always use dir_list and file_read to verify before answering.
+      You have NO write tools. You cannot create, modify, or delete any files. You only observe and report.
+    llm:
+      api_base: "%s"
+      api_key: "%s"
+      model: "%s"
+    tools:
+      - "dir_list"
+      - "file_read"
+      - "memory_recall"
+      - "grep_search"
+
+  - name: "operator"
+    role: "System Operator (Write-Only)"
+    system_prompt: |
+      You are iTaK Agent's system operator. You create files, save data, and execute commands.
+      You only write when explicitly instructed.
+      SELF-PRESERVATION: You NEVER modify files in ./cmd/ or ./pkg/. These are iTaK Agent's source code.
+    llm:
+      api_base: "%s"
+      api_key: "%s"
+      model: "%s"
+    tools:
+      - "file_write"
+      - "shell"
+      - "memory_save"
+`, apiBase, apiKey, model, apiBase, apiKey, model, apiBase, apiKey, model)
+
+		err := os.WriteFile("itakagent.yaml", []byte(defaultConfig), 0644)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Println("✅ Success! Created itakagent.yaml. Starting agent...")
+		fmt.Println(strings.Repeat("-", 50))
+		configPath = "itakagent.yaml"
 	}
 
 	cfg, err := config.Load(configPath)
