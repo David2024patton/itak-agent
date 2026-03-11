@@ -13,6 +13,21 @@
 
 </div>
 
+> [!IMPORTANT]
+> iTaK Agent introduces an embedded vanilla HTML dashboard, native Neo4j Graph Memory integration, and full OpenFang UI theming out of the box.
+
+---
+
+## 📑 Table of Contents
+- [🖥 Dashboard UI](#-dashboard-ui)
+- [🤖 What Is iTaK Agent?](#-what-is-itak-agent)
+- [⚡ How It Works](#-how-it-works)
+- [🚀 Quick Start](#-quick-start)
+- [⚙️ Configuration Guide](#-configuration-guide)
+- [🧠 Hybrid Memory Architecture](#-hybrid-memory-architecture)
+- [🧩 Extension System (GOHub)](#-extension-system-gohub)
+- [🛠 Extending the Agent](#-extending-the-agent)
+
 ---
 
 ## 🖥 Dashboard UI
@@ -48,7 +63,7 @@ iTaK Agent features a beautiful, real-time dashboard served directly from the em
 
 ---
 
-## What Is iTaK Agent?
+## 🤖 What Is iTaK Agent?
 
 iTaK Agent is an AI agent framework built in **Go**. It's a different approach from Python-based frameworks like CrewAI, LangGraph, and AutoGen. Instead of needing expensive, massive models, iTaK Agent is designed to work with **smaller, efficient models** you can run locally.
 
@@ -70,7 +85,7 @@ The core idea: **keep the boss simple and the agents focused.**
 
 ---
 
-## How It Works
+## ⚡ How It Works
 
 <div align="center">
   <img src="assets/screenshots/itak_architecture_diagram.png" alt="iTaK Agent Architecture" width="800" />
@@ -86,7 +101,7 @@ The core idea: **keep the boss simple and the agents focused.**
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 ### What You Need
 
@@ -162,7 +177,7 @@ Tokyo
 
 ---
 
-## Configuration Guide
+## ⚙️ Configuration Guide
 
 The config file (`itakagent.yaml`) controls everything. Here's a full example:
 
@@ -351,7 +366,7 @@ Returns: matching lines with file paths and line numbers
 
 ---
 
-### `memory_save` / `memory_recall` - Persistent Memory
+### `memory_save` / `memory_recall` - 🧠 Persistent Memory
 
 Saves and recalls facts across sessions. Facts persist as JSON on disk.
 
@@ -362,7 +377,7 @@ Agent calls: memory_recall({ query: "user" })
 
 ---
 
-### `skill_list` / `skill_load` - Skill System
+### `skill_list` / `skill_load` - 🧩 Skill System
 
 Discovers and loads skill definitions from the skills directory.
 
@@ -531,7 +546,7 @@ iTaK Agent/
 
 ---
 
-## Adding a New Agent
+## 🛠 Extending the Agent
 
 Want to add a "Writer" agent? Just add it to your `itakagent.yaml`:
 
