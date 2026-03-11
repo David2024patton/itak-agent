@@ -3,6 +3,7 @@ package agent
 import (
 	"github.com/David2024patton/iTaKAgent/pkg/debug"
 	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
+	"github.com/David2024patton/iTaKAgent/pkg/guard"
 	"github.com/David2024patton/iTaKAgent/pkg/llm"
 	"github.com/David2024patton/iTaKAgent/pkg/memory"
 	"github.com/David2024patton/iTaKAgent/pkg/task"
@@ -22,6 +23,13 @@ type AgentConfig struct {
 	ToolNames   []string `yaml:"tools" json:"tools,omitempty"`
 	MaxSkills   int      `yaml:"max_skills" json:"max_skills"` // default 7
 	MaxLoops    int      `yaml:"max_loops" json:"max_loops"`   // default 10
+
+	// Autonomy: how independently this agent operates (0=supervised, 4=autopilot).
+	Autonomy AutonomyLevel `yaml:"autonomy" json:"autonomy"`
+
+	// ContextBudget: max chars of context to send to LLM (0 = unlimited).
+	// When set, GOSqueeze compresses tool outputs and conversation history.
+	ContextBudget int `yaml:"context_budget" json:"context_budget"`
 
 	// LLM config: each agent can use a different model.
 	LLM llm.ProviderConfig `yaml:"llm" json:"llm"`
@@ -66,31 +74,37 @@ type OrchestratorConfig struct {
 	SystemPrompt   string             `yaml:"system_prompt" json:"system_prompt,omitempty"`
 	MaxDelegations int                `yaml:"max_delegations" json:"max_delegations"`
 	Memory         MemoryConfig
+	Autonomy       AutonomyLevel `yaml:"autonomy" json:"autonomy"` // global default autonomy
 }
 
 // Orchestrator coordinates focused agents without using tools itself.
 type Orchestrator struct {
-	Config    OrchestratorConfig
-	LLMClient llm.Client
-	Agents    map[string]*FocusedAgent
-	Memory    *memory.Manager
-	Trace     *debug.StepLogger
-	Tokens    *llm.TokenTracker
-	Bus       *eventbus.EventBus
-	Tasks     *task.Tracker
-	StatusFunc func(string) // callback to display status to user
+	Config     OrchestratorConfig
+	LLMClient  llm.Client
+	Agents     map[string]*FocusedAgent
+	Registry   *AgentRegistry // capability-based agent lookup
+	Memory     *memory.Manager
+	Trace      *debug.StepLogger
+	Tokens     *llm.TokenTracker
+	Bus        *eventbus.EventBus
+	Tasks      *task.Tracker
+	Guard      *guard.InputGuard // prompt injection defense
+	Doctor     *Doctor           // reference for escalation chain
+	StatusFunc func(string)      // callback to display status to user
 }
 
 // FocusedAgent executes tasks using tools and skills.
 type FocusedAgent struct {
-	Config    AgentConfig
-	LLMClient llm.Client
-	Tools     *tool.Registry
-	Memory    *memory.Manager
-	Trace     *debug.StepLogger
-	Tokens    *llm.TokenTracker
-	Bus       *eventbus.EventBus
-	SessionID string
+	Config     AgentConfig
+	LLMClient  llm.Client
+	Tools      *tool.Registry
+	Guardrails *tool.GuardrailChain
+	Memory     *memory.Manager
+	Trace      *debug.StepLogger
+	Tokens     *llm.TokenTracker
+	Bus        *eventbus.EventBus
+	Guard      *guard.InputGuard // prompt injection defense
+	SessionID  string
 }
 
 

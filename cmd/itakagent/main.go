@@ -13,10 +13,13 @@ import (
 	"time"
 
 	"github.com/David2024patton/iTaKAgent/pkg/agent"
+	"github.com/David2024patton/iTaKAgent/pkg/api"
 	"github.com/David2024patton/iTaKAgent/pkg/config"
 	"github.com/David2024patton/iTaKAgent/pkg/debug"
 	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
+	"github.com/David2024patton/iTaKAgent/pkg/guard"
 	"github.com/David2024patton/iTaKAgent/pkg/llm"
+	"github.com/David2024patton/iTaKAgent/pkg/mcp"
 	"github.com/David2024patton/iTaKAgent/pkg/memory"
 	"github.com/David2024patton/iTaKAgent/pkg/skill"
 	"github.com/David2024patton/iTaKAgent/pkg/tool"
@@ -69,6 +72,11 @@ func main() {
 		command = filtered[0]
 	}
 
+	// ITAK_DEBUG=1 environment variable support (Phase 9 Observability Standard).
+	if os.Getenv("ITAK_DEBUG") == "1" {
+		debugMode = true
+	}
+
 	// Set debug level.
 	if debugMode {
 		debug.SetLevel(debug.LevelDebug)
@@ -78,10 +86,19 @@ func main() {
 		debug.SetLevel(debug.LevelWarn)
 	}
 
+	serveMode := false
+	mcpServeMode := false
+
 	// Handle subcommands.
 	switch command {
 	case "run", "chat", "":
 		// Default: interactive REPL.
+	case "serve":
+		// API-only mode (no REPL).
+		serveMode = true
+	case "mcp-serve":
+		// MCP server mode: expose tools via stdio JSON-RPC.
+		mcpServeMode = true
 	case "version":
 		fmt.Printf("iTaKAgent v%s\n", version)
 		os.Exit(0)
@@ -126,7 +143,7 @@ func main() {
 	debug.Info("main", "Orchestrator model: %s @ %s", cfg.Orchestrator.LLM.Model, cfg.Orchestrator.LLM.APIBase)
 
 	// -- Initialize memory system --
-	mem, err := memory.NewManager(cfg.DataDir, cfg.Memory.WindowSize)
+	mem, err := memory.NewManager(cfg.DataDir, cfg.Memory.WindowSize, cfg.Memory.Neo4j.Enabled, cfg.Memory.Neo4j.URI, cfg.Memory.Neo4j.Username, cfg.Memory.Neo4j.Password)
 	if err != nil {
 		debug.Error("main", "Failed to initialize memory: %v", err)
 		fmt.Fprintf(os.Stderr, "Error: Failed to initialize memory: %v\n", err)
@@ -184,7 +201,7 @@ func main() {
 		}
 	}
 
-	allTools := buildToolCatalog(mem, cfg, workDir, skillRepo)
+	allTools := buildToolCatalog(mem, cfg, workDir, skillRepo, bus)
 
 	// Initialize browser data directory.
 	builtins.InitBrowserDataDir(cfg.DataDir)
@@ -279,6 +296,25 @@ func main() {
 		ui.AgentReady(ac.Name, ac.Role, len(ac.ToolNames))
 	}
 
+	// -- Build guardrail chain (rate limit + content filter + SSRF + script snapshot) --
+	guardrails := tool.NewGuardrailChain(
+		tool.NewRateLimitGuardrail(30, time.Minute),
+		tool.NewContentFilterGuardrail(),
+		tool.NewSSRFGuardrail(),
+		tool.NewScriptSnapshotGuardrail(),
+	)
+	for _, fa := range agents {
+		fa.Guardrails = guardrails
+	}
+	debug.Info("main", "Guardrail chain active: rate_limit, content_filter, ssrf, script_snapshot")
+
+	// -- Build InputGuard (prompt injection + DLP defense) --
+	inputGuard := guard.NewInputGuard()
+	for _, fa := range agents {
+		fa.Guard = inputGuard
+	}
+	debug.Info("main", "InputGuard active: prompt injection defense enabled")
+
 	// Create orchestrator with the failover/budget-wrapped client.
 	orchCfg := agent.OrchestratorConfig{
 		LLM:            cfg.Orchestrator.LLM,
@@ -291,6 +327,56 @@ func main() {
 	}
 	orch := agent.NewOrchestrator(orchCfg, agents, mem, trace, tokens, bus)
 	orch.LLMClient = orchClient // Override with failover/budget client.
+	orch.Guard = inputGuard      // Share the guard with orchestrator.
+	// orch.Doctor is wired after Doctor creation below.
+
+	// -- Initialize MCP clients from config --
+	var mcpManager *mcp.Manager
+	if len(cfg.MCP) > 0 {
+		mcpConfigs := make([]mcp.ServerConfig, 0, len(cfg.MCP))
+		for _, mc := range cfg.MCP {
+			enabled := mc.Enabled
+			// Default to enabled if not explicitly set.
+			if mc.Command != "" && !mc.Enabled {
+				enabled = true
+			}
+			mcpConfigs = append(mcpConfigs, mcp.ServerConfig{
+				Name:      mc.Name,
+				Transport: mc.Transport,
+				Command:   mc.Command,
+				Args:      mc.Args,
+				URL:       mc.URL,
+				Enabled:   enabled,
+			})
+		}
+		mcpCtx, mcpCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		var mcpErr error
+		mcpManager, mcpErr = mcp.NewManager(mcpCtx, mcpConfigs)
+		if mcpErr != nil {
+			debug.Warn("main", "MCP client initialization: %v", mcpErr)
+		}
+		mcpCancel()
+
+		// Inject MCP tools into all agent registries.
+		if mcpManager != nil {
+			for _, client := range mcpManager.Clients() {
+				mcpTools := mcp.WrapToolsForRegistry(client)
+				for _, fa := range agents {
+					for _, mt := range mcpTools {
+						if err := fa.Tools.Register(mt); err != nil {
+							debug.Debug("main", "MCP tool registration: %v", err)
+						}
+					}
+				}
+				debug.Info("main", "Injected %d tools from MCP server %q", len(mcpTools), client.Name)
+			}
+		}
+	}
+
+	// Register system prompts with the guard's DLP to prevent output leaks.
+	if cfg.Orchestrator.SystemPrompt != "" {
+		inputGuard.RegisterSystemPrompt(cfg.Orchestrator.SystemPrompt)
+	}
 
 	// Print styled startup banner.
 	skillCount := 0
@@ -313,6 +399,37 @@ func main() {
 		spinner.Start(status)
 	}
 
+	// -- Start REST API server --
+	apiPort := 42100 + (os.Getpid() % 900) // deterministic 5-digit port per process
+	apiServer := api.NewServer(orch, bus, apiPort)
+	if err := apiServer.Start(); err != nil {
+		debug.Warn("main", "REST API failed to start: %v", err)
+	}
+
+	// -- Start Doctor (self-healing monitor) --
+	doctor := agent.NewDoctor(bus, cfg.DataDir)
+
+	// Give the Doctor its own dedicated LLM if configured.
+	if cfg.Doctor.LLM.APIBase != "" && cfg.Doctor.LLM.Model != "" {
+		doctorLLM := llm.NewOpenAIClient(cfg.Doctor.LLM)
+		doctor.SetLLM(doctorLLM)
+		debug.Info("main", "Doctor has its own LLM: %s (%s)", cfg.Doctor.LLM.Model, cfg.Doctor.LLM.Provider)
+	} else if cfg.Orchestrator.LLM.Provider == "ollama" {
+		// Auto-configure: if using Ollama, give the Doctor the smallest available model.
+		doctorCfg := llm.ProviderConfig{
+			Provider: "ollama",
+			Model:    "qwen2.5:0.5b", // tiny model for diagnostics
+			APIBase:  cfg.Orchestrator.LLM.APIBase,
+		}
+		doctorLLM := llm.NewOpenAIClient(doctorCfg)
+		doctor.SetLLM(doctorLLM)
+		debug.Info("main", "Doctor auto-configured with %s (smallest Ollama model)", doctorCfg.Model)
+	}
+
+	doctor.Start()
+	orch.Doctor = doctor // Wire Doctor for escalation chain + halt/resume.
+	debug.Info("main", "Doctor agent started (health interval: 30m, fix memory: %d records)", doctor.FixCount())
+
 	// Publish system ready event.
 	bus.Publish(eventbus.Event{
 		Topic:   eventbus.TopicSystemReady,
@@ -322,6 +439,7 @@ func main() {
 			"agents":     len(agents),
 			"skills":     skillCount,
 			"ws_port":    wsPort,
+			"api_port":   apiPort,
 		},
 	})
 
@@ -329,12 +447,17 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Graceful shutdown: close browser, archive conversation, close trace, stop WS, print tokens.
+	// Graceful shutdown: close browser, archive conversation, close trace, stop WS, stop API, print tokens.
 	shutdown := func() {
 		spinner.Stop()
 		bus.Publish(eventbus.NewEvent(eventbus.TopicSystemShutdown, "iTaKAgent shutting down"))
 		builtins.CleanupBrowser() // Kill Chrome, save cookies.
 		archiveConversation(mem)
+		doctor.Stop()
+		apiServer.Stop()
+		if mcpManager != nil {
+			mcpManager.Close()
+		}
 		if wsServer != nil {
 			wsServer.Stop()
 		}
@@ -343,7 +466,7 @@ func main() {
 			trace.Close()
 		}
 		if tokens != nil {
-			debug.Info("main", tokens.Summary())
+			debug.Info("main", "%s", tokens.Summary())
 		}
 		ui.Goodbye()
 	}
@@ -357,6 +480,33 @@ func main() {
 		os.Exit(0)
 	}()
 
+	if mcpServeMode {
+		// MCP server mode: expose all tools via stdio JSON-RPC.
+		registry := tool.NewRegistry()
+		for _, t := range allTools {
+			_ = registry.Register(t)
+		}
+		mcpServer := mcp.NewServer("iTaKAgent", version, registry)
+		fmt.Fprintf(os.Stderr, "iTaKAgent MCP server v%s ready (%d tools)\n", version, len(allTools))
+		if err := mcpServer.Serve(ctx); err != nil {
+			debug.Error("main", "MCP server error: %v", err)
+		}
+		shutdown()
+		os.Exit(0)
+	}
+
+	if serveMode {
+		// API-only mode: block until signal.
+		debug.Info("main", "Running in API-only mode (serve). Use Ctrl+C to stop.")
+		fmt.Printf("\n  iTaKAgent v%s serving on:\n", version)
+		fmt.Printf("    REST API: http://localhost:%d\n", apiPort)
+		fmt.Printf("    WebSocket: ws://localhost:%d/ws\n", wsPort)
+		fmt.Printf("    Debug snapshot: http://localhost:%d/debug/snapshot\n", apiPort)
+		fmt.Println("\n  Press Ctrl+C to stop.")
+		select {} // block forever (signal handler exits)
+	}
+
+	// Interactive REPL mode.
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		ui.Prompt()
@@ -373,6 +523,41 @@ func main() {
 			break
 		}
 
+		// -- Direct Agent Chat: /agent <name> <message> --
+		// Routes directly to a focused agent, bypassing the orchestrator.
+		if strings.HasPrefix(input, "/agent ") {
+			parts := strings.SplitN(input[7:], " ", 2)
+			if len(parts) < 2 {
+				ui.Error("Usage: /agent <name> <message>")
+				continue
+			}
+			agentName := strings.TrimSpace(parts[0])
+			agentMsg := strings.TrimSpace(parts[1])
+
+			fa, ok := agents[agentName]
+			if !ok {
+				// List available agents.
+				names := make([]string, 0, len(agents))
+				for n := range agents {
+					names = append(names, n)
+				}
+				ui.Error(fmt.Sprintf("Unknown agent %q. Available: %s", agentName, strings.Join(names, ", ")))
+				continue
+			}
+
+			result := fa.Run(ctx, agent.TaskPayload{
+				Agent: agentName,
+				Task:  agentMsg,
+			})
+			spinner.Stop()
+			if result.Success {
+				ui.Response(result.Output)
+			} else {
+				ui.Error(fmt.Sprintf("Agent %q failed: %s", agentName, result.Error))
+			}
+			continue
+		}
+
 		response, err := orch.Run(ctx, input)
 		spinner.Stop()
 		if err != nil {
@@ -386,7 +571,7 @@ func main() {
 }
 
 // buildToolCatalog creates the complete set of available tools.
-func buildToolCatalog(mem *memory.Manager, cfg *config.Config, workDir string, skillRepo *skill.Repository) map[string]tool.Tool {
+func buildToolCatalog(mem *memory.Manager, cfg *config.Config, workDir string, skillRepo *skill.Repository, bus *eventbus.EventBus) map[string]tool.Tool {
 	tools := make(map[string]tool.Tool)
 
 	// Shell tool.
@@ -397,14 +582,17 @@ func buildToolCatalog(mem *memory.Manager, cfg *config.Config, workDir string, s
 	tools["shell"] = shellTool
 
 	// File tools.
-	tools["file_read"] = &builtins.FileReadTool{}
-	tools["file_write"] = &builtins.FileWriteTool{ProtectedPaths: cfg.ShellSafety.ProtectedPaths}
+	tools["file_read"] = &builtins.FileReadTool{EventBus: bus}
+	tools["file_write"] = &builtins.FileWriteTool{
+		ProtectedPaths: cfg.ShellSafety.ProtectedPaths,
+		EventBus:       bus,
+	}
 
 	// HTTP tool.
 	tools["http_fetch"] = &builtins.HTTPFetchTool{}
 
 	// Directory listing tool.
-	tools["dir_list"] = &builtins.DirListTool{}
+	tools["dir_list"] = &builtins.DirListTool{EventBus: bus}
 
 	// Memory tools.
 	tools["memory_save"] = &builtins.MemorySaveTool{Manager: mem}
@@ -430,6 +618,8 @@ func buildToolCatalog(mem *memory.Manager, cfg *config.Config, workDir string, s
 	tools["web_headed"] = &builtins.WebHeadedTool{}
 	tools["web_hover"] = &builtins.WebHoverTool{}
 	tools["web_double_click"] = &builtins.WebDoubleClickTool{}
+	tools["web_focus"] = &builtins.WebFocusTool{}
+	tools["web_keys"] = &builtins.WebKeysTool{}
 	tools["web_tab_new"] = &builtins.WebTabNewTool{}
 	tools["web_tab_switch"] = &builtins.WebTabSwitchTool{}
 	tools["web_tab_close"] = &builtins.WebTabCloseTool{}
@@ -438,6 +628,9 @@ func buildToolCatalog(mem *memory.Manager, cfg *config.Config, workDir string, s
 	// Skill tools.
 	tools["skill_list"] = &builtins.SkillListTool{Repo: skillRepo}
 	tools["skill_load"] = &builtins.SkillLoadTool{Repo: skillRepo}
+
+	// Code search tool.
+	tools["grep_search"] = &builtins.GrepSearchTool{}
 
 	debug.Info("main", "Tool catalog built: %d tools available", len(tools))
 	return tools
@@ -480,6 +673,7 @@ Usage: itakagent [command] [flags]
 
 Commands:
   run, chat    Start interactive REPL (default)
+  serve        Start API-only mode (no REPL, REST + WebSocket)
   version      Print version
   help         Show this help
 
@@ -490,10 +684,16 @@ Flags:
   --version      Print version and exit
   --help, -h     Show this help
 
+Environment:
+  ITAK_DEBUG=1   Enable debug logging (same as --debug)
+
 Examples:
   itakagent run
   itakagent run --debug
-  itakagent chat --config=configs/example.yaml
-  itakagent run --verbose
+  itakagent serve --config=configs/example.yaml
+  itakagent mcp-serve --config=configs/example.yaml
+  itakagent chat --verbose
+  /agent coder "write a unit test for main.go"
+  ITAK_DEBUG=1 itakagent run
 `, version)
 }

@@ -6,10 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
 )
 
 // FileReadTool reads file contents.
-type FileReadTool struct{}
+type FileReadTool struct {
+	EventBus *eventbus.EventBus
+}
 
 func (f *FileReadTool) Name() string { return "file_read" }
 
@@ -49,12 +53,25 @@ func (f *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 		return "", fmt.Errorf("read file: %w", err)
 	}
 
+	if f.EventBus != nil {
+		f.EventBus.Publish(eventbus.Event{
+			Topic: eventbus.TopicFileSystemActivity,
+			Tool:  f.Name(),
+			Data: map[string]interface{}{
+				"action": "read",
+				"path":   absPath,
+				"size":   int64(len(data)),
+			},
+		})
+	}
+
 	return string(data), nil
 }
 
 // FileWriteTool writes content to a file, creating directories as needed.
 type FileWriteTool struct {
 	ProtectedPaths []string // paths the agent is NOT allowed to write to (self-preservation)
+	EventBus       *eventbus.EventBus
 }
 
 func (f *FileWriteTool) Name() string { return "file_write" }
@@ -112,6 +129,18 @@ func (f *FileWriteTool) Execute(ctx context.Context, args map[string]interface{}
 
 	if err := os.WriteFile(absPath, []byte(content), 0644); err != nil {
 		return "", fmt.Errorf("write file: %w", err)
+	}
+
+	if f.EventBus != nil {
+		f.EventBus.Publish(eventbus.Event{
+			Topic: eventbus.TopicFileSystemActivity,
+			Tool:  f.Name(),
+			Data: map[string]interface{}{
+				"action": "write",
+				"path":   absPath,
+				"size":   int64(len(content)),
+			},
+		})
 	}
 
 	return fmt.Sprintf("Wrote %d bytes to %s", len(content), absPath), nil

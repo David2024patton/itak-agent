@@ -29,11 +29,23 @@ func focusedSystemPrompt(cfg AgentConfig) string {
 	sb.WriteString(`
 You are a FOCUSED AGENT in the iTaKAgent framework.
 You receive specific tasks from the Orchestrator and execute them using your tools.
+Do NOT use thinking tags. Do NOT output <think> tags. Respond directly.
 
 HOW TO WORK:
 1. Use your tools to gather the information or perform the action requested.
 2. After getting tool results, review what you found.
 3. STOP and write your final answer as plain text (NO tool calls).
+
+CALLING TOOLS:
+To call a tool, respond with a JSON object:
+{"tool": "tool_name", "arguments": {"param1": "value1"}}
+
+For multiple tools in one response:
+[{"tool": "tool_name", "arguments": {...}}, {"tool": "tool_name2", "arguments": {...}}]
+
+ENVIRONMENT:
+- The current working directory is "." (a single dot).
+- When asked about "the current directory", use path "." in your tool calls.
 
 RULES:
 - Stay focused on your assigned task. Do not go beyond scope.
@@ -73,6 +85,12 @@ func (a *FocusedAgent) Run(ctx context.Context, task TaskPayload) Result {
 	tag := a.Config.Name
 	sysPrompt := focusedSystemPrompt(a.Config)
 
+	// If the LLM doesn't support structured tools, embed tool info in the prompt.
+	if oai, ok := a.LLMClient.(*llm.OpenAIClient); ok && oai.NoToolsSupport() {
+		sysPrompt += toolDescriptionsForPrompt(a.Tools)
+		debug.Info(tag, "Model has no tool support - using text-based tool calling")
+	}
+
 	userMsg := fmt.Sprintf("TASK: %s", task.Task)
 	if task.Context != "" {
 		userMsg += fmt.Sprintf("\n\nCONTEXT:\n%s", task.Context)
@@ -88,13 +106,25 @@ func (a *FocusedAgent) Run(ctx context.Context, task TaskPayload) Result {
 
 	toolDefs := a.Tools.ToolDefs()
 
-	// ReAct loop: reason → act → observe → decide
+	// ReAct loop: reason -> act -> observe -> decide
 	for i := 0; i < a.Config.MaxLoops; i++ {
 		debug.Info(tag, "Loop %d/%d", i+1, a.Config.MaxLoops)
 
-		resp, err := a.LLMClient.Chat(ctx, messages, toolDefs)
+		// ── GOSqueeze: compress context before LLM call ──
+		// If a context budget is set, shrink the conversation to fit.
+		llmMessages := messages
+		if a.Config.ContextBudget > 0 {
+			llmMessages = CompressContext(messages, a.Config.ContextBudget)
+			if len(llmMessages) < len(messages) {
+				debug.Info(tag, "GOSqueeze: compressed %d -> %d messages (budget: %d)",
+					len(messages), len(llmMessages), a.Config.ContextBudget)
+			}
+		}
+
+		resp, err := a.LLMClient.Chat(ctx, llmMessages, toolDefs)
 		if err != nil {
 			debug.Error(tag, "LLM call failed on loop %d: %v", i+1, err)
+			a.emitError("llm_failure", fmt.Sprintf("LLM call failed on loop %d: %v", i+1, err))
 			return Result{
 				Agent:   a.Config.Name,
 				Success: false,
@@ -107,9 +137,32 @@ func (a *FocusedAgent) Run(ctx context.Context, task TaskPayload) Result {
 				resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens)
 		}
 
+		// Text-based tool call fallback for small local models.
+		// Many 1-4B models write tool calls as JSON in their text content
+		// instead of using the structured tool_calls API field.
+		if len(resp.ToolCalls) == 0 && resp.Content != "" {
+			// ── GOSqueeze: repair broken JSON before parsing ──
+			cleanedContent := resp.Content
+			if repaired, err := ValidateJSONResponse(resp.Content); err == nil {
+				if repaired != resp.Content {
+					debug.Info(tag, "GOSqueeze: repaired JSON response (%d -> %d chars)",
+						len(resp.Content), len(repaired))
+					cleanedContent = repaired
+				}
+			}
+
+			textCalls := parseTextToolCalls(cleanedContent, a.Tools.Names())
+			if len(textCalls) > 0 {
+				debug.Info(tag, "Extracted %d tool call(s) from text content (small model fallback)", len(textCalls))
+				resp.ToolCalls = textCalls
+				// Clear the content so we don't echo the raw JSON back.
+				resp.Content = ""
+			}
+		}
+
 		// If no tool calls, the agent is done.
 		if len(resp.ToolCalls) == 0 {
-			debug.Info(tag, "✓ Task complete (loop %d)", i+1)
+			debug.Info(tag, "Done (loop %d)", i+1)
 			debug.Debug(tag, "Result: %s", truncate(resp.Content, 300))
 			return Result{
 				Agent:   a.Config.Name,
@@ -141,6 +194,17 @@ func (a *FocusedAgent) Run(ctx context.Context, task TaskPayload) Result {
 
 			toolStart := time.Now()
 			toolResult := a.executeTool(ctx, tc)
+
+			// ── GOSqueeze: summarize tool output before adding to context ──
+			if a.Config.ContextBudget > 0 {
+				summarized := SummarizeToolOutput(toolResult, a.Config.ContextBudget/4)
+				if len(summarized) < len(toolResult) {
+					debug.Info(tag, "GOSqueeze: summarized tool output %d -> %d chars",
+						len(toolResult), len(summarized))
+					toolResult = summarized
+				}
+			}
+
 			debug.Debug(tag, "Tool result: %s", truncate(toolResult, 300))
 
 			// Trace + Bus: tool result.
@@ -163,11 +227,27 @@ func (a *FocusedAgent) Run(ctx context.Context, task TaskPayload) Result {
 	}
 
 	debug.Warn(tag, "Max loops (%d) reached without completion", a.Config.MaxLoops)
+	a.emitError("max_loops", fmt.Sprintf("max iterations (%d) reached without completion", a.Config.MaxLoops))
 	return Result{
 		Agent:   a.Config.Name,
 		Success: false,
 		Error:   fmt.Sprintf("max iterations (%d) reached without completion", a.Config.MaxLoops),
 	}
+}
+
+// emitError publishes an agent.error event to the bus for the Doctor to pick up.
+func (a *FocusedAgent) emitError(category, message string) {
+	if a.Bus == nil {
+		return
+	}
+	a.Bus.Publish(eventbus.Event{
+		Topic: eventbus.TopicAgentError,
+		Agent: a.Config.Name,
+		Message: message,
+		Data: map[string]interface{}{
+			"category": category,
+		},
+	})
 }
 
 // executeTool runs a single tool call and returns the result string.
@@ -177,6 +257,7 @@ func (a *FocusedAgent) executeTool(ctx context.Context, tc llm.ToolCall) string 
 	t, ok := a.Tools.Get(tc.Function.Name)
 	if !ok {
 		debug.Error(tag, "Unknown tool: %q", tc.Function.Name)
+		a.emitError("unknown_tool", fmt.Sprintf("unknown tool %q", tc.Function.Name))
 		return fmt.Sprintf("ERROR: unknown tool %q. Available tools: %s",
 			tc.Function.Name, strings.Join(a.Tools.Names(), ", "))
 	}
@@ -184,12 +265,15 @@ func (a *FocusedAgent) executeTool(ctx context.Context, tc llm.ToolCall) string 
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 		debug.Error(tag, "Invalid tool arguments for %q: %v", tc.Function.Name, err)
+		a.emitError("bad_tool_args", fmt.Sprintf("invalid arguments for %q: %v", tc.Function.Name, err))
 		return fmt.Sprintf("ERROR: invalid tool arguments for %q: %v. Expected JSON object.", tc.Function.Name, err)
 	}
 
-	result, err := t.Execute(ctx, args)
+	// Run through guardrail chain if present.
+	result, err := tool.SafeExecute(ctx, t, args, a.Guardrails)
 	if err != nil {
 		debug.Error(tag, "Tool %q execution failed: %v", tc.Function.Name, err)
+		a.emitError("tool_exec_failed", fmt.Sprintf("tool %q failed: %v", tc.Function.Name, err))
 		return fmt.Sprintf("ERROR: tool %q failed: %v", tc.Function.Name, err)
 	}
 
@@ -204,4 +288,59 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// SpawnWorker creates a lightweight worker agent that inherits the parent's
+// tools and LLM client but runs with tighter constraints (MaxLoops=3).
+// Workers are designed for atomic sub-tasks: "read this file", "run this command".
+//
+// Why: The 3-tier hierarchy (Boss > Manager > Worker) keeps each agent's
+// scope narrow. Managers orchestrate, workers execute. This improves
+// reliability with small models that struggle with complex multi-step tasks.
+//
+// How: The worker gets the same tools but a simplified prompt focused on
+// a single sub-task. It runs its own ReAct loop with MaxLoops=3 and returns
+// the result to the parent agent.
+func (a *FocusedAgent) SpawnWorker(ctx context.Context, workerName string, subTask string) Result {
+	debug.Info(a.Config.Name, "Spawning worker %q for: %s", workerName, truncate(subTask, 100))
+
+	workerCfg := AgentConfig{
+		Name:          fmt.Sprintf("%s/%s", a.Config.Name, workerName),
+		Personality:   "Focused worker. Execute the task precisely. No extra commentary.",
+		Role:          "worker",
+		ToolNames:     a.Config.ToolNames,
+		MaxLoops:      3, // workers are tight: 3 loops max
+		MaxSkills:     a.Config.MaxSkills,
+		Autonomy:      a.Config.Autonomy,
+		ContextBudget: a.Config.ContextBudget,
+		LLM:           a.Config.LLM,
+	}
+
+	worker := &FocusedAgent{
+		Config:     workerCfg,
+		LLMClient:  a.LLMClient,
+		Tools:      a.Tools,
+		Guardrails: a.Guardrails,
+		Memory:     a.Memory,
+		Trace:      a.Trace,
+		Tokens:     a.Tokens,
+		Bus:        a.Bus,
+		Guard:      a.Guard,
+		SessionID:  a.SessionID,
+	}
+
+	task := TaskPayload{
+		Agent: workerName,
+		Task:  subTask,
+	}
+
+	result := worker.Run(ctx, task)
+
+	if result.Success {
+		debug.Info(a.Config.Name, "Worker %q completed: %s", workerName, truncate(result.Output, 200))
+	} else {
+		debug.Warn(a.Config.Name, "Worker %q failed: %s", workerName, result.Error)
+	}
+
+	return result
 }

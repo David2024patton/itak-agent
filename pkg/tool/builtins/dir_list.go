@@ -6,10 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
 )
 
 // DirListTool lists files and subdirectories in a given path.
-type DirListTool struct{}
+type DirListTool struct {
+	EventBus *eventbus.EventBus
+}
 
 func (d *DirListTool) Name() string { return "dir_list" }
 
@@ -60,6 +64,17 @@ func (d *DirListTool) Execute(ctx context.Context, args map[string]interface{}) 
 			return fmt.Sprintf("Directory not found: %s (this directory does not exist)", absPath), nil
 		}
 		return "", fmt.Errorf("list directory: %w", err)
+	}
+
+	if d.EventBus != nil {
+		d.EventBus.Publish(eventbus.Event{
+			Topic: eventbus.TopicFileSystemActivity,
+			Tool:  d.Name(),
+			Data: map[string]interface{}{
+				"action": "list",
+				"path":   absPath,
+			},
+		})
 	}
 
 	return result.String(), nil

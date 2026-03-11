@@ -98,6 +98,20 @@ func (t *Tracker) Archive(id string) error {
 	return nil
 }
 
+// ActiveCount returns the number of currently active task lists.
+func (t *Tracker) ActiveCount() int {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return len(t.active)
+}
+
+// ArchivedCount returns the number of task lists in history.
+func (t *Tracker) ArchivedCount() int {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return len(t.history)
+}
+
 // History returns the most recent N completed task lists.
 func (t *Tracker) History(n int) []*List {
 	t.mu.RLock()

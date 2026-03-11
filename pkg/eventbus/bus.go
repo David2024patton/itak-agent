@@ -42,6 +42,9 @@ const (
 	// Debug / trace.
 	TopicDebugTrace = "debug.trace"
 
+	// File System observability.
+	TopicFileSystemActivity = "fs.activity"
+
 	// System-level.
 	TopicSystemStatus   = "system.status"
 	TopicSystemReady    = "system.ready"
@@ -58,6 +61,14 @@ type Event struct {
 	Data      map[string]interface{} `json:"data,omitempty"`
 	Message   string                 `json:"message,omitempty"`
 	Timestamp time.Time              `json:"ts"`
+}
+
+// FileSystemEvent provides structured details about file system operations.
+// These details are typically mapped into the Data field of an Event.
+type FileSystemEvent struct {
+	Action string `json:"action"` // "read", "write", "list", etc.
+	Path   string `json:"path"`
+	Size   int64  `json:"size,omitempty"`
 }
 
 // JSON returns the event serialized as a JSON byte slice.

@@ -2,7 +2,11 @@ package tool
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -130,6 +134,237 @@ func (cf *ContentFilterGuardrail) Check(ctx context.Context, toolName string, ar
 	}
 
 	return GuardrailResult{Passed: true}
+}
+
+// SSRFGuardrail blocks tool calls that target private-network addresses.
+// Checks URL-like arguments in http, web_search, and browser tools.
+// Mirrors OpenClaw v2026.3.8: "Browser/SSRF: block private-network
+// intermediate redirect hops in strict browser navigation flows."
+type SSRFGuardrail struct {
+	// TargetTools lists tool names whose args should be checked for URLs.
+	// If empty, defaults to http, web_search, browser.
+	TargetTools map[string]bool
+}
+
+// NewSSRFGuardrail creates an SSRF guardrail with default tool targets.
+func NewSSRFGuardrail() *SSRFGuardrail {
+	return &SSRFGuardrail{
+		TargetTools: map[string]bool{
+			"http":       true,
+			"web_search": true,
+			"browser":    true,
+			"http_get":   true,
+			"http_post":  true,
+			"fetch_url":  true,
+		},
+	}
+}
+
+func (sg *SSRFGuardrail) Check(ctx context.Context, toolName string, args map[string]interface{}) GuardrailResult {
+	if !sg.TargetTools[toolName] {
+		return GuardrailResult{Passed: true}
+	}
+	debug.Debug("ssrf", "Checking tool %q args for SSRF", toolName)
+
+	// Check all string args that look like URLs.
+	for key, val := range args {
+		s, ok := val.(string)
+		if !ok || s == "" {
+			continue
+		}
+
+		// Only check args that are likely URLs.
+		lower := strings.ToLower(key)
+		isURLArg := lower == "url" || lower == "href" || lower == "endpoint" ||
+			lower == "target" || lower == "address" ||
+			strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") ||
+			strings.HasPrefix(s, "ftp://") || strings.HasPrefix(s, "file://")
+
+		if !isURLArg {
+			continue
+		}
+
+		// Validate the scheme first.
+		if err := ValidateScheme(s); err != nil {
+			debug.Warn("ssrf", "BLOCKED: scheme violation on %s.%s = %q: %v", toolName, key, s, err)
+			return GuardrailResult{
+				Passed: false,
+				Action: GuardrailBlock,
+				Reason: fmt.Sprintf("SSRF: %s (tool: %s, arg: %s)", err, toolName, key),
+				Rule:   "ssrf_scheme",
+			}
+		}
+
+		// Check if the URL resolves to a private IP.
+		if err := ValidateURL(s); err != nil {
+			debug.Warn("ssrf", "BLOCKED: private IP on %s.%s = %q: %v", toolName, key, s, err)
+			return GuardrailResult{
+				Passed: false,
+				Action: GuardrailBlock,
+				Reason: fmt.Sprintf("SSRF: %s (tool: %s, arg: %s)", err, toolName, key),
+				Rule:   "ssrf_private_ip",
+			}
+		}
+	}
+
+	debug.Debug("ssrf", "Tool %q passed SSRF check", toolName)
+	return GuardrailResult{Passed: true}
+}
+
+// ScriptSnapshotGuardrail prevents TOCTOU attacks on script execution.
+// When a script file is approved for execution, its SHA-256 hash is recorded.
+// Before actual execution, the hash is re-checked. If the file was modified
+// between approval and execution, the call is blocked.
+// Mirrors OpenClaw v2026.3.8: "Security/system.run: bind approved script
+// operands to on-disk file snapshots so post-approval script rewrites are
+// denied before execution."
+type ScriptSnapshotGuardrail struct {
+	mu        sync.Mutex
+	snapshots map[string]string // file path -> SHA-256 hash at approval time
+}
+
+// NewScriptSnapshotGuardrail creates a script snapshot guardrail.
+func NewScriptSnapshotGuardrail() *ScriptSnapshotGuardrail {
+	return &ScriptSnapshotGuardrail{
+		snapshots: make(map[string]string),
+	}
+}
+
+// Approve records a snapshot of a script file that the user approved for execution.
+// Call this when the user explicitly approves running a specific script.
+func (ss *ScriptSnapshotGuardrail) Approve(filePath string) error {
+	hash, err := hashFile(filePath)
+	if err != nil {
+		return fmt.Errorf("snapshot: cannot hash %q: %w", filePath, err)
+	}
+
+	ss.mu.Lock()
+	ss.snapshots[filePath] = hash
+	ss.mu.Unlock()
+
+	debug.Info("snapshot", "Approved script snapshot: %s (sha256: %s)", filePath, hash[:16])
+	return nil
+}
+
+// Check verifies that any script file referenced in a shell tool call hasn't
+// been modified since it was approved.
+func (ss *ScriptSnapshotGuardrail) Check(ctx context.Context, toolName string, args map[string]interface{}) GuardrailResult {
+	if toolName != "shell" {
+		return GuardrailResult{Passed: true}
+	}
+
+	command, ok := args["command"].(string)
+	if !ok {
+		return GuardrailResult{Passed: true}
+	}
+
+	// Extract script operands from common script runners.
+	scriptPaths := extractScriptPaths(command)
+	if len(scriptPaths) == 0 {
+		return GuardrailResult{Passed: true}
+	}
+
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+
+	for _, path := range scriptPaths {
+		approvedHash, wasApproved := ss.snapshots[path]
+		if !wasApproved {
+			// Script was never explicitly approved -- allow (guardrail only
+			// protects approved scripts from post-approval modification).
+			continue
+		}
+
+		currentHash, err := hashFile(path)
+		if err != nil {
+			return GuardrailResult{
+				Passed: false,
+				Action: GuardrailBlock,
+				Reason: fmt.Sprintf("Script snapshot: cannot re-hash %q: %v", path, err),
+				Rule:   "script_snapshot",
+			}
+		}
+
+		if currentHash != approvedHash {
+			return GuardrailResult{
+				Passed: false,
+				Action: GuardrailBlock,
+				Reason: fmt.Sprintf("Script snapshot: %q was modified after approval (approved: %s, current: %s)",
+					path, approvedHash[:16], currentHash[:16]),
+				Rule: "script_snapshot_mismatch",
+			}
+		}
+	}
+
+	return GuardrailResult{Passed: true}
+}
+
+// hashFile computes the SHA-256 hash of a file's contents.
+func hashFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// extractScriptPaths pulls file path operands from common script-runner
+// command patterns: bash/sh/zsh, python, node, bun, deno run, powershell.
+func extractScriptPaths(command string) []string {
+	runners := []string{
+		"bash ", "sh ", "zsh ",
+		"python ", "python3 ",
+		"node ", "bun ", "bun run ",
+		"deno run ",
+		"powershell ", "pwsh ",
+	}
+
+	var paths []string
+	lower := strings.ToLower(command)
+
+	for _, runner := range runners {
+		idx := strings.Index(lower, runner)
+		if idx == -1 {
+			continue
+		}
+
+		// The file path is the token after the runner.
+		rest := strings.TrimSpace(command[idx+len(runner):])
+		parts := strings.Fields(rest)
+		if len(parts) == 0 {
+			continue
+		}
+
+		candidate := parts[0]
+		// Skip flags.
+		if strings.HasPrefix(candidate, "-") {
+			if len(parts) > 1 {
+				candidate = parts[1]
+			} else {
+				continue
+			}
+		}
+
+		// Only include if it looks like a file path (has an extension or /).
+		if strings.Contains(candidate, ".") || strings.Contains(candidate, "/") || strings.Contains(candidate, "\\") {
+			paths = append(paths, candidate)
+		}
+	}
+
+	return paths
+}
+
+// ─── IP helpers used by SSRFGuardrail ──────────────────────────────
+
+// isArgPrivateIP checks if a raw string is a private IP address.
+// Used as a fast-path check before DNS resolution.
+func isArgPrivateIP(s string) bool {
+	ip := net.ParseIP(s)
+	if ip == nil {
+		return false
+	}
+	return IsPrivateIP(ip)
 }
 
 // GuardrailChain runs multiple guardrails in sequence.

@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-goagent
+itakagent
 
 # Test
 *.test
@@ -23,7 +23,7 @@ Thumbs.db
 
 # Config with secrets
 .env
-goagent.local.yaml
+itakagent.local.yaml
 
 # Data
 data/

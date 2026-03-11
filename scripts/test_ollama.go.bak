@@ -1,0 +1,166 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"time"
+
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/llm"
+)
+
+func main() {
+	debug.SetLevel(debug.LevelDebug)
+
+	model := "gemma3:1b"
+	if len(os.Args) > 1 {
+		model = os.Args[1]
+	}
+
+	fmt.Printf("=== Testing Ollama model: %s ===\n\n", model)
+
+	client := llm.NewOpenAIClient(llm.ProviderConfig{
+		Provider: "ollama",
+		Model:    model,
+		APIBase:  "http://localhost:11434/v1",
+		APIKey:   "",
+	})
+
+	// Test 1: Simple chat (no tools)
+	fmt.Println("--- Test 1: Simple chat ---")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	resp, err := client.Chat(ctx, []llm.Message{
+		{Role: "system", Content: "You are a helpful assistant. Respond briefly."},
+		{Role: "user", Content: "What is 2+2?"},
+	}, nil)
+	cancel()
+
+	if err != nil {
+		fmt.Printf("ERROR: %v\n", err)
+	} else {
+		fmt.Printf("Response: %s\n", resp.Content)
+		fmt.Printf("Tool calls: %d\n", len(resp.ToolCalls))
+	}
+
+	// Test 2: Chat with tool definitions
+	fmt.Println("\n--- Test 2: Chat with tools ---")
+	tools := []llm.ToolDef{
+		{
+			Type: "function",
+			Function: llm.FunctionDef{
+				Name:        "shell",
+				Description: "Run a shell command and return the output",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"command": map[string]interface{}{
+							"type":        "string",
+							"description": "The command to execute",
+						},
+					},
+					"required": []string{"command"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: llm.FunctionDef{
+				Name:        "dir_list",
+				Description: "List files and directories at a given path",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"path": map[string]interface{}{
+							"type":        "string",
+							"description": "Directory path to list",
+						},
+					},
+					"required": []string{"path"},
+				},
+			},
+		},
+	}
+
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 60*time.Second)
+	resp2, err := client.Chat(ctx2, []llm.Message{
+		{Role: "system", Content: "You are a focused agent. Use tools to complete tasks. Call tools using JSON: {\"tool\": \"tool_name\", \"arguments\": {\"param\": \"value\"}}"},
+		{Role: "user", Content: "TASK: List the files in the current directory"},
+	}, tools)
+	cancel2()
+
+	if err != nil {
+		fmt.Printf("ERROR: %v\n", err)
+	} else {
+		fmt.Printf("Content: %s\n", resp2.Content)
+		fmt.Printf("Structured tool_calls: %d\n", len(resp2.ToolCalls))
+		if len(resp2.ToolCalls) > 0 {
+			for _, tc := range resp2.ToolCalls {
+				fmt.Printf("  -> %s(%s)\n", tc.Function.Name, tc.Function.Arguments)
+			}
+		} else {
+			fmt.Printf("(No structured tool_calls - checking if text contains JSON tool calls)\n")
+		}
+	}
+
+	// Test 3: Orchestrator-style delegation
+	fmt.Println("\n--- Test 3: Delegation format ---")
+	ctx3, cancel3 := context.WithTimeout(context.Background(), 60*time.Second)
+	resp3, err := client.Chat(ctx3, []llm.Message{
+		{Role: "system", Content: `You are an orchestrator. You have 2 agents: "scout" (reads files) and "coder" (writes code).
+Respond in JSON: {"reasoning": "your thinking", "delegations": [{"agent": "name", "task": "description"}]}`},
+		{Role: "user", Content: "List all files in the current directory"},
+	}, nil)
+	cancel3()
+
+	if err != nil {
+		fmt.Printf("ERROR: %v\n", err)
+	} else {
+		fmt.Printf("Raw response:\n%s\n", resp3.Content)
+
+		// Try to parse as delegation.
+		var deleg struct {
+			Reasoning   string `json:"reasoning"`
+			Delegations []struct {
+				Agent string `json:"agent"`
+				Task  string `json:"task"`
+			} `json:"delegations"`
+		}
+		cleaned := resp3.Content
+		// Try to extract JSON.
+		if idx := findJSONStart(cleaned); idx >= 0 {
+			cleaned = cleaned[idx:]
+			if end := findJSONEnd(cleaned); end >= 0 {
+				cleaned = cleaned[:end+1]
+			}
+		}
+		if err := json.Unmarshal([]byte(cleaned), &deleg); err != nil {
+			fmt.Printf("Failed to parse delegation JSON: %v\n", err)
+		} else {
+			fmt.Printf("Parsed delegation: reasoning=%q, delegations=%d\n", deleg.Reasoning[:min(len(deleg.Reasoning), 80)], len(deleg.Delegations))
+			for _, d := range deleg.Delegations {
+				fmt.Printf("  -> agent=%s, task=%s\n", d.Agent, d.Task)
+			}
+		}
+	}
+}
+
+func findJSONStart(s string) int {
+	for i, c := range s {
+		if c == '{' {
+			return i
+		}
+	}
+	return -1
+}
+
+func findJSONEnd(s string) int {
+	last := -1
+	for i, c := range s {
+		if c == '}' {
+			last = i
+		}
+	}
+	return last
+}

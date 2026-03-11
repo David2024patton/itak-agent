@@ -1,0 +1,76 @@
+# iTaK Agent - Local Ollama Test Config
+# Tests small models with text-based tool calling fallback
+
+orchestrator:
+  llm:
+    provider: ollama
+    model: qwen3:1.7b
+    api_base: http://localhost:11434/v1
+    api_key: ""
+  max_delegations: 3
+
+shell_safety:
+  denied_cmds:
+    - "format"
+    - "del /s /q"
+  protected_paths:
+    - "./cmd"
+    - "./pkg"
+    - "./go.mod"
+    - "./go.sum"
+
+memory:
+  window_size: 10
+  auto_reflect: false
+  auto_entities: false
+  session_workspace: false
+
+data_dir: ./data
+
+doctor:
+  enabled: true
+  llm:
+    provider: ollama
+    model: qwen2.5:0.5b
+    api_base: http://localhost:11434/v1
+    api_key: ""
+  health_interval: "30m"
+
+agents:
+  - name: scout
+    role: System Scout (Read-Only)
+    personality: |
+      You are a read-only filesystem scout. Use your tools to check files and directories.
+      Report what you find. Never guess.
+    goals:
+      - accuracy
+      - thoroughness
+    tools:
+      - file_read
+      - dir_list
+      - grep_search
+    max_loops: 4
+    llm:
+      provider: ollama
+      model: qwen3:1.7b
+      api_base: http://localhost:11434/v1
+      api_key: ""
+
+  - name: coder
+    role: Software Developer
+    personality: |
+      You are a pragmatic developer. Write clean code, run commands, and report results.
+    goals:
+      - correctness
+      - readability
+    tools:
+      - shell
+      - file_read
+      - file_write
+      - grep_search
+    max_loops: 4
+    llm:
+      provider: ollama
+      model: qwen3:1.7b
+      api_base: http://localhost:11434/v1
+      api_key: ""

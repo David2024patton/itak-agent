@@ -1,0 +1,32 @@
+[Unit]
+Description=iTaK Torch LLM Inference Server
+Documentation=https://github.com/David2024patton/iTaKAgent
+After=network.target
+
+[Service]
+Type=simple
+User=skynet
+WorkingDirectory=/home/skynet/iTaKAgent
+ExecStart=/home/skynet/iTaKAgent/itaktorch serve --models-dir /home/skynet/.itaktorch/models --max-models 2 --port 41950 --gpu-layers 0 --backend cpu
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=itaktorch
+
+# Resource governance
+LimitNOFILE=65536
+MemoryMax=2G
+
+# Health check watchdog: if no WATCHDOG=1 within WatchdogSec, systemd kills the service.
+# The companion health-watchdog.sh script handles the notification.
+WatchdogSec=120
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/skynet/.itaktorch
+
+[Install]
+WantedBy=multi-user.target

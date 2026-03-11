@@ -15,7 +15,7 @@ scripts/
 
 ## Usage
 
-All benchmark scripts are designed to be run from the **repo root** (`GOAgent/`).
+All benchmark scripts are designed to be run from the **repo root** (`iTaKAgent/`).
 Models should be present in `models/` (gitignored).
 
 ### Quick Start
@@ -27,7 +27,7 @@ python scripts/benchmark/bench_h2h.py --runs 5
 .\scripts\benchmark\benchmark.ps1 -Engine itaktorch -Mode cpu
 
 # Skynet remote TTFT test (run via SSH)
-ssh skynet@192.168.0.217 "cd ~/GOAgent && python3 scripts/benchmark/skynet_bench.py"
+ssh skynet@192.168.0.217 "cd ~/iTaKAgent && python3 scripts/benchmark/skynet_bench.py"
 ```
 
 ## Creating New Tests

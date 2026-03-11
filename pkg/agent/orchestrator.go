@@ -35,8 +35,9 @@ DELEGATION RULES (FOLLOW THESE FIRST):
 2. Delegate to "operator" when the user wants to: create files, save data, run commands, or make changes.
 3. Delegate to "browser" when the user wants to: visit a website, read a web page, take a screenshot, or extract data from a URL.
 4. Delegate to "researcher" for: general research, fetching raw URLs, gathering information.
-5. Delegate to "coder" for: writing code, debugging, running programs.
-6. You can chain delegations  -  e.g. scout checks data, then operator acts on it.
+5. Delegate to "architect" for: requests to build a new project from scratch, design a new system, create an app, or architect a large feature. The architect will interview the user before generating code.
+6. Delegate to "coder" for: writing code, refactoring existing files, debugging, running programs.
+7. You can chain delegations  -  e.g. scout checks data, then operator acts on it.
 
 ANSWER DIRECTLY (from the AVAILABLE AGENTS section below) when asked about:
 - "how many agents do you have"  -  count the agents listed below and name them
@@ -92,10 +93,23 @@ Be concise. Present the information naturally  -  don't mention agents or delega
 // NewOrchestrator creates an orchestrator with its LLM client and registered agents.
 func NewOrchestrator(cfg OrchestratorConfig, agents map[string]*FocusedAgent, mem *memory.Manager, trace *debug.StepLogger, tokens *llm.TokenTracker, bus *eventbus.EventBus) *Orchestrator {
 	client := llm.NewOpenAIClient(cfg.LLM)
+
+	// Build the agent registry from the provided agents map.
+	registry := NewRegistry()
+	for name, fa := range agents {
+		registry.Register(AgentEntry{
+			Name:        name,
+			Role:        fa.Config.Role,
+			Personality: fa.Config.Personality,
+			Tools:       fa.Config.ToolNames,
+		})
+	}
+
 	return &Orchestrator{
 		Config:    cfg,
 		LLMClient: client,
 		Agents:    agents,
+		Registry:  registry,
 		Memory:    mem,
 		Trace:     trace,
 		Tokens:    tokens,
@@ -111,6 +125,18 @@ func (o *Orchestrator) emit(e eventbus.Event) {
 	}
 }
 
+// emitError publishes a categorized agent.error event for the Doctor.
+func (o *Orchestrator) emitError(category, message string) {
+	o.emit(eventbus.Event{
+		Topic:   eventbus.TopicAgentError,
+		Agent:   "orchestrator",
+		Message: message,
+		Data: map[string]interface{}{
+			"category": category,
+		},
+	})
+}
+
 // Run processes a user message through the orchestrator pipeline:
 // 1. Reason about the request
 // 2. Delegate to focused agents
@@ -119,6 +145,27 @@ func (o *Orchestrator) emit(e eventbus.Event) {
 func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, error) {
 	debug.Info("orchestrator", "Processing: %s", truncate(userMessage, 80))
 	debug.Separator("orchestrator")
+
+	// ── Doctor Halt/Resume: check if the Doctor is actively healing ──
+	// If the Doctor is fixing something, wait for it to finish before delegating.
+	if o.Bus != nil && o.isDoctorActive() {
+		debug.Warn("orchestrator", "Doctor is active -- waiting for clear signal before delegating")
+		if !o.waitForDoctorClear(ctx, 30*time.Second) {
+			debug.Warn("orchestrator", "Doctor did not clear within timeout -- proceeding anyway")
+		}
+	}
+
+	// ── Prompt Injection Defense ──
+	// Scan user input BEFORE any processing.
+	if o.Guard != nil {
+		scan := o.Guard.ScanInput(userMessage, "user")
+		if scan.Blocked {
+			debug.Warn("orchestrator", "INPUT BLOCKED by guard (severity=%s reasons=%v)",
+				scan.Severity, scan.Reasons)
+			o.emitError("input_blocked", fmt.Sprintf("Guard blocked input: %v", scan.Reasons))
+			return "I can't process that request. It was flagged by the security system.", nil
+		}
+	}
 
 	// Trace + Bus: user message received.
 	if o.Trace != nil {
@@ -173,6 +220,7 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 	resp, err := o.LLMClient.Chat(ctx, messages, nil) // no tools for orchestrator
 	if err != nil {
 		debug.Error("orchestrator", "LLM call failed: %v", err)
+		o.emitError("orchestrator_llm_failure", fmt.Sprintf("Orchestrator LLM call failed: %v", err))
 		return "", fmt.Errorf("orchestrator LLM call: %w", err)
 	}
 
@@ -186,6 +234,7 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 	delegation, directResponse, err := parseDelegation(resp.Content)
 	if err != nil {
 		debug.Error("orchestrator", "Failed to parse delegation: %v", err)
+		o.emitError("delegation_parse_failure", fmt.Sprintf("Failed to parse delegation: %v", err))
 		return "", fmt.Errorf("parse delegation: %w", err)
 	}
 
@@ -238,6 +287,7 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 
 		if !ok {
 			debug.Error("orchestrator", "Unknown agent %q in delegation %d", dtask.Agent, i+1)
+			o.emitError("unknown_agent", fmt.Sprintf("unknown agent %q in delegation", dtask.Agent))
 			taskList.Fail(taskID, fmt.Sprintf("unknown agent: %s", dtask.Agent))
 			results = append(results, Result{
 				Agent:   dtask.Agent,
@@ -262,13 +312,37 @@ func (o *Orchestrator) Run(ctx context.Context, userMessage string) (string, err
 		o.emit(eventbus.AgentEvent(eventbus.TopicAgentStart, dtask.Agent, dtask.Task))
 
 		startTime := time.Now()
-		result := agent.Run(ctx, dtask)
+
+		// ── Escalation: wrap agent.Run() with escalation chain ──
+		// When autonomy > supervised, failed tasks get retried through
+		// the 7-step escalation chain before giving up.
+		var result Result
+		agentAutonomy := agent.Config.Autonomy
+		if agentAutonomy == 0 && o.Config.Autonomy > 0 {
+			agentAutonomy = o.Config.Autonomy // fall back to global default
+		}
+
+		if agentAutonomy > AutonomySupervised {
+			// Use escalation chain for non-supervised agents.
+			chain := NewEscalationChain(agent, o.Doctor, o.Bus)
+			escResult := chain.RunWithEscalation(ctx, dtask)
+			result = escResult.Result
+
+			if escResult.FinalStep > StepRetry {
+				debug.Info("orchestrator", "Escalation resolved at step %q after %d retries",
+					escResult.FinalStep, escResult.TotalRetries)
+			}
+		} else {
+			// Supervised mode: run directly without escalation.
+			result = agent.Run(ctx, dtask)
+		}
 
 		if result.Success {
 			debug.Info("orchestrator", "<- %q succeeded: %s", dtask.Agent, truncate(result.Output, 100))
 			taskList.Complete(taskID, truncate(result.Output, 200))
 		} else {
 			debug.Error("orchestrator", "<- %q failed: %s", dtask.Agent, result.Error)
+			o.emitError("agent_task_failed", fmt.Sprintf("agent %q failed task: %s", dtask.Agent, result.Error))
 			taskList.Fail(taskID, result.Error)
 		}
 		results = append(results, result)
@@ -356,6 +430,12 @@ func (o *Orchestrator) status(msg string) {
 
 // buildAgentDescriptions generates the agent list for the system prompt.
 func (o *Orchestrator) buildAgentDescriptions() string {
+	// Prefer registry-based descriptions (includes capabilities).
+	if o.Registry != nil && o.Registry.Count() > 0 {
+		return o.Registry.Describe()
+	}
+
+	// Fallback to direct agent map (for backward compatibility).
 	var sb strings.Builder
 	for name, agent := range o.Agents {
 		sb.WriteString(fmt.Sprintf("- **%s** (role: %s): %s\n", name, agent.Config.Role, agent.Config.Personality))
@@ -451,6 +531,8 @@ func parseDelegation(raw string) (*Delegation, string, error) {
 
 // extractJSON finds the first valid JSON object in a string.
 func extractJSON(s string) string {
+	// Strip Qwen3-style thinking tags first.
+	s = stripThinkingTags(s)
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "```json")
 	s = strings.TrimPrefix(s, "```")
@@ -490,4 +572,36 @@ func parseFlexibleContext(raw json.RawMessage) string {
 	}
 
 	return string(raw)
+}
+
+// isDoctorActive checks if the Doctor is currently in a healing cycle.
+// Uses a simple heuristic: subscribe to doctor events and check recent state.
+func (o *Orchestrator) isDoctorActive() bool {
+	if o.Doctor == nil {
+		return false
+	}
+	o.Doctor.mu.RLock()
+	defer o.Doctor.mu.RUnlock()
+	return o.Doctor.healing
+}
+
+// waitForDoctorClear blocks until the Doctor emits a "clear" event or timeout.
+// Returns true if the Doctor cleared, false on timeout.
+func (o *Orchestrator) waitForDoctorClear(ctx context.Context, timeout time.Duration) bool {
+	if o.Bus == nil {
+		return true
+	}
+
+	subID, ch := o.Bus.Subscribe(1, TopicDoctorClear)
+	defer o.Bus.Unsubscribe(subID)
+
+	select {
+	case <-ch:
+		debug.Info("orchestrator", "Doctor cleared -- resuming delegation")
+		return true
+	case <-ctx.Done():
+		return false
+	case <-time.After(timeout):
+		return false
+	}
 }

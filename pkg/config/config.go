@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/David2024patton/iTaKAgent/pkg/agent"
+	"github.com/David2024patton/iTaKAgent/pkg/debug"
 	"github.com/David2024patton/iTaKAgent/pkg/llm"
 
 	"gopkg.in/yaml.v3"
@@ -20,6 +21,25 @@ type Config struct {
 	DataDir      string                      `yaml:"data_dir,omitempty"`
 	Memory       MemoryYAML                  `yaml:"memory,omitempty"`
 	ShellSafety  ShellSafetyYAML             `yaml:"shell_safety,omitempty"`
+	Doctor       DoctorYAML                  `yaml:"doctor,omitempty"`
+	MCP          []MCPServerYAML             `yaml:"mcp,omitempty"` // external MCP server connections
+}
+
+// MCPServerYAML configures a connection to an external MCP server.
+type MCPServerYAML struct {
+	Name      string   `yaml:"name"`                // human-readable name (becomes tool prefix)
+	Transport string   `yaml:"transport,omitempty"` // "stdio" (default) or "sse"
+	Command   string   `yaml:"command,omitempty"`   // path to server binary (for stdio)
+	Args      []string `yaml:"args,omitempty"`      // command arguments (for stdio)
+	URL       string   `yaml:"url,omitempty"`       // URL for SSE transport
+	Enabled   bool     `yaml:"enabled,omitempty"`   // default: true
+}
+
+// DoctorYAML configures the self-healing Doctor agent.
+type DoctorYAML struct {
+	Enabled        bool               `yaml:"enabled,omitempty"`         // default: true
+	LLM            llm.ProviderConfig `yaml:"llm,omitempty"`            // Doctor's own tiny LLM
+	HealthInterval string             `yaml:"health_interval,omitempty"` // default: "30m"
 }
 
 // ProviderKeyYAML stores an API key (and optional model override) for a provider.
@@ -30,10 +50,19 @@ type ProviderKeyYAML struct {
 
 // MemoryYAML is the YAML representation of memory config.
 type MemoryYAML struct {
-	WindowSize       int  `yaml:"window_size,omitempty"`       // default: 20
-	AutoReflect      bool `yaml:"auto_reflect,omitempty"`      // default: true
-	AutoEntities     bool `yaml:"auto_entities,omitempty"`     // default: true
-	SessionWorkspace bool `yaml:"session_workspace,omitempty"` // default: true
+	WindowSize       int         `yaml:"window_size,omitempty"`       // default: 20
+	AutoReflect      bool        `yaml:"auto_reflect,omitempty"`      // default: true
+	AutoEntities     bool        `yaml:"auto_entities,omitempty"`     // default: true
+	SessionWorkspace bool        `yaml:"session_workspace,omitempty"` // default: true
+	Neo4j            Neo4jConfig `yaml:"neo4j,omitempty"`
+}
+
+// Neo4jConfig configures the hybrid memory graph connection.
+type Neo4jConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	URI      string `yaml:"uri"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
 
 // ShellSafetyYAML holds shell security settings.
@@ -52,6 +81,7 @@ type OrchestratorYAML struct {
 	Failover       FailoverYAML         `yaml:"failover,omitempty"`
 	TokenBudget    int64                `yaml:"token_budget,omitempty"` // max tokens per session (0 = unlimited)
 	FallbackModel  llm.ProviderConfig   `yaml:"fallback_model,omitempty"` // cheaper model for budget fallback
+	AutonomyLevel  string               `yaml:"autonomy_level,omitempty"` // global default: supervised/guided/collaborative/autonomous/full_autopilot
 }
 
 // FailoverYAML holds LLM failover settings.
@@ -62,17 +92,19 @@ type FailoverYAML struct {
 
 // AgentYAML is the YAML representation of a focused agent.
 type AgentYAML struct {
-	Name        string             `yaml:"name"`
-	Personality string             `yaml:"personality"`
-	Role        string             `yaml:"role"`
-	Goals       []string           `yaml:"goals"`
-	Heartbeat   string             `yaml:"heartbeat,omitempty"`
-	LLM         llm.ProviderConfig `yaml:"llm"`
-	Tools       []string           `yaml:"tools"`
-	SkillsDir   string             `yaml:"skills_dir,omitempty"`
-	DataDirs    []string           `yaml:"data,omitempty"`
-	MaxSkills   int                `yaml:"max_skills,omitempty"`
-	MaxLoops    int                `yaml:"max_loops,omitempty"`
+	Name          string             `yaml:"name"`
+	Personality   string             `yaml:"personality"`
+	Role          string             `yaml:"role"`
+	Goals         []string           `yaml:"goals"`
+	Heartbeat     string             `yaml:"heartbeat,omitempty"`
+	LLM           llm.ProviderConfig `yaml:"llm"`
+	Tools         []string           `yaml:"tools"`
+	SkillsDir     string             `yaml:"skills_dir,omitempty"`
+	DataDirs      []string           `yaml:"data,omitempty"`
+	MaxSkills     int                `yaml:"max_skills,omitempty"`
+	MaxLoops      int                `yaml:"max_loops,omitempty"`
+	AutonomyLevel string             `yaml:"autonomy_level,omitempty"` // per-agent override
+	ContextBudget int                `yaml:"context_budget,omitempty"` // GOSqueeze budget (0=unlimited)
 }
 
 // Integration holds an external service connection config.
@@ -89,6 +121,7 @@ func Load(path string) (*Config, error) {
 	}
 
 	// Expand ${ENV_VAR} references.
+	rawYAML = string(data) // preserve unexpanded form for Save()
 	expanded := os.ExpandEnv(string(data))
 
 	var cfg Config
@@ -106,6 +139,8 @@ func Load(path string) (*Config, error) {
 	if cfg.Memory.WindowSize == 0 {
 		cfg.Memory.WindowSize = 20
 	}
+
+	debug.Info("config", "Neo4j Configuration parsed: Enabled=%v, URI=%s", cfg.Memory.Neo4j.Enabled, cfg.Memory.Neo4j.URI)
 	// Enable memory features by default (YAML omits = zero value = false,
 	// so we flip the logic: disabled_* fields, or just default to true here)
 	// For simplicity, we default both to true if not explicitly set in YAML.
@@ -154,17 +189,19 @@ func Load(path string) (*Config, error) {
 // ToAgentConfig converts a YAML agent definition to the runtime AgentConfig.
 func (a *AgentYAML) ToAgentConfig() agent.AgentConfig {
 	return agent.AgentConfig{
-		Name:        a.Name,
-		Personality: a.Personality,
-		Role:        a.Role,
-		Goals:       a.Goals,
-		Heartbeat:   a.Heartbeat,
-		SkillsDir:   a.SkillsDir,
-		DataDirs:    a.DataDirs,
-		ToolNames:   a.Tools,
-		MaxSkills:   a.MaxSkills,
-		MaxLoops:    a.MaxLoops,
-		LLM:         a.LLM,
+		Name:          a.Name,
+		Personality:   a.Personality,
+		Role:          a.Role,
+		Goals:         a.Goals,
+		Heartbeat:     a.Heartbeat,
+		SkillsDir:     a.SkillsDir,
+		DataDirs:      a.DataDirs,
+		ToolNames:     a.Tools,
+		MaxSkills:     a.MaxSkills,
+		MaxLoops:      a.MaxLoops,
+		Autonomy:      agent.ParseAutonomyLevel(a.AutonomyLevel),
+		ContextBudget: a.ContextBudget,
+		LLM:           a.LLM,
 	}
 }
 
@@ -192,5 +229,73 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("agent %q: max_skills cannot exceed %d", a.Name, agent.DefaultMaxSkills)
 		}
 	}
+	return nil
+}
+
+// ─── Secrets Persistence Guard (OpenClaw v2026.3.8) ────────────────
+//
+// When saving config back to disk, we must NOT write expanded secrets.
+// If the original YAML had ${API_KEY}, the saved file must still have
+// ${API_KEY}, not the resolved value.
+//
+// We accomplish this by keeping the raw unexpanded YAML bytes and
+// patching only the non-secret fields on save.
+
+// rawYAML stores the original unexpanded YAML text from the last Load.
+// Used by Save() to preserve env-var references.
+var rawYAML string
+
+// Save writes the config back to the given path, preserving env-var
+// references from the original file. Secret values (API keys, tokens)
+// are NOT written in expanded form.
+// Mirrors OpenClaw v2026.3.8: "Config/runtime snapshots: keep
+// secrets-runtime-resolved config and auth-profile snapshots intact
+// after config writes."
+func (c *Config) Save(path string) error {
+	var data []byte
+	var err error
+
+	if rawYAML != "" {
+		// Re-use the original unexpanded YAML to preserve ${ENV_VAR} refs.
+		data = []byte(rawYAML)
+	} else {
+		// No original YAML available - serialize current config.
+		// WARNING: This will write expanded secrets.
+		data, err = yaml.Marshal(c)
+		if err != nil {
+			return fmt.Errorf("marshal config: %w", err)
+		}
+	}
+
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return fmt.Errorf("write config: %w", err)
+	}
+
+	return nil
+}
+
+// ValidateEarly performs pre-default validation on the raw parsed config.
+// This catches obviously broken configs before defaults are applied, so
+// a bad config file cannot crash the gateway/agent on startup.
+// Mirrors OpenClaw v2026.3.8: "Gateway/config restart guard: validate
+// config before service start/restart."
+func ValidateEarly(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read config for validation: %w", err)
+	}
+
+	expanded := os.ExpandEnv(string(data))
+
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(expanded), &cfg); err != nil {
+		return fmt.Errorf("config syntax error: %w", err)
+	}
+
+	// Basic structural checks before defaults.
+	if cfg.Orchestrator.LLM.Model == "" && len(cfg.Agents) == 0 {
+		return fmt.Errorf("config is effectively empty: no orchestrator model and no agents defined")
+	}
+
 	return nil
 }

@@ -38,7 +38,7 @@ python scripts/benchmark/bench_h2h.py --itaktorch-port 8086 --ollama-port 11434 
 ### Skynet Remote
 ```bash
 # SSH into Skynet and run the TTFT benchmark
-ssh skynet@192.168.0.217 "cd ~/GOAgent && python3 scripts/benchmark/skynet_bench.py"
+ssh skynet@192.168.0.217 "cd ~/iTaKAgent && python3 scripts/benchmark/skynet_bench.py"
 ```
 
 ## Creating Variant Tests
@@ -58,5 +58,5 @@ Models are stored in `models/` at the repo root (gitignored). Currently used:
 
 Models must be present on both Beast and Skynet. Transfer via:
 ```bash
-scp models/qwen2.5-0.5b-instruct-q4_k_m.gguf skynet@192.168.0.217:~/GOAgent/models/
+scp models/qwen2.5-0.5b-instruct-q4_k_m.gguf skynet@192.168.0.217:~/iTaKAgent/models/
 ```

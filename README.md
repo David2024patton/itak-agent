@@ -8,7 +8,7 @@
 
   ![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white)
   ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-  ![Version](https://img.shields.io/badge/Version-0.1.0-blue?style=for-the-badge)
+  ![Version](https://img.shields.io/badge/Version-0.2.0-blue?style=for-the-badge)
   ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-lightgrey?style=for-the-badge)
 
 </div>
@@ -81,7 +81,7 @@ flowchart TD
     CW2 --> Doctor
     CW3 --> Doctor
 
-    subgraph Doctor["Doctor Agent (GOBeat)"]
+    subgraph Doctor["Doctor Agent (iTaK Beat)"]
         direction TB
         D1["Runs linter for the project language"]
         D2["Checks for errors"]
@@ -154,7 +154,9 @@ orchestrator:
 
 You'll see:
 ```
-iTaK Agent v0.1.0 - 2 agents ready. Type a message (Ctrl+C to quit).
+iTaK Agent v0.2.0 - 6 agents ready. Type a message (Ctrl+C to quit).
+  REST API: http://localhost:42100
+  WebSocket: ws://localhost:48900/ws
 
 >
 ```
@@ -346,6 +348,64 @@ Returns: "HTTP 200\n\n{...response body...}"
 
 ---
 
+### `dir_list` - List Directory Contents
+
+Lists files and directories with sizes and modification times.
+
+```
+Agent calls: dir_list({ path: "./src" })
+Returns: formatted listing of all files in the directory
+```
+
+---
+
+### `grep_search` - Search Files
+
+Searches for text patterns in files recursively. Supports regex, extension filtering, and case-insensitive search.
+
+```
+Agent calls: grep_search({ pattern: "func main", path: "./", extensions: "go" })
+Returns: matching lines with file paths and line numbers
+```
+
+---
+
+### `memory_save` / `memory_recall` - Persistent Memory
+
+Saves and recalls facts across sessions. Facts persist as JSON on disk.
+
+```
+Agent calls: memory_save({ key: "user_name", value: "David", category: "personal" })
+Agent calls: memory_recall({ query: "user" })
+```
+
+---
+
+### `skill_list` / `skill_load` - Skill System
+
+Discovers and loads skill definitions from the skills directory.
+
+---
+
+### Browser Tools (23 tools)
+
+Full browser automation suite: `web_navigate`, `web_click`, `web_type`, `web_scroll`, `web_back`, `web_eval`, `web_wait`, `web_screenshot`, `web_extract`, `web_pdf`, `web_search`, `web_close`, `web_snapshot`, `web_cookies`, `web_headed`, `web_hover`, `web_double_click`, `web_focus`, `web_keys`, `web_tab_new`, `web_tab_switch`, `web_tab_close`, `web_tab_list`.
+
+---
+
+## Security (Guardrails)
+
+All tool calls pass through a 4-layer guardrail chain:
+
+| Guardrail | What It Does |
+|---|---|
+| **Rate Limit** | Prevents runaway agents (30 calls/min per tool) |
+| **Content Filter** | Blocks dangerous patterns (`curl \| bash`, `rm -rf /`, etc.) |
+| **SSRF** | Blocks requests to private IPs and internal networks |
+| **Script Snapshot** | Captures script content before execution for audit |
+
+---
+
 ## Debug Mode
 
 iTaK Agent has three logging levels:
@@ -395,6 +455,30 @@ Shows **everything**: JSON payloads, token counts, HTTP timing, tool arguments, 
 14:33:25.544 DEBUG [orchestrator] Raw LLM response:
 {"reasoning":"...","delegations":[{"agent":"coder","task":"..."}]}
 ```
+
+### Debug HTTP Endpoints
+
+When `ITAK_DEBUG=1` is set, Agent also exposes HTTP debug endpoints for live readouts:
+
+```bash
+ITAK_DEBUG=1 ./itakagent run
+```
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/debug/snapshot` | GET | Full state dump: health + recent logs + events + config |
+| `/debug/logs?level=debug&last=100` | GET | Recent log ring buffer, filterable by level |
+| `/debug/events` | GET | Recent event bus history (task.created, tool.called, etc.) |
+| `/debug/health` | GET | Full health report (agent count, active tasks, uptime) |
+| `/debug/config` | GET | Runtime config (API keys redacted) |
+| `/debug/level` | GET/POST | View or change log level at runtime (`?level=debug`) |
+
+**Environment Variables:**
+
+| Variable | Values | Effect |
+|----------|--------|--------|
+| `ITAK_DEBUG` | `1`, `true` | Enables debug HTTP endpoints and DEBUG-level logging |
+| `ITAK_DEBUG_COLOR` | `false`, `0` | Disables ANSI colors (for log files) |
 
 ---
 
@@ -565,35 +649,71 @@ iTaK Agent is the core framework, but it's part of a bigger system:
 | Project | What It Does |
 |---|---|
 | **iTaK Agent** | Core agent framework. Boss + focused agents + tools. |
-| **GOGateway** | Standalone LLM gateway. Routes requests across 42+ providers with failover, rate limiting, and cost tracking. |
-| **GOForge** | Live preview server + container runtime. Builds and hosts projects in real time as agents write code. GitHub integration. |
-| **GODashboard** | Web-based dashboard. Chat, agent monitoring, task board, cost tracking. |
-| **GOBeat** | Self-healing monitor. Auto-detects errors, runs diagnostics, fixes problems, remembers what worked. |
-| **GOHub** | Extension marketplace. Browse, install, and share agent skills and tools. |
-| **GOBrowser** | Custom browser engine for agents. DOM extraction and web automation. |
-| **GOVision** | Screen automation. Takes screenshots, understands UI, clicks/types on your behalf. |
+| **iTaK Gateway** | Standalone LLM gateway. Routes requests across 42+ providers with failover, rate limiting, and cost tracking. |
+| **iTaK Forge** | Live preview server + container runtime. Builds and hosts projects in real time as agents write code. GitHub integration. |
+| **iTaK Dashboard** | Web-based dashboard. Chat, agent monitoring, task board, cost tracking. |
+| **iTaK Beat** | Self-healing monitor. Auto-detects errors, runs diagnostics, fixes problems, remembers what worked. |
+| **iTaK Hub** | Extension marketplace. Browse, install, and share agent skills and tools. |
+| **iTaK Browser** | Custom browser engine for agents. DOM extraction and web automation. |
+| **iTaK Vision** | Screen automation. Takes screenshots, understands UI, clicks/types on your behalf. |
 
 ---
 
 ## Roadmap
 
 - [x] Core orchestrator + focused agent pipeline
-- [x] Built-in tools (shell, file, HTTP)
-- [x] Structured debug logging
+- [x] Built-in tools (shell, file, HTTP, dir_list, grep_search)
+- [x] Structured debug logging with JSONL trace files
 - [x] Cross-platform shell support
 - [x] Per-agent LLM configuration
 - [x] Mandatory task system (every request gets a checklist)
 - [x] Single-call routing (one LLM call to pick the right agent)
-- [x] GOGateway with 42-provider catalog, failover, cost tracking
-- [ ] GOForge live preview server (Tier 1: process isolation)
+- [x] iTaK Gateway with 42-provider catalog, failover, cost tracking
+- [x] Memory system (session + persistent facts + entity tracking + reflections)
+- [x] Browser automation (23 web tools)
+- [x] WebSocket server for dashboard communication
+- [x] Event bus (pub/sub for inter-component events)
+- [x] Guardrail chain (rate limit, content filter, SSRF, script snapshot)
+- [x] REST API server (/health, /v1/chat, /v1/agents, /v1/status, /debug/snapshot)
+- [x] ITAK_DEBUG=1 observability standard
+- [x] Skill system with YAML frontmatter parsing
+- [x] Vulkan GPU compute (MatMul, Softmax, RoPE, SiLU, GELU, RMSNorm)
+- [x] GGUF and SafeTensors model file parsers
+- [x] `serve` subcommand for API-only mode
+- [ ] iTaK Forge live preview server (Tier 1: process isolation)
 - [ ] Local model marketplace with hardware auto-detect
 - [ ] Manager-worker hierarchy (agents delegate to sub-agents)
-- [ ] Memory system (session + persistent + knowledge graph)
-- [ ] GOHub extension marketplace
-- [ ] GOBeat self-healing
+- [ ] iTaK Hub extension marketplace
 - [ ] Communication plugins (Discord, Telegram, WhatsApp, Slack)
 - [ ] MCP client/server support
-- [ ] GOVision screen automation
+- [ ] iTaK Vision screen automation
+
+---
+
+## Core Integration
+
+> **Imports:** [`iTaK Core`](../Core/) | **Implements:** none (consumer only) | **Requires at runtime:** InferenceEngine, PrivacyProxy (via SafeClient)
+
+| Core Package | How Agent Uses It |
+|---|---|
+| `pkg/types` | ChatMessage, InferenceRequest/Response, TokenUsage for all LLM calls |
+| `pkg/contract` | Calls `InferenceEngine` (satisfied by Torch or Gateway). Uses **`SafeClient`** to force Shield on cloud calls |
+| `pkg/contract` | Calls `BrowserEngine` (satisfied by Browser) for web automation tasks |
+| `pkg/registry` | Registers itself at startup. Discovers Torch, Gateway, Browser, Shield endpoints |
+| `pkg/auth` | Validates incoming API keys. Signs outbound requests with HMAC-SHA256 |
+| `pkg/health` | Exposes `GET /health` with agent count, active tasks, uptime |
+| `pkg/event` | Emits `task.created`, `task.completed`, `task.failed`, `tool.called`, `tool.result` |
+
+**Module Dependencies:**
+
+| Module | Relationship | Required? |
+|---|---|---|
+| **Core** | Go import (compile time) | Yes |
+| **Torch** | InferenceEngine for local models | One of Torch or Gateway required |
+| **Gateway** | InferenceEngine for cloud models | One of Torch or Gateway required |
+| **Shield** | PrivacyProxy via SafeClient for cloud calls | Required when using Gateway |
+| **Browser** | BrowserEngine for web automation | Optional |
+| **Dashboard** | Subscribes to Agent events via EventBus | Optional |
 
 ---
 

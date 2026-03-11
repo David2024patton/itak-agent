@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/David2024patton/iTaKAgent/pkg/debug"
@@ -27,8 +28,9 @@ type ProviderConfig struct {
 
 // OpenAIClient implements Client for any OpenAI-compatible API.
 type OpenAIClient struct {
-	config     ProviderConfig
-	httpClient *http.Client
+	config          ProviderConfig
+	httpClient      *http.Client
+	noToolsSupport  bool // set when model returns "does not support tools"
 }
 
 // NewOpenAIClient creates a client for any OpenAI-compatible endpoint.
@@ -42,6 +44,13 @@ func NewOpenAIClient(cfg ProviderConfig) *OpenAIClient {
 			Timeout: 120 * time.Second,
 		},
 	}
+}
+
+// NoToolsSupport returns true if this model was detected as not supporting
+// structured tool definitions. Callers should include tool info in the system
+// prompt instead and rely on text-based tool call parsing.
+func (c *OpenAIClient) NoToolsSupport() bool {
+	return c.noToolsSupport
 }
 
 // chatRequest is the request body for /chat/completions.
@@ -70,7 +79,8 @@ func (c *OpenAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 		Model:    c.config.Model,
 		Messages: messages,
 	}
-	if len(tools) > 0 {
+	// Only send tools if the model supports them.
+	if len(tools) > 0 && !c.noToolsSupport {
 		reqBody.Tools = tools
 	}
 
@@ -110,6 +120,19 @@ func (c *OpenAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 
 	debug.Debug("llm", "Response: HTTP %d, %d bytes, %s elapsed", resp.StatusCode, len(respBytes), elapsed.Round(time.Millisecond))
 
+	// Detect "does not support tools" error and retry without tools.
+	if resp.StatusCode == http.StatusBadRequest && len(tools) > 0 && !c.noToolsSupport {
+		respStr := string(respBytes)
+		if strings.Contains(respStr, "does not support tools") ||
+			strings.Contains(respStr, "tool use is not supported") ||
+			strings.Contains(respStr, "tools is not supported") {
+			debug.Warn("llm", "Model %q does not support structured tools. Switching to text-based tool calling.", c.config.Model)
+			c.noToolsSupport = true
+			// Retry without tools.
+			return c.Chat(ctx, messages, tools)
+		}
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		debug.Error("llm", "API error (HTTP %d): %s", resp.StatusCode, truncateStr(string(respBytes), 500))
 		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBytes))
@@ -132,8 +155,13 @@ func (c *OpenAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	}
 
 	choice := chatResp.Choices[0]
+
+	// Strip thinking tags (Qwen3, DeepSeek-R1 wrap reasoning in <think>...</think>).
+	// Do this at the client level so every consumer gets clean content.
+	content := stripThinkTags(choice.Message.Content)
+
 	result := &Response{
-		Content:      choice.Message.Content,
+		Content:      content,
 		ToolCalls:    choice.Message.ToolCalls,
 		FinishReason: choice.FinishReason,
 		Usage:        chatResp.Usage,
@@ -201,4 +229,26 @@ func truncateStr(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// stripThinkTags removes <think>...</think> blocks from model output.
+// Qwen3 and DeepSeek-R1 wrap chain-of-thought reasoning in these tags.
+// Stripping them at the client level ensures no downstream consumer
+// accidentally parses thinking text as tool calls or delegation data.
+func stripThinkTags(content string) string {
+	result := content
+	for {
+		start := strings.Index(result, "<think>")
+		if start < 0 {
+			break
+		}
+		end := strings.Index(result, "</think>")
+		if end < 0 {
+			// Unclosed think tag: remove from <think> to end.
+			result = result[:start]
+			break
+		}
+		result = result[:start] + result[end+len("</think>"):]
+	}
+	return strings.TrimSpace(result)
 }

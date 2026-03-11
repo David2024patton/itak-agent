@@ -33,6 +33,12 @@ var levelColors = map[Level]string{
 	LevelDebug: "\033[38;5;208m",   // orange (256-color)
 }
 
+// componentColors overrides the level color for specific components.
+// This lets critical subsystems like the Doctor stand out visually.
+var componentColors = map[string]string{
+	"doctor": "\033[1;35m", // bold bright magenta -- unmistakable
+}
+
 const colorReset = "\033[0m"
 
 // Logger is the iTaKAgent structured logger.
@@ -90,7 +96,11 @@ func logMsg(level Level, component string, format string, args ...interface{}) {
 	levelStr := levelNames[level]
 
 	if global.useColor {
+		// Use component-specific color if one exists, else fall back to level color.
 		color := levelColors[level]
+		if cc, ok := componentColors[component]; ok {
+			color = cc
+		}
 		fmt.Fprintf(global.output, "%s%s %s [%s]%s %s\n",
 			color, timestamp, levelStr, component, colorReset, msg)
 	} else {
@@ -119,7 +129,7 @@ func Debug(component, format string, args ...interface{}) {
 
 // Separator prints a visual separator for debug readability.
 func Separator(component string) {
-	logMsg(LevelDebug, component, strings.Repeat("─", 60))
+	logMsg(LevelDebug, component, "%s", strings.Repeat("─", 60))
 }
 
 // JSON logs a JSON payload at DEBUG level, truncated for readability.

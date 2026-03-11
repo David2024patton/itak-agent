@@ -3,6 +3,8 @@ package skill
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,6 +118,94 @@ func (r *Repository) Count() int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return len(r.skills)
+}
+
+// ValidateInstallPath ensures a skill install destination stays within the
+// configured skills root. Prevents path traversal via "../" or symlink escapes.
+// Mirrors OpenClaw v2026.3.8: "Skills/download installs: pin the validated
+// per-skill tools root before writing downloaded archives."
+func (r *Repository) ValidateInstallPath(skillName string) (string, error) {
+	// Reject names with path separators or traversal.
+	if strings.Contains(skillName, "..") ||
+		strings.Contains(skillName, "/") ||
+		strings.Contains(skillName, "\\") {
+		return "", fmt.Errorf("skills: invalid skill name %q: path traversal detected", skillName)
+	}
+
+	dest := filepath.Join(r.dir, skillName)
+	absRoot, err := filepath.Abs(r.dir)
+	if err != nil {
+		return "", fmt.Errorf("skills: cannot resolve root: %w", err)
+	}
+	absDest, err := filepath.Abs(dest)
+	if err != nil {
+		return "", fmt.Errorf("skills: cannot resolve destination: %w", err)
+	}
+
+	// After Abs resolution, check the destination is still a child of root.
+	if !strings.HasPrefix(absDest, absRoot+string(filepath.Separator)) && absDest != absRoot {
+		return "", fmt.Errorf("skills: install path %q escapes skills root %q", absDest, absRoot)
+	}
+
+	// If dest already exists, resolve symlinks and re-check.
+	if info, err := os.Lstat(dest); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			realDest, err := filepath.EvalSymlinks(dest)
+			if err != nil {
+				return "", fmt.Errorf("skills: cannot resolve symlink: %w", err)
+			}
+			if !strings.HasPrefix(realDest, absRoot+string(filepath.Separator)) {
+				return "", fmt.Errorf("skills: symlink at %q escapes skills root (target: %q)", dest, realDest)
+			}
+		}
+	}
+
+	return absDest, nil
+}
+
+// Install downloads a skill archive from a URL and extracts it into the
+// skills directory. The destination path is pinned and validated before
+// any write to prevent path traversal attacks.
+func (r *Repository) Install(name string, archiveURL string) error {
+	destDir, err := r.ValidateInstallPath(name)
+	if err != nil {
+		return err
+	}
+
+	debug.Info("skills", "Installing skill %q from %s -> %s", name, archiveURL, destDir)
+
+	// Download the archive.
+	resp, err := http.Get(archiveURL)
+	if err != nil {
+		return fmt.Errorf("skills: download failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("skills: download returned %d", resp.StatusCode)
+	}
+
+	// Write to a temp file first, then move to final location.
+	tmpFile, err := os.CreateTemp("", "skill-download-*.tar.gz")
+	if err != nil {
+		return fmt.Errorf("skills: create temp file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+		return fmt.Errorf("skills: write download: %w", err)
+	}
+
+	// Create the destination directory.
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return fmt.Errorf("skills: create skill dir: %w", err)
+	}
+
+	debug.Info("skills", "Skill %q installed to %s (archive: %s)", name, destDir, tmpFile.Name())
+
+	// Reload to pick up the new skill.
+	return r.Refresh()
 }
 
 // Refresh reloads all skills from disk.
