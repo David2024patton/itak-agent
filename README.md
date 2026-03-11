@@ -274,7 +274,7 @@ agents:
 
 ---
 
-## Built-in Tools
+## 🧰 Built-in Tools
 
 Every focused agent gets tools from this list. The boss has **no tools**.
 
