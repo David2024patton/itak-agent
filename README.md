@@ -14,7 +14,7 @@
 </div>
 
 > [!IMPORTANT]
-> iTaK Agent introduces an embedded vanilla HTML dashboard, native Neo4j Graph Memory integration, and full OpenFang UI theming out of the box.
+> The **iTaK Agent** is a fully bundled AI ecosystem. While it features an orchestrator (**iTaK Core**), advanced graph memory (**iTaK Memory**), and robust security guardrails (**iTaK Shield**) neatly embedded into a single binary with a native HTML dashboard, **each of these sub-systems is built as an individual, reusable component**. This means you can use the iTaK Agent out-of-the-box, or extract its components for your own standalone projects!
 
 ---
 
@@ -24,8 +24,10 @@
 - [⚡ How It Works](#-how-it-works)
 - [🚀 Quick Start](#-quick-start)
 - [⚙️ Configuration Guide](#-configuration-guide)
+- [🧰 Built-in Tools](#-built-in-tools)
 - [🧠 Hybrid Memory Architecture](#-hybrid-memory-architecture)
 - [🧩 Extension System (GOHub)](#-extension-system-gohub)
+- [🛡️ iTaK Shield (Embedded Guardrails)](#️-itak-shield-embedded-guardrails)
 - [🛠 Extending the Agent](#-extending-the-agent)
 
 ---
@@ -65,7 +67,11 @@ iTaK Agent features a beautiful, real-time dashboard served directly from the em
 
 ## 🤖 What Is iTaK Agent?
 
-iTaK Agent is an AI agent framework built in **Go**. It's a different approach from Python-based frameworks like CrewAI, LangGraph, and AutoGen. Instead of needing expensive, massive models, iTaK Agent is designed to work with **smaller, efficient models** you can run locally.
+iTaK Agent is a dual-purpose AI framework built in **Go**.
+
+Its primary form is a **fully bundled, batteries-included agent** that features an embedded Core orchestrator, integrated Memory, and native Shield guardrails—all optimized to work seamlessly with **smaller, efficient models** you can run locally.
+
+However, its secret weapon is its **modular architecture**. Every major piece of the iTaK Agent is built as an individual component first. This allows the open-source community to use iTaK components (like the security guardrails or the memory system) independently in other projects, while the main iTaK Agent bundles them all together for the ultimate out-of-the-box experience.
 
 The core idea: **keep the boss simple and the agents focused.**
 
@@ -389,9 +395,9 @@ Full browser automation suite: `web_navigate`, `web_click`, `web_type`, `web_scr
 
 ---
 
-## Security (Guardrails)
+## 🛡️ iTaK Shield (Embedded Guardrails)
 
-All tool calls pass through a 4-layer guardrail chain:
+All tool calls pass through our zero-latency, fully embedded Shield guardrail chain:
 
 | Guardrail | What It Does |
 |---|---|
