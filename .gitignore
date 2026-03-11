@@ -42,3 +42,7 @@ webgpu-spike*
 *.log
 
 .agent/
+
+# Internal docs
+turbo.md
+Feature_List.md

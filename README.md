@@ -15,6 +15,39 @@
 
 ---
 
+## 🖥 Dashboard UI
+
+iTaK Agent features a beautiful, real-time dashboard served directly from the embedded Go binary to monitor memory, sessions, tokens, and agent activity.
+
+<div align="center">
+  <img src="assets/screenshots/overview_page_1773254697715.png" alt="Overview Dashboard" width="800" />
+</div>
+
+### Features
+- **Real-Time Overview**: Live metrics on system memory, goroutines, and auto-healing Doctor status.
+- **Embedded Chat UI**: Chat directly with individual agent personas to isolate contexts.
+- **Advanced Analytics**: Track exact token usage per model and real-time generation speeds.
+- **Session Management**: Review the persistent conversation workspaces handling your agents.
+
+<details>
+<summary>Click to view more screenshots</summary>
+
+**Chat Interface**
+<img src="assets/screenshots/chat_page_1773254690702.png" alt="Chat UI" width="800" />
+
+**System Analytics & Token tracking**
+<img src="assets/screenshots/analytics_page_1773254714208.png" alt="Analytics View" width="800" />
+
+**Live Active Sessions**
+<img src="assets/screenshots/sessions_page_1773254707379.png" alt="Sessions View" width="800" />
+
+**File System Activity Stream**
+<img src="assets/screenshots/dashboard_final_state_1773258603191.png" alt="Live File System Activity" width="800" />
+
+</details>
+
+---
+
 ## What Is iTaK Agent?
 
 iTaK Agent is an AI agent framework built in **Go**. It's a different approach from Python-based frameworks like CrewAI, LangGraph, and AutoGen. Instead of needing expensive, massive models, iTaK Agent is designed to work with **smaller, efficient models** you can run locally.
