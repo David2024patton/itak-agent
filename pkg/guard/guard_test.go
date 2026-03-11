@@ -163,7 +163,7 @@ func TestScanOutput_CredentialLeak(t *testing.T) {
 		name   string
 		output string
 	}{
-		{"api_key", "The API key is: api_key=sk_live_abcdef1234567890abcdef1234567890"},
+		{"api_key", "The API key is: api_key=dummy_key_abcdef1234567890abcdef1234567890"},
 		{"password", "The password is: password=SuperSecretPass123!"},
 		{"jwt", "Token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0"},
 		{"private_key", "Key:\n-----BEGIN RSA PRIVATE KEY-----\ndata\n-----END RSA PRIVATE KEY-----"},
