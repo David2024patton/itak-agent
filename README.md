@@ -72,61 +72,9 @@ The core idea: **keep the boss simple and the agents focused.**
 
 ## How It Works
 
-```mermaid
-flowchart TD
-    User["You type a message"] --> Boss
-
-    subgraph Boss["Boss (Orchestrator)"]
-        direction TB
-        B1["Reads your request"]
-        B2["Creates a task list"]
-        B3["Assigns each task to the right agent"]
-        B1 --> B2 --> B3
-    end
-
-    Boss -- "Task 1" --> Researcher
-    Boss -- "Task 2" --> Coder
-
-    subgraph Researcher["Researcher Manager"]
-        direction TB
-        RM1["Gets task from Boss"]
-        RM2["Breaks it into sub-tasks"]
-        RM3["Spins up Workers in parallel"]
-        RM1 --> RM2 --> RM3
-    end
-
-    subgraph Coder["Coder Manager"]
-        direction TB
-        CM1["Gets task from Boss"]
-        CM2["Breaks it into sub-tasks"]
-        CM3["Spins up Workers in parallel"]
-        CM1 --> CM2 --> CM3
-    end
-
-    Researcher --> RW1["Worker 1: http_fetch"]
-    Researcher --> RW2["Worker 2: file_write"]
-
-    Coder --> CW1["Worker 1: shell"]
-    Coder --> CW2["Worker 2: file_read"]
-    Coder --> CW3["Worker 3: file_write"]
-
-    CW1 --> Doctor
-    CW2 --> Doctor
-    CW3 --> Doctor
-
-    subgraph Doctor["Doctor Agent (iTaK Beat)"]
-        direction TB
-        D1["Runs linter for the project language"]
-        D2["Checks for errors"]
-        D3["Fixes problems or reports back"]
-        D1 --> D2 --> D3
-    end
-
-    RW1 --> Result["Results flow back up"]
-    RW2 --> Result
-    Doctor --> Result
-    Result --> Answer["Boss combines everything into a final answer"]
-```
+<div align="center">
+  <img src="assets/screenshots/itak_architecture_diagram.png" alt="iTaK Agent Architecture" width="800" />
+</div>
 
 ### Step by Step
 
