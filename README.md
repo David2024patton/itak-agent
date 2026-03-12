@@ -1,6 +1,6 @@
 <div align="center">
 
-  <img src="https://capsule-render.vercel.app/api?type=waving&height=220&color=gradient&customColorList=0,2,12,30&text=DAVID%20PATTON&fontColor=ffffff&fontSize=48&fontAlignY=32&desc=AI%20Systems%20Architect%20%7C%20Security%20Engineer%20%7C%20Full%20Stack%20Developer&descSize=16&descAlignY=52&animation=twinkling&stroke=e94560&strokeWidth=1" width="100%" alt="iTaK Agent" />
+  <img src="https://capsule-render.vercel.app/api?type=waving&height=220&color=gradient&customColorList=0,2,12,30&text=iTaK%20Agent&fontColor=ffffff&fontSize=48&fontAlignY=32&desc=AI%20Systems%20Architect%20%7C%20Security%20Engineer%20%7C%20Full%20Stack%20Developer&descSize=16&descAlignY=52&animation=twinkling&stroke=e94560&strokeWidth=1" width="100%" alt="iTaK Agent" />
 
 <br>
   <img src="docs/images/logo.png" alt="iTaK Agent Logo" width="280"/>
