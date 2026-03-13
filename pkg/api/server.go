@@ -17,6 +17,7 @@ import (
 	"github.com/David2024patton/iTaKAgent/pkg/embed"
 	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
 	"github.com/David2024patton/iTaKAgent/pkg/memory"
+	"github.com/David2024patton/iTaKAgent/pkg/seed"
 	"github.com/David2024patton/iTaKAgent/pkg/tasks"
 	"github.com/David2024patton/iTaKAgent/web"
 )
@@ -99,6 +100,13 @@ func (s *Server) Start() error {
 
 	// Agent activity persistence API
 	RegisterActivityRoutes(mux, s.graphBackend)
+
+	// Seed knowledge injection (first boot only).
+	if s.graphBackend != nil {
+		if itakDB, ok := s.graphBackend.(*memory.ITakDBBackend); ok {
+			seed.InjectIfNeeded(itakDB.DB())
+		}
+	}
 
 	// Superagent generated web assets
 	slidesDir := filepath.Join(s.dataDir, "slides")
