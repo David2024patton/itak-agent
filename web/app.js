@@ -11,6 +11,8 @@ const state = {
   snapshot: null,
   chatMessages: [],
   chatAgent: null,
+  chatPersona: null,
+  personas: [],
   logs: [],
   logFilter: 'all',
   fsEvents: [],
@@ -56,6 +58,14 @@ async function fetchAgents() {
   const data = await api('/v1/agents');
   if (data && data.agents) {
     state.agents = data.agents;
+  }
+  return data;
+}
+
+async function fetchPersonas() {
+  const data = await api('/v1/personas');
+  if (data && data.personas) {
+    state.personas = data.personas;
   }
   return data;
 }
@@ -265,6 +275,7 @@ function navigate(page) {
     analytics: 'Analytics',
     logs: 'Logs',
     agents: 'Agents',
+    personas: 'Personas',
     settings: 'Settings',
     tasks: 'Task Board',
     presentations: 'Presentations',
@@ -283,6 +294,7 @@ async function renderPage() {
     case 'analytics': await renderAnalytics(content); break;
     case 'logs': renderLogs(content); break;
     case 'agents': await renderAgentsPage(content); break;
+    case 'personas': await renderPersonas(content); break;
     case 'settings': renderSettings(content); break;
     case 'tasks': await renderTasks(content); break;
     case 'presentations': await renderPresentations(content); break;
@@ -388,23 +400,35 @@ function renderChat(container) {
     `<option value="${a.name}" ${state.chatAgent === a.name ? 'selected' : ''}>${a.name}</option>`
   ).join('');
 
+  // Build persona selector.
+  const personaOpts = state.personas.map(p =>
+    `<option value="${p.name}" ${state.chatPersona === p.name ? 'selected' : ''}>${p.name}${p.is_locked ? ' 🔒' : ''}</option>`
+  ).join('');
+
+  const selectStyle = `
+    padding:6px 10px;
+    background:var(--bg-input);
+    border:1px solid var(--border);
+    border-radius:var(--radius-sm);
+    color:var(--text-primary);
+    font-family:var(--font);
+    font-size:12px;
+  `;
+
   container.innerHTML = `
     <div class="chat-split ${state.canvasOpen ? 'canvas-active' : ''}" id="chat-split">
       <div class="chat-pane">
         <div class="chat-container">
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
             <span class="section-label" style="margin:0;">Agent:</span>
-            <select id="chat-agent-select" onchange="state.chatAgent=this.value" style="
-              padding:6px 10px;
-              background:var(--bg-input);
-              border:1px solid var(--border);
-              border-radius:var(--radius-sm);
-              color:var(--text-primary);
-              font-family:var(--font);
-              font-size:12px;
-            ">
+            <select id="chat-agent-select" onchange="state.chatAgent=this.value" style="${selectStyle}">
               <option value="">Orchestrator (auto-route)</option>
               ${agentOpts}
+            </select>
+            <span class="section-label" style="margin:0;">Persona:</span>
+            <select id="chat-persona-select" onchange="state.chatPersona=this.value" style="${selectStyle}">
+              <option value="">Default</option>
+              ${personaOpts}
             </select>
             <button class="canvas-toggle ${state.canvasOpen ? 'active' : ''}" onclick="toggleCanvas()" title="Toggle Canvas preview">
               🖼 Canvas
@@ -1752,6 +1776,159 @@ async function searchResearch() {
   }).join('');
 }
 
+// ── Personas Page ─────────────────────────────────────────────────
+async function renderPersonas(container) {
+  if (!container) container = document.getElementById('page-content');
+  await fetchPersonas();
+
+  const cards = state.personas.map(p => {
+    const locked = p.is_locked || p.is_default;
+    const goalsHTML = (p.goals || []).map(g => `<span class="badge" style="font-size:10px;">${g}</span>`).join('');
+    const toolsHTML = (p.tools || []).map(t => `<span class="badge" style="font-size:10px;background:var(--bg-input);">${t}</span>`).join('');
+    return `
+      <div class="card" style="position:relative;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:15px;font-weight:700;color:var(--text-primary);">${p.name}</span>
+            ${locked ? '<span style="font-size:12px;" title="Locked - cannot edit or delete">🔒</span>' : ''}
+          </div>
+          <span class="badge" style="font-size:10px;">${p.role || 'No role'}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.5;">${p.personality || ''}</div>
+        ${goalsHTML ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;"><span style="font-size:10px;color:var(--text-muted);margin-right:4px;">Goals:</span>${goalsHTML}</div>` : ''}
+        ${toolsHTML ? `<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;"><span style="font-size:10px;color:var(--text-muted);margin-right:4px;">Tools:</span>${toolsHTML}</div>` : ''}
+        <div style="display:flex;gap:4px;margin-top:6px;">
+          <span style="font-size:10px;color:var(--text-muted);">Autonomy: ${p.autonomy}/4</span>
+          <span style="font-size:10px;color:var(--text-muted);">Max loops: ${p.max_loops || 10}</span>
+        </div>
+        ${!locked ? `
+          <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
+            <button class="btn" style="font-size:11px;padding:4px 10px;" onclick="editPersona('${p.name}')">Edit</button>
+            <button class="btn" style="font-size:11px;padding:4px 10px;color:var(--red);" onclick="deletePersona('${p.name}')">Delete</button>
+          </div>
+        ` : ''}
+      </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span class="section-label">Personas (${state.personas.length})</span>
+      <button class="btn btn-primary" style="font-size:12px;padding:6px 14px;" onclick="openPersonaModal()">+ New Persona</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;">
+      ${cards || '<div style="color:var(--text-muted);text-align:center;padding:20px;">No personas yet</div>'}
+    </div>
+
+    <!-- Persona Modal -->
+    <div id="persona-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:none;align-items:center;justify-content:center;">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;width:100%;max-width:500px;">
+        <h3 id="persona-modal-title" style="margin:0 0 12px 0;font-size:16px;color:var(--text-primary);">New Persona</h3>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <input type="hidden" id="persona-edit-original">
+          <input type="text" id="persona-name" class="form-control" placeholder="Name (e.g. developer)">
+          <input type="text" id="persona-role" class="form-control" placeholder="Role (e.g. Full Stack Developer)">
+          <textarea id="persona-personality" class="form-control" rows="3" placeholder="Personality description..."></textarea>
+          <input type="text" id="persona-goals" class="form-control" placeholder="Goals (comma separated)">
+          <input type="text" id="persona-tools" class="form-control" placeholder="Tools (comma separated)">
+          <div style="display:flex;gap:12px;">
+            <div style="flex:1;">
+              <label style="font-size:11px;color:var(--text-muted);">Max Loops</label>
+              <input type="number" id="persona-maxloops" class="form-control" value="10" min="1" max="50">
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:11px;color:var(--text-muted);">Autonomy (0-4)</label>
+              <input type="number" id="persona-autonomy" class="form-control" value="2" min="0" max="4">
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+          <button class="btn btn-secondary" onclick="closePersonaModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="savePersona()">Save Persona</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function openPersonaModal(data) {
+  const modal = document.getElementById('persona-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  if (data) {
+    document.getElementById('persona-modal-title').textContent = 'Edit Persona';
+    document.getElementById('persona-edit-original').value = data.name;
+    document.getElementById('persona-name').value = data.name;
+    document.getElementById('persona-name').disabled = true;
+    document.getElementById('persona-role').value = data.role || '';
+    document.getElementById('persona-personality').value = data.personality || '';
+    document.getElementById('persona-goals').value = (data.goals || []).join(', ');
+    document.getElementById('persona-tools').value = (data.tools || []).join(', ');
+    document.getElementById('persona-maxloops').value = data.max_loops || 10;
+    document.getElementById('persona-autonomy').value = data.autonomy || 2;
+  } else {
+    document.getElementById('persona-modal-title').textContent = 'New Persona';
+    document.getElementById('persona-edit-original').value = '';
+    document.getElementById('persona-name').value = '';
+    document.getElementById('persona-name').disabled = false;
+    document.getElementById('persona-role').value = '';
+    document.getElementById('persona-personality').value = '';
+    document.getElementById('persona-goals').value = '';
+    document.getElementById('persona-tools').value = '';
+    document.getElementById('persona-maxloops').value = 10;
+    document.getElementById('persona-autonomy').value = 2;
+  }
+}
+
+function closePersonaModal() {
+  const modal = document.getElementById('persona-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function savePersona() {
+  const original = document.getElementById('persona-edit-original')?.value;
+  const name = document.getElementById('persona-name').value.trim();
+  const role = document.getElementById('persona-role').value.trim();
+  const personality = document.getElementById('persona-personality').value.trim();
+  const goals = document.getElementById('persona-goals').value.split(',').map(s => s.trim()).filter(Boolean);
+  const tools = document.getElementById('persona-tools').value.split(',').map(s => s.trim()).filter(Boolean);
+  const maxLoops = parseInt(document.getElementById('persona-maxloops').value) || 10;
+  const autonomy = parseInt(document.getElementById('persona-autonomy').value) || 2;
+
+  if (!name) { alert('Name is required'); return; }
+
+  const body = { name, role, personality, goals, tools, max_loops: maxLoops, autonomy };
+
+  let res;
+  if (original) {
+    res = await api(`/v1/personas/${original}`, { method: 'PUT', body: JSON.stringify(body) });
+  } else {
+    res = await api('/v1/personas', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  if (res && !res.error) {
+    closePersonaModal();
+    await renderPersonas();
+  } else {
+    alert(res?.error || 'Failed to save persona');
+  }
+}
+
+async function editPersona(name) {
+  const persona = state.personas.find(p => p.name === name);
+  if (persona) openPersonaModal(persona);
+}
+
+async function deletePersona(name) {
+  if (!confirm(`Delete persona "${name}"?`)) return;
+  const res = await api(`/v1/personas/${name}`, { method: 'DELETE' });
+  if (res && !res.error) {
+    await renderPersonas();
+  } else {
+    alert(res?.error || 'Failed to delete persona');
+  }
+}
+
 // ── Keyboard Shortcuts ────────────────────────────────────────────
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.key === 'k') {
@@ -1774,7 +1951,7 @@ document.addEventListener('keydown', (e) => {
   state.page = hash;
 
   // Fetch initial data.
-  await Promise.all([fetchStatus(), fetchAgents()]);
+  await Promise.all([fetchStatus(), fetchAgents(), fetchPersonas()]);
   addLog('info', 'dashboard', 'Dashboard loaded');
 
   // Navigate to correct page.

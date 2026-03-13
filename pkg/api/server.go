@@ -91,6 +91,9 @@ func (s *Server) Start() error {
 	// Ecosystem local-directory ingestion API
 	RegisterEcosystemRoutes(mux, s.graphBackend)
 
+	// Persona management API
+	RegisterPersonaRoutes(mux, s.graphBackend)
+
 	// Superagent generated web assets
 	slidesDir := filepath.Join(s.dataDir, "slides")
 	reportsDir := filepath.Join(s.dataDir, "reports")
