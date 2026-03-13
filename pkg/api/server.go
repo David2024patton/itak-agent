@@ -85,6 +85,9 @@ func (s *Server) Start() error {
 	// Embedding model management API
 	RegisterEmbedRoutes(mux, s.embedMgr)
 
+	// DebugMemory + WebResearch API
+	RegisterDebugResearchRoutes(mux, s.graphBackend)
+
 	// Superagent generated web assets
 	slidesDir := filepath.Join(s.dataDir, "slides")
 	reportsDir := filepath.Join(s.dataDir, "reports")
