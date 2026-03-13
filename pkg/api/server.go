@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/David2024patton/iTaKAgent/pkg/agent"
+	"github.com/David2024patton/iTaKAgent/pkg/cron"
 	"github.com/David2024patton/iTaKAgent/pkg/debug"
 	"github.com/David2024patton/iTaKAgent/pkg/embed"
 	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
@@ -30,6 +31,7 @@ type Server struct {
 	taskMgr      *tasks.Manager
 	graphBackend memory.GraphBackend
 	embedMgr     *embed.ModelManager
+	scheduler    *cron.Scheduler
 	server       *http.Server
 	port         int
 	start        time.Time
@@ -42,12 +44,19 @@ type Server struct {
 
 // NewServer creates an API server wired to the orchestrator and event bus.
 func NewServer(orch *agent.Orchestrator, bus *eventbus.EventBus, taskMgr *tasks.Manager, graphBackend memory.GraphBackend, port int, dataDir string) *Server {
+	// Create cron scheduler with a no-op dispatch for now.
+	// Real dispatch will use the orchestrator once agent context is available.
+	scheduler := cron.NewScheduler(dataDir, func(job *cron.Job) {
+		debug.Info("cron", "Dispatching job %s to agent %s: %s", job.Name, job.Agent, job.Prompt)
+	})
+
 	return &Server{
 		orch:         orch,
 		bus:          bus,
 		taskMgr:      taskMgr,
 		graphBackend: graphBackend,
 		embedMgr:     embed.NewModelManager(filepath.Join(dataDir, "models", "embed")),
+		scheduler:    scheduler,
 		port:         port,
 		dataDir:      dataDir,
 		start:        time.Now(),
@@ -100,6 +109,16 @@ func (s *Server) Start() error {
 
 	// Agent activity persistence API
 	RegisterActivityRoutes(mux, s.graphBackend)
+
+	// Agency multi-tenant management API
+	RegisterAgencyRoutes(mux, s.graphBackend)
+
+	// Encrypted credentials vault API
+	RegisterCredentialsRoutes(mux, s.graphBackend)
+
+	// Cron automations scheduler API
+	RegisterCronRoutes(mux, s.scheduler)
+	s.scheduler.Start()
 
 	// Seed knowledge injection (first boot only).
 	if s.graphBackend != nil {

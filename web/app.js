@@ -283,6 +283,9 @@ function navigate(page) {
     tasks: 'Task Board',
     presentations: 'Presentations',
     database: 'Database',
+    agency: 'Agency',
+    credentials: 'Credentials',
+    automations: 'Automations',
   };
   document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -302,6 +305,9 @@ async function renderPage() {
     case 'tasks': await renderTasks(content); break;
     case 'presentations': await renderPresentations(content); break;
     case 'database': await renderDatabase(content); break;
+    case 'agency': await renderAgencyPage(content); break;
+    case 'credentials': await renderCredentialsPage(content); break;
+    case 'automations': await renderAutomationsPage(content); break;
     default: renderChat(content);
   }
 }
@@ -2728,3 +2734,415 @@ document.addEventListener('keydown', (e) => {
     if (state.page === 'overview') renderOverview();
   }, 30000);
 })();
+
+// ── Agency Page ─────────────────────────────────────────────────────
+async function renderAgencyPage(container) {
+  let agencies = [];
+  try {
+    const r = await fetch('/v1/agency');
+    const d = await r.json();
+    agencies = d.agencies || [];
+  } catch (e) { console.error('Failed to fetch agencies:', e); }
+
+  container.innerHTML = `
+    <div class="page-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h3 style="margin:0;color:var(--text-primary);">Your Agencies (${agencies.length})</h3>
+        <button class="btn-primary" onclick="showCreateAgencyModal()">+ New Agency</button>
+      </div>
+      <div id="agencies-grid" class="cards-grid">
+        ${agencies.length === 0 ? '<div class="empty-state">No agencies yet. Create one to get started.</div>' :
+          agencies.map(ag => `
+            <div class="stat-card" style="border-left:4px solid ${ag.primary_color || 'var(--accent)'};">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h4 style="margin:0;color:var(--text-primary);">${ag.name}</h4>
+                <span class="badge" style="background:var(--accent);color:#000;padding:2px 8px;border-radius:4px;font-size:.7rem;">ID: ${ag.id}</span>
+              </div>
+              ${ag.industry ? `<div style="color:var(--text-secondary);font-size:.85rem;margin-top:.25rem;">${ag.industry}</div>` : ''}
+              ${ag.domain ? `<div style="color:var(--text-muted);font-size:.8rem;">${ag.domain}</div>` : ''}
+              <div style="display:flex;gap:.5rem;margin-top:.75rem;">
+                ${ag.primary_color ? `<div style="width:24px;height:24px;border-radius:4px;background:${ag.primary_color};" title="Primary"></div>` : ''}
+                ${ag.secondary_color ? `<div style="width:24px;height:24px;border-radius:4px;background:${ag.secondary_color};" title="Secondary"></div>` : ''}
+                ${ag.accent_color ? `<div style="width:24px;height:24px;border-radius:4px;background:${ag.accent_color};" title="Accent"></div>` : ''}
+              </div>
+              <div style="display:flex;gap:.5rem;margin-top:.75rem;">
+                <button class="btn-sm" onclick="viewSubAccounts(${ag.id})">Sub-Accounts</button>
+                <button class="btn-sm" onclick="scrapeForAgency(${ag.id})">Scrape Website</button>
+                <button class="btn-sm btn-danger" onclick="deleteAgency(${ag.id})">Delete</button>
+              </div>
+            </div>
+          `).join('')}
+      </div>
+    </div>
+    <div id="agency-modal" class="modal-overlay" style="display:none;"></div>
+    <div id="subaccounts-panel" class="page-section" style="margin-top:1rem;display:none;"></div>
+  `;
+}
+
+async function showCreateAgencyModal() {
+  const modal = document.getElementById('agency-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div class="modal-card" style="max-width:500px;width:90%;">
+      <h3 style="margin:0 0 1rem;color:var(--text-primary);">Create Agency</h3>
+      <div class="form-group"><label>Name *</label><input id="ag-name" class="input" placeholder="Agency name"></div>
+      <div class="form-group"><label>Industry</label><input id="ag-industry" class="input" placeholder="e.g. Marketing, Real Estate"></div>
+      <div class="form-group"><label>Domain</label><input id="ag-domain" class="input" placeholder="e.g. myagency.com"></div>
+      <div class="form-group"><label>Tagline</label><input id="ag-tagline" class="input" placeholder="Your agency tagline"></div>
+      <div style="display:flex;gap:1rem;">
+        <div class="form-group" style="flex:1;"><label>Primary Color</label><input id="ag-primary" type="color" value="#f97316" style="width:100%;height:36px;border:none;cursor:pointer;"></div>
+        <div class="form-group" style="flex:1;"><label>Secondary Color</label><input id="ag-secondary" type="color" value="#0ea5e9" style="width:100%;height:36px;border:none;cursor:pointer;"></div>
+        <div class="form-group" style="flex:1;"><label>Accent Color</label><input id="ag-accent" type="color" value="#22c55e" style="width:100%;height:36px;border:none;cursor:pointer;"></div>
+      </div>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+        <button class="btn-sm" onclick="document.getElementById('agency-modal').style.display='none'">Cancel</button>
+        <button class="btn-primary" onclick="submitCreateAgency()">Create</button>
+      </div>
+    </div>
+  `;
+}
+
+async function submitCreateAgency() {
+  const body = {
+    name: document.getElementById('ag-name').value,
+    industry: document.getElementById('ag-industry').value,
+    domain: document.getElementById('ag-domain').value,
+    tagline: document.getElementById('ag-tagline').value,
+    primary_color: document.getElementById('ag-primary').value,
+    secondary_color: document.getElementById('ag-secondary').value,
+    accent_color: document.getElementById('ag-accent').value,
+  };
+  if (!body.name) return alert('Name is required');
+  await fetch('/v1/agency', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  document.getElementById('agency-modal').style.display = 'none';
+  renderAgencyPage(document.getElementById('page-content'));
+}
+
+async function viewSubAccounts(agencyId) {
+  const panel = document.getElementById('subaccounts-panel');
+  if (!panel) return;
+  let accounts = [];
+  try {
+    const r = await fetch(`/v1/agency/${agencyId}/accounts`);
+    const d = await r.json();
+    accounts = d.accounts || [];
+  } catch (e) { console.error(e); }
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h3 style="margin:0;color:var(--text-primary);">Sub-Accounts for Agency #${agencyId} (${accounts.length})</h3>
+      <button class="btn-primary" onclick="createSubAccount(${agencyId})">+ Add Business</button>
+    </div>
+    ${accounts.length === 0 ? '<div class="empty-state">No sub-accounts yet.</div>' :
+      accounts.map(sa => `
+        <div class="stat-card" style="margin-bottom:.5rem;">
+          <strong style="color:var(--text-primary);">${sa.name}</strong>
+          ${sa.website ? `<span style="color:var(--text-muted);margin-left:1rem;">${sa.website}</span>` : ''}
+          ${sa.industry ? `<span class="badge" style="margin-left:.5rem;">${sa.industry}</span>` : ''}
+        </div>
+      `).join('')}
+  `;
+}
+
+async function createSubAccount(agencyId) {
+  const name = prompt('Business name:');
+  if (!name) return;
+  const website = prompt('Website URL (optional):') || '';
+  const industry = prompt('Industry (optional):') || '';
+  await fetch(`/v1/agency/${agencyId}/accounts`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name, website, industry })
+  });
+  viewSubAccounts(agencyId);
+}
+
+async function scrapeForAgency(agencyId) {
+  const url = prompt('Enter website URL to scrape for knowledge:');
+  if (!url) return;
+  const r = await fetch(`/v1/agency/${agencyId}/scrape`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ url })
+  });
+  const d = await r.json();
+  alert(`Scraped ${d.chars || 0} characters from ${url}`);
+}
+
+async function deleteAgency(id) {
+  if (!confirm('Delete this agency?')) return;
+  await fetch(`/v1/agency/${id}`, { method: 'DELETE' });
+  renderAgencyPage(document.getElementById('page-content'));
+}
+
+// ── Credentials Page ────────────────────────────────────────────────
+async function renderCredentialsPage(container) {
+  let creds = [];
+  try {
+    const r = await fetch('/v1/credentials');
+    const d = await r.json();
+    creds = d.credentials || [];
+  } catch (e) { console.error('Failed to fetch credentials:', e); }
+
+  container.innerHTML = `
+    <div class="page-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h3 style="margin:0;color:var(--text-primary);">Credential Vault (${creds.length})</h3>
+        <button class="btn-primary" onclick="showCreateCredentialModal()">+ Add Credential</button>
+      </div>
+      <div style="color:var(--text-muted);font-size:.85rem;margin-bottom:1rem;">
+        Encrypted with AES-256-GCM. Values are masked until revealed.
+      </div>
+      <table class="data-table" style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:.5rem;color:var(--text-secondary);">Name</th>
+            <th style="text-align:left;padding:.5rem;color:var(--text-secondary);">Type</th>
+            <th style="text-align:left;padding:.5rem;color:var(--text-secondary);">Provider</th>
+            <th style="text-align:left;padding:.5rem;color:var(--text-secondary);">Scope</th>
+            <th style="text-align:left;padding:.5rem;color:var(--text-secondary);">Value</th>
+            <th style="text-align:left;padding:.5rem;color:var(--text-secondary);">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${creds.length === 0 ? '<tr><td colspan="6" class="empty-state" style="padding:2rem;text-align:center;">No credentials stored yet.</td></tr>' :
+            creds.map(c => `
+              <tr style="border-bottom:1px solid var(--border-light);">
+                <td style="padding:.5rem;color:var(--text-primary);font-weight:500;">${c.name}</td>
+                <td style="padding:.5rem;"><span class="badge">${c.type}</span></td>
+                <td style="padding:.5rem;color:var(--text-secondary);">${c.provider || '-'}</td>
+                <td style="padding:.5rem;"><span class="badge" style="background:${c.scope === 'global' ? 'var(--accent)' : 'var(--info)'};color:#000;">${c.scope}${c.scope_id ? ':' + c.scope_id : ''}</span></td>
+                <td style="padding:.5rem;color:var(--text-muted);font-family:monospace;" id="cred-val-${c.id}">••••••••</td>
+                <td style="padding:.5rem;display:flex;gap:.25rem;">
+                  <button class="btn-sm" onclick="revealCredential(${c.id})">Reveal</button>
+                  <button class="btn-sm btn-danger" onclick="deleteCredential(${c.id})">Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div id="cred-modal" class="modal-overlay" style="display:none;"></div>
+  `;
+}
+
+async function showCreateCredentialModal() {
+  const modal = document.getElementById('cred-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div class="modal-card" style="max-width:450px;width:90%;">
+      <h3 style="margin:0 0 1rem;color:var(--text-primary);">Add Credential</h3>
+      <div class="form-group"><label>Name *</label><input id="cred-name" class="input" placeholder="e.g. GHL API Key"></div>
+      <div class="form-group"><label>Value *</label><input id="cred-value" class="input" type="password" placeholder="API key or password"></div>
+      <div class="form-group"><label>Type</label>
+        <select id="cred-type" class="input">
+          <option value="api_key">API Key</option><option value="password">Password</option>
+          <option value="oauth">OAuth Token</option><option value="token">Bearer Token</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Provider</label><input id="cred-provider" class="input" placeholder="e.g. GoHighLevel, OpenAI"></div>
+      <div class="form-group"><label>Scope</label>
+        <select id="cred-scope" class="input">
+          <option value="global">Global</option><option value="agency">Agency</option><option value="subaccount">Sub-Account</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Description</label><input id="cred-desc" class="input" placeholder="Optional description"></div>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+        <button class="btn-sm" onclick="document.getElementById('cred-modal').style.display='none'">Cancel</button>
+        <button class="btn-primary" onclick="submitCreateCredential()">Save</button>
+      </div>
+    </div>
+  `;
+}
+
+async function submitCreateCredential() {
+  const body = {
+    name: document.getElementById('cred-name').value,
+    value: document.getElementById('cred-value').value,
+    type: document.getElementById('cred-type').value,
+    provider: document.getElementById('cred-provider').value,
+    scope: document.getElementById('cred-scope').value,
+    description: document.getElementById('cred-desc').value,
+  };
+  if (!body.name || !body.value) return alert('Name and value are required');
+  await fetch('/v1/credentials', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  document.getElementById('cred-modal').style.display = 'none';
+  renderCredentialsPage(document.getElementById('page-content'));
+}
+
+async function revealCredential(id) {
+  try {
+    const r = await fetch(`/v1/credentials/${id}/reveal`);
+    const d = await r.json();
+    const el = document.getElementById(`cred-val-${id}`);
+    if (el) el.textContent = d.value || '(empty)';
+    setTimeout(() => { if (el) el.textContent = '••••••••'; }, 10000); // Auto-hide after 10s.
+  } catch (e) { alert('Failed to reveal credential'); }
+}
+
+async function deleteCredential(id) {
+  if (!confirm('Delete this credential?')) return;
+  await fetch(`/v1/credentials/${id}`, { method: 'DELETE' });
+  renderCredentialsPage(document.getElementById('page-content'));
+}
+
+// ── Automations Page ────────────────────────────────────────────────
+async function renderAutomationsPage(container) {
+  let jobs = [];
+  try {
+    const r = await fetch('/v1/automations');
+    const d = await r.json();
+    jobs = d.automations || [];
+  } catch (e) { console.error('Failed to fetch automations:', e); }
+
+  container.innerHTML = `
+    <div class="page-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h3 style="margin:0;color:var(--text-primary);">Scheduled Automations (${jobs.length})</h3>
+        <button class="btn-primary" onclick="showCreateAutomationModal()">+ New Automation</button>
+      </div>
+      <div id="automations-grid" class="cards-grid">
+        ${jobs.length === 0 ? '<div class="empty-state">No automations yet. Create one to schedule agent work.</div>' :
+          jobs.map(j => `
+            <div class="stat-card" style="border-left:4px solid ${j.enabled ? 'var(--success)' : 'var(--text-muted)'};">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h4 style="margin:0;color:var(--text-primary);">${j.name}</h4>
+                <span class="badge" style="background:${j.enabled ? 'var(--success)' : 'var(--text-muted)'};color:#fff;padding:2px 8px;border-radius:4px;font-size:.7rem;">${j.enabled ? 'ACTIVE' : 'DISABLED'}</span>
+              </div>
+              <div style="color:var(--text-secondary);font-size:.85rem;margin-top:.25rem;">
+                Agent: <strong>${j.agent}</strong> | Type: <span class="badge">${j.schedule_type || j.type}</span>
+              </div>
+              <div style="color:var(--text-muted);font-size:.8rem;margin-top:.25rem;font-family:monospace;">
+                Schedule: ${j.schedule || 'N/A'}
+              </div>
+              <div style="color:var(--text-muted);font-size:.8rem;margin-top:.25rem;">
+                Prompt: "${(j.prompt || '').substring(0, 80)}${(j.prompt || '').length > 80 ? '...' : ''}"
+              </div>
+              <div style="display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap;">
+                <div style="font-size:.75rem;color:var(--text-muted);">
+                  Runs: ${j.run_count || 0} | Last: ${j.last_run ? new Date(j.last_run).toLocaleString() : 'never'}
+                </div>
+              </div>
+              <div style="display:flex;gap:.5rem;margin-top:.5rem;">
+                <button class="btn-sm btn-primary" onclick="triggerAutomation('${j.id}')">Trigger Now</button>
+                <button class="btn-sm" onclick="viewAutomationHistory('${j.id}')">History</button>
+                <button class="btn-sm btn-danger" onclick="deleteAutomation('${j.id}')">Delete</button>
+              </div>
+            </div>
+          `).join('')}
+      </div>
+    </div>
+    <div id="auto-modal" class="modal-overlay" style="display:none;"></div>
+    <div id="auto-history" class="page-section" style="margin-top:1rem;display:none;"></div>
+  `;
+}
+
+async function showCreateAutomationModal() {
+  const modal = document.getElementById('auto-modal');
+  if (!modal) return;
+
+  // Get available agents for dropdown.
+  let agentNames = [];
+  try {
+    const r = await fetch('/v1/agents');
+    const d = await r.json();
+    agentNames = (d.agents || []).map(a => a.name);
+  } catch (e) { agentNames = ['mike']; }
+
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div class="modal-card" style="max-width:500px;width:90%;">
+      <h3 style="margin:0 0 1rem;color:var(--text-primary);">Create Automation</h3>
+      <div class="form-group"><label>Name *</label><input id="auto-name" class="input" placeholder="e.g. Daily Social Media Post"></div>
+      <div class="form-group"><label>Agent *</label>
+        <select id="auto-agent" class="input">
+          ${agentNames.map(n => `<option value="${n}">${n}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label>Prompt *</label><textarea id="auto-prompt" class="input" rows="3" placeholder="What should the agent do?"></textarea></div>
+      <div class="form-group"><label>Schedule Type</label>
+        <select id="auto-stype" class="input" onchange="updateScheduleHelp()">
+          <option value="every">Interval (every X)</option>
+          <option value="cron">Cron Expression</option>
+          <option value="at">One-shot (at time)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Schedule *</label><input id="auto-schedule" class="input" placeholder="e.g. 30m, 1h, 0 9 * * 1-5"></div>
+      <div id="schedule-help" style="color:var(--text-muted);font-size:.8rem;margin-bottom:.5rem;">Examples: 30m, 1h, 24h</div>
+      <div class="form-group"><label>Execution Mode</label>
+        <select id="auto-mode" class="input">
+          <option value="main">Main Session (shares context)</option>
+          <option value="isolated">Isolated (fresh session)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+        <button class="btn-sm" onclick="document.getElementById('auto-modal').style.display='none'">Cancel</button>
+        <button class="btn-primary" onclick="submitCreateAutomation()">Create</button>
+      </div>
+    </div>
+  `;
+}
+
+function updateScheduleHelp() {
+  const type = document.getElementById('auto-stype').value;
+  const help = document.getElementById('schedule-help');
+  if (!help) return;
+  const hints = {
+    every: 'Examples: 30m, 1h, 24h',
+    cron: 'Examples: 0 9 * * 1-5 (weekdays 9am), */30 * * * * (every 30min)',
+    at: 'ISO format: 2026-03-14T09:00:00-04:00'
+  };
+  help.textContent = hints[type] || '';
+}
+
+async function submitCreateAutomation() {
+  const body = {
+    name: document.getElementById('auto-name').value,
+    agent: document.getElementById('auto-agent').value,
+    prompt: document.getElementById('auto-prompt').value,
+    schedule_type: document.getElementById('auto-stype').value,
+    schedule: document.getElementById('auto-schedule').value,
+    execution_mode: document.getElementById('auto-mode').value,
+    type: 'cron',
+  };
+  if (!body.name || !body.agent || !body.prompt || !body.schedule) return alert('Name, agent, prompt, and schedule are required');
+  await fetch('/v1/automations', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  document.getElementById('auto-modal').style.display = 'none';
+  renderAutomationsPage(document.getElementById('page-content'));
+}
+
+async function triggerAutomation(id) {
+  const r = await fetch(`/v1/automations/${id}/trigger`, { method: 'POST' });
+  const d = await r.json();
+  alert(d.status === 'triggered' ? 'Automation triggered!' : 'Failed to trigger');
+  renderAutomationsPage(document.getElementById('page-content'));
+}
+
+async function viewAutomationHistory(id) {
+  const panel = document.getElementById('auto-history');
+  if (!panel) return;
+  let records = [];
+  try {
+    const r = await fetch(`/v1/automations/${id}/history`);
+    const d = await r.json();
+    records = d.history || [];
+  } catch (e) { console.error(e); }
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <h3 style="color:var(--text-primary);margin-bottom:.5rem;">Run History (${records.length})</h3>
+    ${records.length === 0 ? '<div class="empty-state">No runs yet.</div>' :
+      records.map(r => `
+        <div class="stat-card" style="margin-bottom:.25rem;padding:.5rem;">
+          <span style="color:var(--text-primary);">${new Date(r.run_at).toLocaleString()}</span>
+          <span class="badge" style="margin-left:.5rem;background:${r.status === 'success' ? 'var(--success)' : 'var(--error)'};color:#fff;">${r.status}</span>
+        </div>
+      `).join('')}
+  `;
+}
+
+async function deleteAutomation(id) {
+  if (!confirm('Delete this automation?')) return;
+  await fetch(`/v1/automations/${id}`, { method: 'DELETE' });
+  renderAutomationsPage(document.getElementById('page-content'));
+}
