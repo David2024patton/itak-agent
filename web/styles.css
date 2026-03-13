@@ -619,6 +619,34 @@ a:hover { color: var(--accent-hover); }
   opacity: 1;
 }
 
+/* ── Live Agents Panel ────────────────────────────────────────────── */
+.live-agents-pane {
+  width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-sidebar);
+  transition: width .35s var(--ease), opacity .25s var(--ease);
+  opacity: 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--green);
+  margin: 4px 0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.live-agents-pane.visible {
+  width: 50%;
+  opacity: 1;
+}
+
+.live-agents-pane .canvas-body {
+  background: #0d1117;
+  border: none;
+  margin: 0;
+  box-shadow: none;
+}
+
 .canvas-header {
   height: 42px;
   padding: 0 12px;

@@ -25,6 +25,9 @@ const state = {
   canvasContent: null,
   canvasTitle: 'Preview',
   canvasUrl: null,
+  liveAgentsOpen: false,
+  liveAgentAnimId: null,
+  agentActivity: {},
 };
 
 // ── API Client ────────────────────────────────────────────────────
@@ -429,6 +432,9 @@ function renderChat(container) {
             <button class="btn" style="font-size:11px;padding:4px 10px;" onclick="navigate('personas')" title="Create a new focused agent">
               + New Agent
             </button>
+            <button class="canvas-toggle ${state.liveAgentsOpen ? 'active' : ''}" onclick="toggleLiveAgents()" title="Toggle live agent topology view">
+              📡 Live Agents
+            </button>
             <button class="canvas-toggle ${state.canvasOpen ? 'active' : ''}" onclick="toggleCanvas()" title="Toggle Canvas preview">
               🖼 Canvas
             </button>
@@ -474,10 +480,27 @@ function renderChat(container) {
           <span>${state.canvasUrl ? escapeHtml(state.canvasUrl) : state.canvasContent ? 'srcdoc' : 'no source'}</span>
         </div>
       </div>
+
+      <div class="live-agents-pane ${state.liveAgentsOpen ? 'visible' : ''}" id="live-agents-pane">
+        <div class="canvas-header">
+          <div class="canvas-header-left">
+            <span class="canvas-header-icon">📡</span>
+            <span class="canvas-title">Live Agent Topology</span>
+          </div>
+          <div class="canvas-header-actions">
+            <button class="canvas-btn" onclick="simulateAgentActivity()" title="Simulate delegation">⚡ Simulate</button>
+            <button class="canvas-close" onclick="closeLiveAgents()" title="Close">×</button>
+          </div>
+        </div>
+        <div class="canvas-body" style="position:relative;overflow:hidden;">
+          <canvas id="agent-topology-canvas" style="width:100%;height:100%;display:block;"></canvas>
+        </div>
+      </div>
     </div>
   `;
 
   renderChatMessages();
+  if (state.liveAgentsOpen) initAgentTopology();
 
   // If canvas has srcdoc content (not a URL), inject it after render.
   if (state.canvasOpen && state.canvasContent && !state.canvasUrl) {
@@ -564,6 +587,395 @@ function refreshCanvas() {
   } else if (state.canvasContent) {
     iframe.srcdoc = state.canvasContent;
   }
+}
+
+// ── Live Agent Topology ──────────────────────────────────────────
+
+function toggleLiveAgents() {
+  state.liveAgentsOpen = !state.liveAgentsOpen;
+  if (!state.liveAgentsOpen && state.liveAgentAnimId) {
+    cancelAnimationFrame(state.liveAgentAnimId);
+    state.liveAgentAnimId = null;
+  }
+  if (state.page === 'chat') renderChat();
+}
+
+function closeLiveAgents() {
+  state.liveAgentsOpen = false;
+  if (state.liveAgentAnimId) {
+    cancelAnimationFrame(state.liveAgentAnimId);
+    state.liveAgentAnimId = null;
+  }
+  if (state.page === 'chat') renderChat();
+}
+
+// Simulate a delegation event for demo purposes.
+function simulateAgentActivity() {
+  const focused = state.personas.filter(p => !p.is_default && !p.is_locked);
+  if (focused.length === 0) return;
+  const target = focused[Math.floor(Math.random() * focused.length)];
+  const acts = state.agentActivity;
+
+  // Create a delegation event
+  acts[target.name] = {
+    status: 'working',
+    startedAt: Date.now(),
+    task: 'Processing delegated task...',
+    packets: [],
+  };
+
+  // After 3-6 seconds, mark as complete
+  const duration = 3000 + Math.random() * 3000;
+  setTimeout(() => {
+    if (acts[target.name]) {
+      acts[target.name].status = 'complete';
+      acts[target.name].completedAt = Date.now();
+      // Clear after 2s
+      setTimeout(() => {
+        if (acts[target.name] && acts[target.name].status === 'complete') {
+          acts[target.name].status = 'idle';
+        }
+      }, 2000);
+    }
+  }, duration);
+}
+
+// Initialize and run the topology canvas renderer.
+function initAgentTopology() {
+  const canvas = document.getElementById('agent-topology-canvas');
+  if (!canvas) return;
+
+  const parent = canvas.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+
+  // Cancel any previous loop
+  if (state.liveAgentAnimId) {
+    cancelAnimationFrame(state.liveAgentAnimId);
+  }
+
+  // Color palette
+  const colors = {
+    bg: '#0d1117',
+    gridLine: 'rgba(48, 54, 61, 0.3)',
+    orchRing: '#58a6ff',
+    orchGlow: 'rgba(88, 166, 255, 0.25)',
+    orchFill: '#161b22',
+    agentRing: '#3fb950',
+    agentGlow: 'rgba(63, 185, 80, 0.2)',
+    agentFill: '#161b22',
+    workingRing: '#d29922',
+    workingGlow: 'rgba(210, 153, 34, 0.3)',
+    completeRing: '#3fb950',
+    errorRing: '#f85149',
+    line: 'rgba(88, 166, 255, 0.15)',
+    lineActive: 'rgba(88, 166, 255, 0.5)',
+    packetColor: '#58a6ff',
+    packetGlow: 'rgba(88, 166, 255, 0.6)',
+    text: '#c9d1d9',
+    textMuted: '#8b949e',
+    textBright: '#f0f6fc',
+    statusDot: '#3fb950',
+  };
+
+  function resize() {
+    const w = parent.clientWidth;
+    const h = parent.clientHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+  }
+  resize();
+
+  const ctx = canvas.getContext('2d');
+
+  // Build agent node list
+  function getNodes() {
+    const orch = state.personas.find(p => p.is_default || p.is_locked);
+    const focused = state.personas.filter(p => !p.is_default && !p.is_locked);
+    return { orch, focused };
+  }
+
+  // Layout: orchestrator top-center, focused agents in an arc below
+  function layoutNodes(w, h, orch, focused) {
+    const nodes = [];
+    const orchR = Math.min(w, h) * 0.06;
+    const agentR = orchR * 0.65;
+    const orchX = w / 2;
+    const orchY = h * 0.2;
+
+    if (orch) {
+      nodes.push({
+        x: orchX, y: orchY, r: orchR,
+        name: orch.name || 'Orchestrator',
+        role: 'Orchestrator',
+        type: 'orchestrator',
+        status: 'active',
+      });
+    }
+
+    const count = focused.length;
+    if (count === 0) return nodes;
+
+    const arcRadius = Math.min(w * 0.35, h * 0.32);
+    const arcCenter = { x: w / 2, y: orchY + arcRadius * 0.6 };
+    const startAngle = Math.PI * 0.15;
+    const endAngle = Math.PI * 0.85;
+    const step = count > 1 ? (endAngle - startAngle) / (count - 1) : 0;
+
+    focused.forEach((a, i) => {
+      const angle = count > 1 ? startAngle + step * i : (startAngle + endAngle) / 2;
+      const x = arcCenter.x + Math.cos(angle) * arcRadius;
+      const y = arcCenter.y + Math.sin(angle) * arcRadius;
+      const act = state.agentActivity[a.name] || {};
+
+      nodes.push({
+        x, y, r: agentR,
+        name: a.name,
+        role: a.role || 'Agent',
+        type: 'focused',
+        status: act.status || 'idle',
+        task: act.task || '',
+      });
+    });
+
+    return nodes;
+  }
+
+  // Animated packets: small glowing dots traveling along connection lines
+  let packets = [];
+  let lastPacketSpawn = 0;
+
+  function spawnPacket(fromX, fromY, toX, toY, returning) {
+    packets.push({
+      sx: fromX, sy: fromY,
+      tx: toX, ty: toY,
+      progress: 0,
+      speed: 0.008 + Math.random() * 0.004,
+      returning: returning || false,
+      size: 3 + Math.random() * 2,
+    });
+  }
+
+  function updatePackets() {
+    packets = packets.filter(p => {
+      p.progress += p.speed;
+      return p.progress < 1;
+    });
+  }
+
+  // Draw grid background
+  function drawGrid(w, h) {
+    ctx.strokeStyle = colors.gridLine;
+    ctx.lineWidth = 1;
+    const gs = 30;
+    for (let x = 0; x < w; x += gs) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (let y = 0; y < h; y += gs) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+  }
+
+  // Draw a connection line between orchestrator and a focused agent
+  function drawConnection(ox, oy, ax, ay, isActive, t) {
+    ctx.beginPath();
+    ctx.strokeStyle = isActive ? colors.lineActive : colors.line;
+    ctx.lineWidth = isActive ? 2 : 1;
+    ctx.moveTo(ox, oy);
+
+    // Bezier curve for a smooth connection
+    const midY = (oy + ay) / 2;
+    ctx.quadraticCurveTo(ox, midY, ax, ay);
+    ctx.stroke();
+
+    // Active pulse on the line
+    if (isActive) {
+      ctx.shadowColor = colors.packetGlow;
+      ctx.shadowBlur = 6;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  // Draw a node (circle with glow, icon, label)
+  function drawNode(node, t) {
+    const { x, y, r, name, role, type, status } = node;
+
+    // Outer glow ring
+    const pulseScale = 1 + Math.sin(t * 2) * 0.05;
+    let ringColor = type === 'orchestrator' ? colors.orchRing : colors.agentRing;
+    let glowColor = type === 'orchestrator' ? colors.orchGlow : colors.agentGlow;
+
+    if (status === 'working') { ringColor = colors.workingRing; glowColor = colors.workingGlow; }
+    if (status === 'complete') { ringColor = colors.completeRing; }
+    if (status === 'error') { ringColor = colors.errorRing; }
+
+    // Glow
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.4 * pulseScale, 0, Math.PI * 2);
+    ctx.fillStyle = glowColor;
+    ctx.fill();
+
+    // Ring
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = type === 'orchestrator' ? 3 : 2;
+    ctx.stroke();
+
+    // Fill
+    ctx.beginPath();
+    ctx.arc(x, y, r - 2, 0, Math.PI * 2);
+    ctx.fillStyle = type === 'orchestrator' ? colors.orchFill : colors.agentFill;
+    ctx.fill();
+
+    // Icon
+    ctx.font = `${r * 0.8}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = colors.textBright;
+    if (type === 'orchestrator') {
+      ctx.fillText('\ud83e\udde0', x, y);
+    } else {
+      // Status-based icon
+      const icons = { idle: '\u2b55', working: '\u26a1', complete: '\u2705', error: '\u274c' };
+      ctx.fillText(icons[status] || '\u2b55', x, y);
+    }
+
+    // Label (name)
+    ctx.font = `bold ${Math.max(11, r * 0.4)}px Inter, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = colors.textBright;
+    ctx.fillText(name, x, y + r + 14);
+
+    // Role subtitle
+    ctx.font = `${Math.max(9, r * 0.3)}px Inter, sans-serif`;
+    ctx.fillStyle = colors.textMuted;
+    ctx.fillText(role, x, y + r + 26);
+
+    // Working indicator - spinning arc
+    if (status === 'working') {
+      ctx.beginPath();
+      const spinAngle = t * 3;
+      ctx.arc(x, y, r + 4, spinAngle, spinAngle + Math.PI * 0.7);
+      ctx.strokeStyle = colors.workingRing;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
+  }
+
+  // Draw packets
+  function drawPackets() {
+    packets.forEach(p => {
+      const x = p.sx + (p.tx - p.sx) * p.progress;
+      // Bezier Y
+      const midY = (p.sy + p.ty) / 2;
+      const t2 = p.progress;
+      const bY = (1-t2)*(1-t2)*p.sy + 2*(1-t2)*t2*midY + t2*t2*p.ty;
+      const bX = (1-t2)*(1-t2)*p.sx + 2*(1-t2)*t2*p.sx + t2*t2*p.tx;
+
+      ctx.beginPath();
+      ctx.arc(bX, bY, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = p.returning ? colors.completeRing : colors.packetColor;
+      ctx.fill();
+
+      // Glow trail
+      ctx.beginPath();
+      ctx.arc(bX, bY, p.size * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = p.returning ? 'rgba(63,185,80,0.2)' : colors.packetGlow;
+      ctx.fill();
+    });
+  }
+
+  // Title bar text
+  function drawTitle(w) {
+    ctx.font = 'bold 13px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = colors.textMuted;
+    ctx.fillText('LIVE AGENT TOPOLOGY', 16, 24);
+
+    // Active count
+    const activeCount = Object.values(state.agentActivity).filter(a => a.status === 'working').length;
+    if (activeCount > 0) {
+      ctx.fillStyle = colors.workingRing;
+      ctx.fillText(`${activeCount} agent${activeCount > 1 ? 's' : ''} working`, 16, 40);
+    }
+
+    // Connection status dot
+    ctx.beginPath();
+    ctx.arc(w - 20, 20, 4, 0, Math.PI * 2);
+    ctx.fillStyle = state.connected ? colors.statusDot : colors.errorRing;
+    ctx.fill();
+    ctx.font = '10px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = colors.textMuted;
+    ctx.fillText(state.connected ? 'Connected' : 'Offline', w - 28, 24);
+  }
+
+  // Main animation loop
+  function animate() {
+    if (!state.liveAgentsOpen) return;
+
+    resize();
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
+    const t = Date.now() / 1000;
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+
+    // Clear + background
+    ctx.fillStyle = colors.bg;
+    ctx.fillRect(0, 0, w, h);
+
+    // Subtle grid
+    drawGrid(w, h);
+
+    // Get layout
+    const { orch, focused } = getNodes();
+    const nodes = layoutNodes(w, h, orch, focused);
+    const orchNode = nodes.find(n => n.type === 'orchestrator');
+
+    // Draw connection lines from orchestrator to each agent
+    if (orchNode) {
+      nodes.filter(n => n.type === 'focused').forEach(n => {
+        const isActive = n.status === 'working';
+        drawConnection(orchNode.x, orchNode.y, n.x, n.y, isActive, t);
+
+        // Spawn packets for active connections
+        if (isActive && Math.random() < 0.03) {
+          spawnPacket(orchNode.x, orchNode.y, n.x, n.y, false);
+        }
+        // Return packets for completed
+        if (n.status === 'complete' && Math.random() < 0.05) {
+          spawnPacket(n.x, n.y, orchNode.x, orchNode.y, true);
+        }
+      });
+    }
+
+    // Update and draw packets
+    updatePackets();
+    drawPackets();
+
+    // Draw nodes on top
+    nodes.forEach(n => drawNode(n, t));
+
+    // Title overlay
+    drawTitle(w);
+
+    ctx.restore();
+
+    state.liveAgentAnimId = requestAnimationFrame(animate);
+  }
+
+  animate();
 }
 
 // Open canvas from a code block index (used by inline Preview buttons).
