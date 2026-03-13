@@ -94,6 +94,12 @@ func (s *Server) Start() error {
 	// Persona management API
 	RegisterPersonaRoutes(mux, s.graphBackend)
 
+	// Model management API (provider catalog, model auto-load, global config)
+	RegisterModelRoutes(mux, s.graphBackend)
+
+	// Agent activity persistence API
+	RegisterActivityRoutes(mux, s.graphBackend)
+
 	// Superagent generated web assets
 	slidesDir := filepath.Join(s.dataDir, "slides")
 	reportsDir := filepath.Join(s.dataDir, "reports")

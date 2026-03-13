@@ -619,8 +619,8 @@ a:hover { color: var(--accent-hover); }
   opacity: 1;
 }
 
-/* ── Live Agents Panel ────────────────────────────────────────────── */
-.live-agents-pane {
+/* ── Right Panel (Tabbed: Canvas / Live Agents / Browser) ────────── */
+.right-panel {
   width: 0;
   overflow: hidden;
   display: flex;
@@ -630,17 +630,70 @@ a:hover { color: var(--accent-hover); }
   opacity: 0;
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  border-top: 3px solid var(--green);
   margin: 4px 0;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
 }
 
-.live-agents-pane.visible {
+.right-panel.visible {
   width: 50%;
   opacity: 1;
 }
 
-.live-agents-pane .canvas-body {
+.right-panel-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  border-radius: var(--radius) var(--radius) 0 0;
+  height: 36px;
+  min-height: 36px;
+}
+
+.rp-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font);
+  padding: 8px 4px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+  white-space: nowrap;
+}
+
+.rp-tab:hover {
+  color: var(--text-primary);
+}
+
+.rp-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.right-panel-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 10px;
+  line-height: 1;
+}
+
+.right-panel-close:hover {
+  color: var(--red);
+}
+
+.rp-content {
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rp-content .canvas-body {
   background: #0d1117;
   border: none;
   margin: 0;

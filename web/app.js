@@ -418,8 +418,11 @@ function renderChat(container) {
     font-size:12px;
   `;
 
+  const panelOpen = state.rightPanelOpen || false;
+  const activeTab = state.rightPanelTab || 'canvas';
+
   container.innerHTML = `
-    <div class="chat-split ${state.canvasOpen ? 'canvas-active' : ''}" id="chat-split">
+    <div class="chat-split ${panelOpen ? 'canvas-active' : ''}" id="chat-split">
       <div class="chat-pane">
         <div class="chat-container">
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
@@ -432,12 +435,17 @@ function renderChat(container) {
             <button class="btn" style="font-size:11px;padding:4px 10px;" onclick="navigate('personas')" title="Create a new focused agent">
               + New Agent
             </button>
-            <button class="canvas-toggle ${state.liveAgentsOpen ? 'active' : ''}" onclick="toggleLiveAgents()" title="Toggle live agent topology view">
-              📡 Live Agents
-            </button>
-            <button class="canvas-toggle ${state.canvasOpen ? 'active' : ''}" onclick="toggleCanvas()" title="Toggle Canvas preview">
-              🖼 Canvas
-            </button>
+            <div style="display:flex;gap:2px;margin-left:auto;">
+              <button class="canvas-toggle ${panelOpen && activeTab === 'agents' ? 'active' : ''}" onclick="openRightPanel('agents')" title="Live Agent Topology">
+                📡 Live Agents
+              </button>
+              <button class="canvas-toggle ${panelOpen && activeTab === 'canvas' ? 'active' : ''}" onclick="openRightPanel('canvas')" title="Canvas Preview">
+                🖼 Canvas
+              </button>
+              <button class="canvas-toggle ${panelOpen && activeTab === 'browser' ? 'active' : ''}" onclick="openRightPanel('browser')" title="Agent Browser View">
+                🌐 Browser
+              </button>
+            </div>
           </div>
 
           <div class="chat-messages" id="chat-messages">
@@ -452,60 +460,135 @@ function renderChat(container) {
         </div>
       </div>
 
-      <div class="canvas-pane" id="canvas-pane">
-        <div class="canvas-header">
-          <div class="canvas-header-left">
-            <span class="canvas-header-icon">🖼</span>
-            <span class="canvas-title" id="canvas-title">${escapeHtml(state.canvasTitle)}</span>
-            ${state.canvasUrl ? `<span class="canvas-subtitle" title="${escapeHtml(state.canvasUrl)}">${escapeHtml(state.canvasUrl)}</span>` : ''}
-          </div>
-          <div class="canvas-header-actions">
-            ${state.canvasUrl ? `<button class="canvas-btn" onclick="window.open('${state.canvasUrl}','_blank')">↗ Open</button>` : ''}
-            <button class="canvas-btn" onclick="refreshCanvas()">↻ Refresh</button>
-            <button class="canvas-close" onclick="closeCanvas()" title="Close canvas">×</button>
-          </div>
+      <div class="right-panel ${panelOpen ? 'visible' : ''}" id="right-panel">
+        <!-- Tab bar -->
+        <div class="right-panel-tabs">
+          <button class="rp-tab ${activeTab === 'canvas' ? 'active' : ''}" onclick="switchRightTab('canvas')">🖼 Canvas</button>
+          <button class="rp-tab ${activeTab === 'agents' ? 'active' : ''}" onclick="switchRightTab('agents')">📡 Agents</button>
+          <button class="rp-tab ${activeTab === 'browser' ? 'active' : ''}" onclick="switchRightTab('browser')">🌐 Browser</button>
+          <button class="right-panel-close" onclick="closeRightPanel()" title="Close panel">×</button>
         </div>
-        <div class="canvas-body" id="canvas-body">
-          ${state.canvasContent || state.canvasUrl ? 
-            `<iframe id="canvas-iframe" ${state.canvasUrl ? `src="${state.canvasUrl}"` : ''} sandbox="allow-scripts allow-same-origin allow-popups"></iframe>` :
-            `<div class="canvas-empty">
-              <div class="canvas-empty-icon">🖼</div>
-              <div class="canvas-empty-text">No preview yet</div>
-              <div style="font-size:11px;color:var(--text-muted);max-width:200px;text-align:center;line-height:1.4;">Send a message that generates HTML, slides, or code and click "Preview in Canvas"</div>
-            </div>`
-          }
-        </div>
-        <div class="canvas-status">
-          <span><span class="canvas-status-dot"></span>${state.canvasContent || state.canvasUrl ? 'Ready' : 'Idle'}</span>
-          <span>${state.canvasUrl ? escapeHtml(state.canvasUrl) : state.canvasContent ? 'srcdoc' : 'no source'}</span>
-        </div>
-      </div>
 
-      <div class="live-agents-pane ${state.liveAgentsOpen ? 'visible' : ''}" id="live-agents-pane">
-        <div class="canvas-header">
-          <div class="canvas-header-left">
-            <span class="canvas-header-icon">📡</span>
-            <span class="canvas-title">Live Agent Topology</span>
+        <!-- Canvas tab -->
+        <div class="rp-content" style="display:${activeTab === 'canvas' ? 'flex' : 'none'};" id="rp-canvas">
+          <div class="canvas-header">
+            <div class="canvas-header-left">
+              <span class="canvas-header-icon">🖼</span>
+              <span class="canvas-title" id="canvas-title">${escapeHtml(state.canvasTitle)}</span>
+              ${state.canvasUrl ? `<span class="canvas-subtitle" title="${escapeHtml(state.canvasUrl)}">${escapeHtml(state.canvasUrl)}</span>` : ''}
+            </div>
+            <div class="canvas-header-actions">
+              ${state.canvasUrl ? `<button class="canvas-btn" onclick="window.open('${state.canvasUrl}','_blank')">↗ Open</button>` : ''}
+              <button class="canvas-btn" onclick="refreshCanvas()">↻ Refresh</button>
+            </div>
           </div>
-          <div class="canvas-header-actions">
-            <button class="canvas-btn" onclick="simulateAgentActivity()" title="Simulate delegation">⚡ Simulate</button>
-            <button class="canvas-close" onclick="closeLiveAgents()" title="Close">×</button>
+          <div class="canvas-body" id="canvas-body">
+            ${state.canvasContent || state.canvasUrl ? 
+              `<iframe id="canvas-iframe" ${state.canvasUrl ? `src="${state.canvasUrl}"` : ''} sandbox="allow-scripts allow-same-origin allow-popups"></iframe>` :
+              `<div class="canvas-empty">
+                <div class="canvas-empty-icon">🖼</div>
+                <div class="canvas-empty-text">No preview yet</div>
+                <div style="font-size:11px;color:var(--text-muted);max-width:200px;text-align:center;line-height:1.4;">Send a message that generates HTML, slides, or code and click "Preview in Canvas"</div>
+              </div>`
+            }
           </div>
         </div>
-        <div class="canvas-body" style="position:relative;overflow:hidden;">
-          <canvas id="agent-topology-canvas" style="width:100%;height:100%;display:block;"></canvas>
+
+        <!-- Live Agents tab -->
+        <div class="rp-content" style="display:${activeTab === 'agents' ? 'flex' : 'none'};" id="rp-agents">
+          <div class="canvas-header">
+            <div class="canvas-header-left">
+              <span class="canvas-header-icon">📡</span>
+              <span class="canvas-title">Live Agent Topology</span>
+            </div>
+            <div class="canvas-header-actions">
+              <button class="canvas-btn" onclick="simulateAgentActivity()" title="Simulate delegation">⚡ Simulate</button>
+            </div>
+          </div>
+          <div class="canvas-body" style="position:relative;overflow:hidden;">
+            <canvas id="agent-topology-canvas" style="width:100%;height:100%;display:block;"></canvas>
+          </div>
+        </div>
+
+        <!-- Browser tab -->
+        <div class="rp-content" style="display:${activeTab === 'browser' ? 'flex' : 'none'};" id="rp-browser">
+          <div class="canvas-header">
+            <div class="canvas-header-left">
+              <span class="canvas-header-icon">🌐</span>
+              <span class="canvas-title">Agent Browser</span>
+            </div>
+            <div class="canvas-header-actions">
+              <button class="canvas-btn" onclick="refreshBrowserView()">↻ Refresh</button>
+            </div>
+          </div>
+          <div class="canvas-body" id="browser-body" style="position:relative;">
+            <!-- Agent badge overlay -->
+            <div id="browser-agent-badge" style="
+              position:absolute;top:8px;right:8px;z-index:10;
+              background:rgba(13,17,23,0.85);backdrop-filter:blur(8px);
+              border:1px solid var(--border);border-radius:var(--radius-sm);
+              padding:4px 10px;display:flex;align-items:center;gap:6px;
+              font-size:11px;color:var(--text-secondary);
+              pointer-events:none;
+            ">
+              <span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;"></span>
+              <span id="browser-active-agent">Orchestrator</span>
+            </div>
+            <iframe id="browser-iframe" src="about:blank" style="width:100%;height:100%;border:none;border-radius:0 0 var(--radius) var(--radius);"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
+          </div>
         </div>
       </div>
     </div>
   `;
 
   renderChatMessages();
-  if (state.liveAgentsOpen) initAgentTopology();
+  if (panelOpen && activeTab === 'agents') initAgentTopology();
 
   // If canvas has srcdoc content (not a URL), inject it after render.
-  if (state.canvasOpen && state.canvasContent && !state.canvasUrl) {
+  if (panelOpen && activeTab === 'canvas' && state.canvasContent && !state.canvasUrl) {
     const iframe = document.getElementById('canvas-iframe');
     if (iframe) iframe.srcdoc = state.canvasContent;
+  }
+}
+
+// ── Right Panel Management ────────────────────────────────────────
+function openRightPanel(tab) {
+  // If clicking the same tab that's active, close the panel.
+  if (state.rightPanelOpen && state.rightPanelTab === tab) {
+    closeRightPanel();
+    return;
+  }
+  state.rightPanelOpen = true;
+  state.rightPanelTab = tab;
+  // Keep canvas state in sync.
+  state.canvasOpen = (tab === 'canvas');
+  state.liveAgentsOpen = (tab === 'agents');
+  renderChat();
+}
+
+function switchRightTab(tab) {
+  state.rightPanelTab = tab;
+  state.canvasOpen = (tab === 'canvas');
+  state.liveAgentsOpen = (tab === 'agents');
+  renderChat();
+}
+
+function closeRightPanel() {
+  state.rightPanelOpen = false;
+  state.canvasOpen = false;
+  state.liveAgentsOpen = false;
+  if (state.liveAgentAnimId) {
+    cancelAnimationFrame(state.liveAgentAnimId);
+    state.liveAgentAnimId = null;
+  }
+  renderChat();
+}
+
+function refreshBrowserView() {
+  const iframe = document.getElementById('browser-iframe');
+  if (iframe && iframe.src !== 'about:blank') {
+    iframe.src = iframe.src; // reload
   }
 }
 
@@ -559,23 +642,20 @@ function openCanvas(html, title) {
 
 // Open the canvas with a URL (src mode, for slides/reports).
 function openCanvasUrl(url, title) {
-  state.canvasOpen = true;
   state.canvasContent = null;
   state.canvasTitle = title || url.split('/').pop();
   state.canvasUrl = url;
-  if (state.page === 'chat') renderChat();
+  openRightPanel('canvas');
 }
 
 // Close the canvas.
 function closeCanvas() {
-  state.canvasOpen = false;
-  if (state.page === 'chat') renderChat();
+  closeRightPanel();
 }
 
 // Toggle canvas visibility.
 function toggleCanvas() {
-  state.canvasOpen = !state.canvasOpen;
-  if (state.page === 'chat') renderChat();
+  openRightPanel('canvas');
 }
 
 // Refresh the canvas iframe.
@@ -592,21 +672,11 @@ function refreshCanvas() {
 // ── Live Agent Topology ──────────────────────────────────────────
 
 function toggleLiveAgents() {
-  state.liveAgentsOpen = !state.liveAgentsOpen;
-  if (!state.liveAgentsOpen && state.liveAgentAnimId) {
-    cancelAnimationFrame(state.liveAgentAnimId);
-    state.liveAgentAnimId = null;
-  }
-  if (state.page === 'chat') renderChat();
+  openRightPanel('agents');
 }
 
 function closeLiveAgents() {
-  state.liveAgentsOpen = false;
-  if (state.liveAgentAnimId) {
-    cancelAnimationFrame(state.liveAgentAnimId);
-    state.liveAgentAnimId = null;
-  }
-  if (state.page === 'chat') renderChat();
+  closeRightPanel();
 }
 
 // Simulate a delegation event for demo purposes.
@@ -2192,34 +2262,40 @@ async function renderPersonas(container) {
   if (!container) container = document.getElementById('page-content');
   await fetchPersonas();
 
-  // Separate orchestrator from focused agents
-  const orchestrator = state.personas.find(p => p.is_default || p.is_locked);
+  // Separate system agents from focused agents
+  const systemAgents = state.personas.filter(p => p.is_default || p.is_locked);
   const focusedAgents = state.personas.filter(p => !p.is_default && !p.is_locked);
+  const orchestrator = systemAgents.find(p => p.name === 'mike') || systemAgents[0];
+  const embedAgent = systemAgents.find(p => p.name === 'embed');
 
-  // ── Orchestrator card ──
-  const orchCard = orchestrator ? `
-    <div class="card" style="border-left:3px solid var(--blue);">
+  // System agent icons
+  const agentIcon = (name) => {
+    if (name === 'mike') return '🧠';
+    if (name === 'embed') return '🗄️';
+    return '🤖';
+  };
+
+  // ── System Agents cards ──
+  const systemCards = systemAgents.map(sa => `
+    <div class="card" style="border-left:3px solid ${sa.name === 'mike' ? 'var(--blue)' : 'var(--green)'};">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:16px;font-weight:800;color:var(--text-primary);">🧠 Orchestrator</span>
-          <span class="badge" style="font-size:9px;background:var(--blue);color:#fff;">CORE</span>
+          <span style="font-size:16px;font-weight:800;color:var(--text-primary);">${agentIcon(sa.name)} ${sa.name === 'mike' ? 'Orchestrator' : 'Embed Agent'}</span>
+          <span class="badge" style="font-size:9px;background:${sa.name === 'mike' ? 'var(--blue)' : 'var(--green)'};color:#fff;">SYSTEM</span>
+          <span class="badge" style="font-size:9px;background:var(--bg-input);color:var(--text-muted);">🔒 LOCKED</span>
         </div>
-        <button class="btn" style="font-size:11px;padding:4px 10px;" onclick="editOrchestrator()">Customize</button>
+        <button class="btn" style="font-size:11px;padding:4px 10px;" onclick="${sa.name === 'mike' ? 'editOrchestrator()' : ''}">Customize</button>
       </div>
-      <div style="font-size:12px;color:var(--text-secondary);margin-top:8px;line-height:1.5;">${orchestrator.personality || 'No personality set'}</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:8px;line-height:1.5;">${sa.personality || 'No personality set'}</div>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-        <span style="font-size:10px;color:var(--text-muted);">Name: <strong style="color:var(--text-primary);">${orchestrator.name}</strong></span>
-        <span style="font-size:10px;color:var(--text-muted);">Role: <strong style="color:var(--text-primary);">${orchestrator.role || 'Tech Lead'}</strong></span>
+        <span style="font-size:10px;color:var(--text-muted);">Name: <strong style="color:var(--text-primary);">${sa.name}</strong></span>
+        <span style="font-size:10px;color:var(--text-muted);">Role: <strong style="color:var(--text-primary);">${sa.role || (sa.name === 'mike' ? 'Tech Lead' : 'Knowledge Agent')}</strong></span>
       </div>
       <div style="font-size:10px;color:var(--text-muted);margin-top:6px;padding:6px 8px;background:var(--bg-input);border-radius:var(--radius-sm);border:1px dashed var(--border);">
-        🔒 Core delegation logic, system prompt, and max_delegations are locked to ensure stability.
+        🔒 ${sa.name === 'mike' ? 'Core delegation logic, system prompt, and max_delegations are locked.' : 'Embedding pipeline and knowledge persistence are locked.'}
       </div>
     </div>
-  ` : `
-    <div class="card" style="border-left:3px solid var(--yellow);text-align:center;padding:16px;">
-      <span style="color:var(--text-muted);">Orchestrator not initialized. It will be created on first API call.</span>
-    </div>
-  `;
+  `).join('');
 
   // ── Focused agent cards ──
   const agentCards = focusedAgents.map(a => {
@@ -2244,17 +2320,66 @@ async function renderPersonas(container) {
           <span style="font-size:10px;color:var(--text-muted);">Autonomy: ${a.autonomy}/4</span>
           <span style="font-size:10px;color:var(--text-muted);">Max loops: ${a.max_loops || 10}</span>
         </div>
+        <div style="margin-top:8px;padding:6px 8px;background:var(--bg-input);border-radius:var(--radius-sm);border:1px solid var(--border);display:flex;align-items:center;gap:6px;">
+          <span style="font-size:10px;color:var(--text-muted);">Model:</span>
+          <span class="badge" style="font-size:10px;background:var(--bg-sidebar);">Use Global</span>
+        </div>
       </div>`;
   }).join('');
 
   container.innerHTML = `
+    <!-- Global Model Config -->
     <div style="margin-bottom:16px;">
-      <span class="section-label">Orchestrator</span>
-      <p style="font-size:11px;color:var(--text-muted);margin:2px 0 8px 0;">The brain that routes tasks to focused agents. You can customize its personality and how it addresses you.</p>
-      ${orchCard}
+      <span class="section-label">Model Configuration</span>
+      <p style="font-size:11px;color:var(--text-muted);margin:2px 0 8px 0;">Set the default LLM for all agents. Individual agents can override this.</p>
+      <div class="card" style="border-left:3px solid var(--accent);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <span style="font-size:14px;font-weight:700;color:var(--text-primary);">⚙️ Global Model</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:120px;">
+            <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:3px;">Model Type</label>
+            <select id="global-model-type" class="form-control" style="font-size:12px;" onchange="onModelTypeChange(this.value)">
+              <option value="api">API Provider</option>
+              <option value="torch">Local (Torch / SafeTensors)</option>
+              <option value="ollama">Ollama (GGUF)</option>
+            </select>
+          </div>
+          <div style="flex:2;min-width:160px;" id="model-provider-group">
+            <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:3px;">Provider</label>
+            <select id="global-provider" class="form-control" style="font-size:12px;" onchange="onProviderChange(this.value)">
+              <option value="">Select provider...</option>
+            </select>
+          </div>
+          <div style="flex:2;min-width:150px;">
+            <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:3px;">API Key</label>
+            <input type="password" id="global-api-key" class="form-control" style="font-size:12px;" placeholder="sk-...">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px;align-items:flex-end;">
+          <div style="flex:3;min-width:200px;">
+            <label style="font-size:10px;color:var(--text-muted);display:block;margin-bottom:3px;">Model</label>
+            <select id="global-model-select" class="form-control" style="font-size:12px;">
+              <option value="">Enter API key then Load Models</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" style="font-size:11px;padding:6px 14px;white-space:nowrap;height:32px;" onclick="loadModels()">Load Models</button>
+          <button class="btn" style="font-size:11px;padding:6px 14px;white-space:nowrap;height:32px;" onclick="saveGlobalModel()">Save</button>
+        </div>
+      </div>
     </div>
 
-    <div>
+    <!-- System Agents -->
+    <div style="margin-bottom:16px;">
+      <span class="section-label">System Agents</span>
+      <p style="font-size:11px;color:var(--text-muted);margin:2px 0 8px 0;">Core agents that cannot be deleted. The orchestrator routes tasks, the embed agent persists knowledge.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px;">
+        ${systemCards}
+      </div>
+    </div>
+
+    <!-- Focused Agents -->
+    <div style="margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <span class="section-label">Focused Agents (${focusedAgents.length})</span>
         <button class="btn btn-primary" style="font-size:12px;padding:6px 14px;" onclick="openAgentModal()">+ New Agent</button>
@@ -2262,6 +2387,25 @@ async function renderPersonas(container) {
       <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px 0;">Specialized workers that receive delegated tasks. Each agent has a role, personality, tools, and autonomy level.</p>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px;">
         ${agentCards || '<div style="color:var(--text-muted);text-align:center;padding:20px;">No focused agents yet. Click "+ New Agent" to create one.</div>'}
+      </div>
+    </div>
+
+    <!-- Doctor Status -->
+    <div style="margin-bottom:16px;">
+      <span class="section-label">Doctor (Self-Healing)</span>
+      <div class="card" style="border-left:3px solid var(--yellow);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span style="font-size:14px;font-weight:700;color:var(--text-primary);">🏥 Doctor</span>
+          <span class="badge" style="font-size:9px;background:var(--green);color:#fff;">ACTIVE</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">
+          Auto-heals errors, runs linters, manages golden snapshots, and audits the database for stale or contradictory data.
+        </div>
+        <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap;">
+          <span style="font-size:10px;color:var(--text-muted);">Heartbeat: <strong style="color:var(--text-primary);">30 min</strong></span>
+          <span style="font-size:10px;color:var(--text-muted);">DB Audit: <strong style="color:var(--green);">Healthy</strong></span>
+          <span style="font-size:10px;color:var(--text-muted);">Max Fix Attempts: <strong style="color:var(--text-primary);">3/session</strong></span>
+        </div>
       </div>
     </div>
 
@@ -2459,6 +2603,93 @@ async function deleteAgent(name) {
     alert(res?.error || 'Failed to delete agent');
   }
 }
+
+// ── Model Management ──────────────────────────────────────────────
+async function loadModels() {
+  const provider = document.getElementById('global-provider')?.value;
+  const apiKey = document.getElementById('global-api-key')?.value;
+  const modelSelect = document.getElementById('global-model-select');
+  if (!modelSelect) return;
+
+  modelSelect.innerHTML = '<option value="">Loading...</option>';
+
+  const body = { provider: provider || '', api_key: apiKey || '' };
+  const res = await api('/v1/models/list', { method: 'POST', body: JSON.stringify(body) });
+
+  if (res && res.models) {
+    modelSelect.innerHTML = res.models.map(m =>
+      `<option value="${m.id}">${m.id}${m.owned_by ? ' (' + m.owned_by + ')' : ''}</option>`
+    ).join('');
+    if (res.models.length === 0) {
+      modelSelect.innerHTML = '<option value="">No models found</option>';
+    }
+  } else {
+    modelSelect.innerHTML = '<option value="">Failed to load models</option>';
+  }
+}
+
+async function saveGlobalModel() {
+  const modelType = document.getElementById('global-model-type')?.value || 'api';
+  const provider = document.getElementById('global-provider')?.value || '';
+  const apiKey = document.getElementById('global-api-key')?.value || '';
+  const model = document.getElementById('global-model-select')?.value || '';
+
+  const body = {
+    model_type: modelType,
+    provider: provider,
+    model: model,
+    api_key: apiKey,
+    api_base: '',
+  };
+
+  if (modelType === 'ollama') {
+    body.ollama_model = model;
+    body.ollama_endpoint = 'http://localhost:11434';
+  }
+
+  const res = await api('/v1/models/global', { method: 'PUT', body: JSON.stringify(body) });
+  if (res && !res.error) {
+    addLog('info', 'model', 'Global model config saved: ' + model);
+  } else {
+    alert(res?.error || 'Failed to save model config');
+  }
+}
+
+function onModelTypeChange(type) {
+  const providerGroup = document.getElementById('model-provider-group');
+  if (providerGroup) {
+    providerGroup.style.display = type === 'api' ? '' : 'none';
+  }
+  if (type === 'ollama') {
+    const sel = document.getElementById('global-provider');
+    if (sel) sel.value = 'ollama';
+  }
+}
+
+async function onProviderChange(slug) {
+  // No-op for now, could auto-populate API base
+}
+
+// Load providers into dropdown when agents page renders
+async function loadProviderCatalog() {
+  const sel = document.getElementById('global-provider');
+  if (!sel) return;
+
+  const res = await api('/v1/models/providers');
+  if (res && res.providers) {
+    sel.innerHTML = '<option value="">Select provider...</option>' +
+      res.providers.filter(p => p.compatible && p.api_base).map(p =>
+        `<option value="${p.slug}">${p.name} (${p.category})</option>`
+      ).join('');
+  }
+}
+
+// Auto-load provider catalog when the agents page opens
+const origRenderPersonas = renderPersonas;
+renderPersonas = async function(container) {
+  await origRenderPersonas(container);
+  await loadProviderCatalog();
+};
 
 // ── Keyboard Shortcuts ────────────────────────────────────────────
 document.addEventListener('keydown', (e) => {

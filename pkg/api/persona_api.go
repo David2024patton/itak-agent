@@ -279,11 +279,13 @@ func (p *PersonaAPI) deletePersona(w http.ResponseWriter, _ *http.Request, name 
 	json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 }
 
-// seedDefaultPersona creates the locked default "mike" persona.
+// seedDefaultPersona creates the locked system agents: mike (orchestrator) + embed.
 func (p *PersonaAPI) seedDefaultPersona(db interface {
 	CreateNode([]string, map[string]interface{}, []float32) (uint64, error)
 }) PersonaData {
 	now := time.Now().Format(time.RFC3339)
+
+	// Orchestrator agent (mike)
 	def := PersonaData{
 		Name:        "mike",
 		Role:        "Tech Lead / Primary Agent",
@@ -305,7 +307,32 @@ func (p *PersonaAPI) seedDefaultPersona(db interface {
 	props["is_locked"] = true
 
 	db.CreateNode([]string{"Persona"}, props, nil)
-	debug.Info("persona", "Seeded default persona: mike (locked)")
+	debug.Info("persona", "Seeded system agent: mike (orchestrator, locked)")
+
+	// Embed agent -- handles vectorization, knowledge persistence, and DB writes.
+	embedAgent := PersonaData{
+		Name:        "embed",
+		Role:        "Knowledge & Embedding Agent",
+		Personality: "Silent worker. Processes all agent outputs, vectorizes data, and persists knowledge to the graph database. Runs automatically on every agent result.",
+		Goals:       []string{"knowledge_persistence", "vector_indexing", "data_integrity"},
+		Tools:       []string{"embed_text", "graph_write", "graph_search"},
+		MaxLoops:    5,
+		Autonomy:    4,
+		IsDefault:   true,
+		IsLocked:    true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	embedProps := personaToMap(embedAgent)
+	embedProps["created_at"] = now
+	embedProps["updated_at"] = now
+	embedProps["is_default"] = true
+	embedProps["is_locked"] = true
+
+	db.CreateNode([]string{"Persona"}, embedProps, nil)
+	debug.Info("persona", "Seeded system agent: embed (knowledge, locked)")
+
 	return def
 }
 
