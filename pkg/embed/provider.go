@@ -45,23 +45,31 @@ func Init(cfg Config) error {
 
 	var primary Embedder
 	var fallback Embedder
-	var err error
 
 	switch cfg.Provider {
 	case "gemini":
-		primary, err = NewGeminiEmbedder(cfg)
+		p, err := NewGeminiEmbedder(cfg)
 		if err != nil {
 			log.Printf("[embed] Gemini init failed: %v, trying fallback", err)
 		}
+		if p != nil {
+			primary = p
+		}
 	case "openai":
-		primary, err = NewOpenAIEmbedder(cfg)
+		p, err := NewOpenAIEmbedder(cfg)
 		if err != nil {
 			log.Printf("[embed] OpenAI init failed: %v, trying fallback", err)
 		}
+		if p != nil {
+			primary = p
+		}
 	case "local", "ollama", "torch":
-		primary, err = NewLocalEmbedder(cfg)
+		p, err := NewLocalEmbedder(cfg)
 		if err != nil {
 			return fmt.Errorf("local embedder init: %w", err)
+		}
+		if p != nil {
+			primary = p
 		}
 	default:
 		return fmt.Errorf("unknown embedding provider: %q (use 'gemini', 'openai', 'local', or 'ollama')", cfg.Provider)
