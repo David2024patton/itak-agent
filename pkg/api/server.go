@@ -88,6 +88,9 @@ func (s *Server) Start() error {
 	// DebugMemory + WebResearch API
 	RegisterDebugResearchRoutes(mux, s.graphBackend)
 
+	// Ecosystem local-directory ingestion API
+	RegisterEcosystemRoutes(mux, s.graphBackend)
+
 	// Superagent generated web assets
 	slidesDir := filepath.Join(s.dataDir, "slides")
 	reportsDir := filepath.Join(s.dataDir, "reports")

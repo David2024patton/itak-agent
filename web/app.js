@@ -1477,6 +1477,8 @@ async function renderDatabase(container) {
     { id: 'vector', label: 'Vector', icon: '&#10070;' },
     { id: 'tables', label: 'Tables', icon: '&#9638;' },
     { id: 'search', label: 'Search', icon: '&#128269;' },
+    { id: 'errors', label: 'Errors', icon: '&#9888;' },
+    { id: 'research', label: 'Research', icon: '&#127760;' },
   ];
 
   const tabBar = tabs.map(t => `
@@ -1590,6 +1592,44 @@ async function renderDatabase(container) {
         </div>
       `;
       break;
+
+    case 'errors':
+      tabContent = `
+        <div class="card" style="margin-bottom:12px;">
+          <h4 style="margin:0 0 8px 0;color:var(--text-primary);">Search Known Errors</h4>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="error-search-input" class="form-control" placeholder="Describe the error to search for solutions..." style="flex:1;">
+            <button class="btn btn-primary" onclick="searchDebugErrors()">Search</button>
+          </div>
+        </div>
+        <div id="error-results" style="display:flex;flex-direction:column;gap:8px;">
+          <div class="card" style="text-align:center;padding:24px;">
+            <div style="font-size:32px;margin-bottom:8px;">&#9888;</div>
+            <div style="font-size:14px;color:var(--text-primary);font-weight:600;">Debug Memory</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Search past errors and their solutions. Errors are stored automatically during agent operation.</div>
+          </div>
+        </div>
+      `;
+      break;
+
+    case 'research':
+      tabContent = `
+        <div class="card" style="margin-bottom:12px;">
+          <h4 style="margin:0 0 8px 0;color:var(--text-primary);">Search Research</h4>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="research-search-input" class="form-control" placeholder="Search past research by topic..." style="flex:1;">
+            <button class="btn btn-primary" onclick="searchResearch()">Search</button>
+          </div>
+        </div>
+        <div id="research-results" style="display:flex;flex-direction:column;gap:8px;">
+          <div class="card" style="text-align:center;padding:24px;">
+            <div style="font-size:32px;margin-bottom:8px;">&#127760;</div>
+            <div style="font-size:14px;color:var(--text-primary);font-weight:600;">Web Research</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Browse and search past website research. Data is stored per-website with domain grouping.</div>
+          </div>
+        </div>
+      `;
+      break;
   }
 
   container.innerHTML = `
@@ -1633,6 +1673,83 @@ async function renderDatabase(container) {
       });
     }
   }
+}
+
+// ── Debug/Research Search Helpers ─────────────────────────────────
+async function searchDebugErrors() {
+  const query = document.getElementById('error-search-input')?.value;
+  if (!query) return;
+  const resultsDiv = document.getElementById('error-results');
+  if (!resultsDiv) return;
+  resultsDiv.innerHTML = '<div class="card" style="text-align:center;padding:16px;color:var(--text-muted);">Searching...</div>';
+
+  const data = await api('/v1/debug/search', {
+    method: 'POST',
+    body: JSON.stringify({ query, limit: 10 }),
+  });
+
+  if (!data || !data.results || data.results.length === 0) {
+    resultsDiv.innerHTML = '<div class="card" style="text-align:center;padding:16px;color:var(--text-muted);">No matching errors found. ' + (data?.message || '') + '</div>';
+    return;
+  }
+
+  resultsDiv.innerHTML = data.results.map(r => {
+    const n = r.node || {};
+    const isResolved = n.resolved === true;
+    const fixInfo = r.fix ? `
+      <div style="margin-top:8px;padding:8px;background:var(--bg-tertiary);border-radius:var(--radius-sm);border-left:3px solid var(--green);">
+        <div style="font-size:11px;color:var(--green);font-weight:600;">FIX (by ${r.fix.agent || 'unknown'})</div>
+        <div style="font-size:12px;color:var(--text-primary);margin-top:4px;">${r.fix.description || ''}</div>
+        ${r.fix.code ? `<pre style="font-size:11px;margin-top:4px;background:var(--bg-secondary);padding:4px 8px;border-radius:4px;overflow-x:auto;">${r.fix.code}</pre>` : ''}
+      </div>` : '';
+
+    return `
+      <div class="card" style="border-left:3px solid ${isResolved ? 'var(--green)' : 'var(--red)'};">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span class="badge ${isResolved ? 'badge-running' : ''}" style="font-size:10px;">${isResolved ? 'Resolved' : 'Open'}</span>
+          <span style="font-size:10px;color:var(--text-muted);">${n.error_type || 'unknown'} | ${(r.score * 100).toFixed(0)}% match</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-primary);margin-top:6px;font-family:var(--mono);">${n.message || ''}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">Source: ${n.source || '-'} | ${n.timestamp || ''}</div>
+        ${fixInfo}
+      </div>`;
+  }).join('');
+}
+
+async function searchResearch() {
+  const query = document.getElementById('research-search-input')?.value;
+  if (!query) return;
+  const resultsDiv = document.getElementById('research-results');
+  if (!resultsDiv) return;
+  resultsDiv.innerHTML = '<div class="card" style="text-align:center;padding:16px;color:var(--text-muted);">Searching...</div>';
+
+  const data = await api('/v1/research/search', {
+    method: 'POST',
+    body: JSON.stringify({ query, limit: 10 }),
+  });
+
+  if (!data || !data.results || data.results.length === 0) {
+    resultsDiv.innerHTML = '<div class="card" style="text-align:center;padding:16px;color:var(--text-muted);">No matching research found. ' + (data?.message || '') + '</div>';
+    return;
+  }
+
+  resultsDiv.innerHTML = data.results.map(r => {
+    const n = r.node || {};
+    return `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary);">${n.title || 'Untitled'}</span>
+          <span style="font-size:10px;color:var(--text-muted);">${(r.score * 100).toFixed(0)}% match</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <span class="badge" style="font-size:10px;">${n.domain || 'unknown'}</span>
+          ${n.topic ? `<span class="badge" style="font-size:10px;">${n.topic}</span>` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:6px;">${n.findings || n.content?.substring(0, 200) || ''}</div>
+        ${n.url ? `<a href="${n.url}" target="_blank" style="font-size:11px;color:var(--blue);margin-top:4px;display:block;text-decoration:none;">${n.url}</a>` : ''}
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">${n.last_visited || ''}</div>
+      </div>`;
+  }).join('');
 }
 
 // ── Keyboard Shortcuts ────────────────────────────────────────────
