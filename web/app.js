@@ -863,6 +863,64 @@ function renderSettings(container) {
       }</div>
     </div>
 
+    <div class="settings-section" id="embed-settings">
+      <h3>Embeddings</h3>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Active Provider</div>
+          <div class="setting-desc" id="embed-status-text">Loading...</div>
+        </div>
+        <span class="badge" id="embed-status-badge">...</span>
+      </div>
+
+      <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block;">Provider</label>
+            <select id="embed-provider" class="form-control" onchange="embedProviderChanged()">
+              <option value="local">Local (Torch/Ollama)</option>
+              <option value="gemini">Gemini (Cloud)</option>
+              <option value="openai">OpenAI-Compatible (Cloud)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block;">Model</label>
+            <select id="embed-model" class="form-control">
+              <option value="">Loading models...</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="embed-cloud-fields" style="display:none;">
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+            <div>
+              <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block;">API Key</label>
+              <input type="password" id="embed-api-key" class="form-control" placeholder="sk-... or AIza...">
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block;">API Base URL</label>
+              <input type="text" id="embed-api-base" class="form-control" placeholder="https://api.openai.com">
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="applyEmbedConfig()">Apply Config</button>
+          <button class="btn" onclick="downloadEmbedModel()">Download Model</button>
+          <button class="btn" onclick="testEmbedding()">Test Embedding</button>
+        </div>
+
+        <div id="embed-progress" style="display:none;">
+          <div style="background:var(--bg-tertiary);border-radius:var(--radius-sm);overflow:hidden;height:8px;">
+            <div id="embed-progress-bar" style="height:100%;background:var(--blue);transition:width 0.3s;width:0%;"></div>
+          </div>
+          <div id="embed-progress-text" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">Downloading...</div>
+        </div>
+
+        <div id="embed-test-result" style="display:none;"></div>
+      </div>
+    </div>
+
     <div class="settings-section">
       <h3>Debug</h3>
       <div style="display:flex;gap:8px;">
@@ -871,6 +929,164 @@ function renderSettings(container) {
       </div>
     </div>
   `;
+
+  // Load embedding status and models asynchronously.
+  loadEmbedSettings();
+}
+
+// ── Embedding Settings Helpers ────────────────────────────────────
+async function loadEmbedSettings() {
+  // Load current status.
+  const status = await api('/v1/embed/status');
+  if (status) {
+    const statusText = document.getElementById('embed-status-text');
+    const statusBadge = document.getElementById('embed-status-badge');
+    if (statusText) {
+      statusText.textContent = `${status.provider} (${status.dimensions}d)`;
+    }
+    if (statusBadge) {
+      statusBadge.textContent = status.active ? 'Active' : 'Inactive';
+      statusBadge.className = `badge ${status.active ? 'badge-running' : ''}`;
+    }
+  }
+
+  // Load model catalog.
+  const models = await api('/v1/embed/models');
+  if (models && models.models) {
+    const select = document.getElementById('embed-model');
+    if (select) {
+      select.innerHTML = models.models.map(m =>
+        `<option value="${m.name}" ${m.installed ? 'data-installed="true"' : ''}>` +
+        `${m.name} (${m.dimensions}d, ${m.size_mb}MB)${m.installed ? ' [installed]' : ''}` +
+        `</option>`
+      ).join('');
+    }
+  }
+}
+
+function embedProviderChanged() {
+  const provider = document.getElementById('embed-provider').value;
+  const cloudFields = document.getElementById('embed-cloud-fields');
+  if (cloudFields) {
+    cloudFields.style.display = (provider === 'gemini' || provider === 'openai') ? 'block' : 'none';
+  }
+}
+
+async function applyEmbedConfig() {
+  const provider = document.getElementById('embed-provider').value;
+  const model = document.getElementById('embed-model').value;
+  const apiKey = document.getElementById('embed-api-key')?.value || '';
+  const apiBase = document.getElementById('embed-api-base')?.value || '';
+
+  const cfg = { provider, model };
+  if (apiKey) cfg.api_key = apiKey;
+  if (apiBase) cfg.api_base = apiBase;
+
+  const result = await api('/v1/embed/config', {
+    method: 'POST',
+    body: JSON.stringify(cfg),
+  });
+
+  if (result && result.status === 'updated') {
+    alert(`Embedding config updated: ${result.provider} (${result.dimensions}d)`);
+    loadEmbedSettings();
+  } else {
+    alert('Failed to update config: ' + (result?.error || 'unknown error'));
+  }
+}
+
+async function downloadEmbedModel() {
+  const model = document.getElementById('embed-model').value;
+  if (!model) return alert('Select a model first');
+
+  const progressDiv = document.getElementById('embed-progress');
+  const progressBar = document.getElementById('embed-progress-bar');
+  const progressText = document.getElementById('embed-progress-text');
+  if (progressDiv) progressDiv.style.display = 'block';
+
+  try {
+    const response = await fetch(`${API_BASE}/v1/embed/models/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model }),
+    });
+
+    if (response.headers.get('Content-Type')?.includes('text/event-stream')) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const p = JSON.parse(line.slice(6));
+              if (progressBar) progressBar.style.width = p.progress + '%';
+              if (progressText) {
+                if (p.status === 'downloading' && p.total > 0) {
+                  const mb = (p.downloaded / 1024 / 1024).toFixed(1);
+                  const totalMb = (p.total / 1024 / 1024).toFixed(1);
+                  progressText.textContent = `Downloading: ${mb}MB / ${totalMb}MB (${p.progress}%)`;
+                } else if (p.status === 'complete') {
+                  progressText.textContent = 'Download complete!';
+                  setTimeout(() => loadEmbedSettings(), 500);
+                } else if (p.error) {
+                  progressText.textContent = `Error: ${p.error}`;
+                } else {
+                  progressText.textContent = p.status;
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+    } else {
+      const result = await response.json();
+      if (result.status === 'already_installed') {
+        alert(`${model} is already installed at ${result.path}`);
+      } else if (result.error) {
+        alert(`Download failed: ${result.error}`);
+      } else {
+        alert(`Download complete: ${result.status}`);
+      }
+    }
+  } catch (err) {
+    if (progressText) progressText.textContent = `Error: ${err.message}`;
+  }
+}
+
+async function testEmbedding() {
+  const resultDiv = document.getElementById('embed-test-result');
+  if (!resultDiv) return;
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = '<div class="card" style="font-family:var(--mono);font-size:12px;">Testing...</div>';
+
+  const result = await api('/v1/embed/test', {
+    method: 'POST',
+    body: JSON.stringify({ text: 'The quick brown fox jumps over the lazy dog.' }),
+  });
+
+  if (result && result.dimensions) {
+    resultDiv.innerHTML = `
+      <div class="card" style="font-family:var(--mono);font-size:12px;">
+        <div style="color:var(--green);margin-bottom:4px;">Embedding successful</div>
+        <div>Provider: ${result.provider}</div>
+        <div>Dimensions: ${result.dimensions}</div>
+        <div>Preview: [${result.preview?.map(v => v.toFixed(4)).join(', ')}...]</div>
+        <div style="color:var(--text-tertiary);margin-top:4px;">Text: "${result.text}"</div>
+      </div>`;
+  } else {
+    resultDiv.innerHTML = `
+      <div class="card" style="font-family:var(--mono);font-size:12px;color:var(--red);">
+        Test failed: ${result?.error || 'No response'}
+      </div>`;
+  }
 }
 
 // ── Page: Tasks (Kanban) ──────────────────────────────────────────

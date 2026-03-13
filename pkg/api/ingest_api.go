@@ -2,6 +2,7 @@ package api
 
 import (
 	"archive/zip"
+	"context"
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/David2024patton/iTaKAgent/pkg/embed"
 
 	"github.com/David2024patton/iTaKAgent/pkg/debug"
 	"github.com/David2024patton/iTaKAgent/pkg/memory"
@@ -322,14 +325,16 @@ func (ig *IngestAPI) handleIngest(w http.ResponseWriter, r *http.Request) {
 			ftsIndexed++
 		}
 
-		// ── ENGINE 4: Vector -- store content fingerprint ──
-		// Generate a simple content fingerprint from the MD5 hash.
-		// This gives us basic similarity grouping. When an embedding
-		// model is available, replace with real embeddings.
-		if contentStored && contentHash != "" {
-			fp := contentFingerprint(contentHash)
-			db.Vector.Insert(nodeID, fp)
-			vectorStored++
+		// ── ENGINE 4: Vector -- generate real embeddings or fingerprint ──
+		if contentStored && content != "" {
+			vec := embedContent(content)
+			if vec == nil && contentHash != "" {
+				vec = contentFingerprint(contentHash)
+			}
+			if vec != nil {
+				db.Vector.Insert(nodeID, vec)
+				vectorStored++
+			}
 		}
 
 		filesProcessed++
@@ -424,6 +429,32 @@ func contentFingerprint(hash string) []float32 {
 		for i := range vec {
 			vec[i] /= norm
 		}
+	}
+	return vec
+}
+
+// embedContent generates a real embedding vector using the active Embedder.
+// Returns nil if no embedder is configured or embedding fails (caller falls
+// back to contentFingerprint).
+func embedContent(content string) []float32 {
+	e := embed.Get()
+	if e.Dimensions() == 0 {
+		return nil // noop embedder, no real provider configured
+	}
+
+	// Truncate very long files to fit model context window.
+	// Most embedding models support 8192 tokens (roughly 4000 chars for code).
+	if len(content) > 4000 {
+		content = content[:4000]
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	vec, err := e.Embed(ctx, content)
+	if err != nil {
+		// Silent fallback - contentFingerprint will be used instead.
+		return nil
 	}
 	return vec
 }
@@ -557,10 +588,15 @@ func (ig *IngestAPI) ingestZipFile(db *itakdb.DB, zipPath, templateName string) 
 		}
 
 		// ENGINE 4: Vector
-		if contentStored && contentHash != "" {
-			fp := contentFingerprint(contentHash)
-			db.Vector.Insert(nodeID, fp)
-			vectorStored++
+		if contentStored && content != "" {
+			vec := embedContent(content)
+			if vec == nil && contentHash != "" {
+				vec = contentFingerprint(contentHash)
+			}
+			if vec != nil {
+				db.Vector.Insert(nodeID, vec)
+				vectorStored++
+			}
 		}
 
 		filesProcessed++

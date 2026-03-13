@@ -14,6 +14,7 @@ import (
 
 	"github.com/David2024patton/iTaKAgent/pkg/agent"
 	"github.com/David2024patton/iTaKAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/embed"
 	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
 	"github.com/David2024patton/iTaKAgent/pkg/memory"
 	"github.com/David2024patton/iTaKAgent/pkg/tasks"
@@ -27,6 +28,7 @@ type Server struct {
 	bus          *eventbus.EventBus
 	taskMgr      *tasks.Manager
 	graphBackend memory.GraphBackend
+	embedMgr     *embed.ModelManager
 	server       *http.Server
 	port         int
 	start        time.Time
@@ -44,6 +46,7 @@ func NewServer(orch *agent.Orchestrator, bus *eventbus.EventBus, taskMgr *tasks.
 		bus:          bus,
 		taskMgr:      taskMgr,
 		graphBackend: graphBackend,
+		embedMgr:     embed.NewModelManager(filepath.Join(dataDir, "models", "embed")),
 		port:         port,
 		dataDir:      dataDir,
 		start:        time.Now(),
@@ -78,6 +81,9 @@ func (s *Server) Start() error {
 
 	// Knowledge API (repo ingestion, unified search, auto-docs, deps)
 	RegisterKnowledgeRoutes(mux, s.graphBackend)
+
+	// Embedding model management API
+	RegisterEmbedRoutes(mux, s.embedMgr)
 
 	// Superagent generated web assets
 	slidesDir := filepath.Join(s.dataDir, "slides")
