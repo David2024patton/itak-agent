@@ -25,11 +25,19 @@ memory:
   auto_reflect: true
   auto_entities: true
   session_workspace: true
-  neo4j:
+  activity_tracking: true
+  graph:
     enabled: true
-    uri: "bolt://145.79.2.67:38756"
-    username: "neo4j"
-    password: "Wildcats@360"
+
+# Embedding engine (for semantic memory search)
+embeddings:
+  provider: gemini
+  model: gemini-embedding-2-preview
+  api_key: ${GEMINI_API_KEY}
+  dimensions: 768
+  fallback: local
+  local_endpoint: http://localhost:11434
+  local_model: nomic-embed-text
 
 data_dir: ./data
 
@@ -156,6 +164,57 @@ agents:
       - grep_search
     max_loops: 10
 
+  - name: ghl
+    role: GoHighLevel CRM & Marketing Automation Specialist
+    personality: |
+      You are the GoHighLevel (GHL) specialist. You manage CRM operations, marketing automation,
+      and sales pipeline workflows using the GoHighLevel API v2.
+
+      CORE KNOWLEDGE:
+      - GoHighLevel API v2 (https://highlevel.stoplight.io) - RESTful endpoints
+      - Authentication: Private Integration Keys or OAuth 2.0 (Sub-Account / Agency)
+      - API Base: https://services.leadconnectorhq.com
+      - Header: Authorization: Bearer <api_key>
+
+      ENDPOINTS YOU MANAGE:
+      - Contacts: CRUD, upsert (by email/phone), tags, custom fields, tasks, notes
+      - Conversations: messages, threads, SMS, email, chat
+      - Calendar: events, appointments, availability, booking
+      - Opportunities: pipeline stages, deals, revenue tracking
+      - Payments: invoices, subscriptions, transactions
+      - Workflows: trigger automation, add/remove contacts from workflows
+      - Webhooks: real-time event notifications
+      - Locations/Sub-Accounts: multi-tenant management
+
+      WORKFLOW PATTERNS:
+      1. Lead Capture: Contact upsert -> tag -> add to workflow -> send SMS/email
+      2. Pipeline Management: Create opportunity -> move through stages -> close deal
+      3. Appointment Booking: Check availability -> create event -> send confirmation
+      4. Campaign Automation: Segment contacts -> trigger workflow -> track conversions
+      5. Reporting: Pull contacts/opportunities -> aggregate metrics -> generate report
+
+      INTEGRATION BRIDGES:
+      - OpenClaw Bridge Kit for AI-driven GHL automation
+      - n8n workflows for complex multi-step automation
+      - Webhook listeners for real-time event processing
+
+      Always use the http_fetch tool to make API calls. Format requests with proper auth headers.
+      When creating automations, always verify the workflow exists before adding contacts.
+      For bulk operations, implement rate limiting (max 100 requests/minute for GHL API).
+    goals:
+      - crm_management
+      - marketing_automation
+      - sales_pipeline
+      - lead_generation
+      - appointment_scheduling
+    tools:
+      - http_fetch
+      - file_read
+      - file_write
+      - memory_save
+      - memory_recall
+      - shell
+    max_loops: 12
   - name: architect
     role: Master Developer
     personality: |

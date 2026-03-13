@@ -302,5 +302,41 @@ Events include: topic, agent, message, timestamp, data (arbitrary JSON).
 SSE fanout broadcasts all events to all connected clients.`,
 			Tags: []string{"eventbus", "sse", "real-time", "events"},
 		},
+
+		// ── GoHighLevel API ──
+		{
+			Category:    "Integration",
+			Title:       "GoHighLevel (GHL) API v2",
+			Description: "CRM, marketing automation, and sales pipeline management via GoHighLevel API v2.",
+			Content: `GoHighLevel (GHL) is a comprehensive CRM and marketing automation platform.
+
+API Base: https://services.leadconnectorhq.com
+Auth: Private Integration Keys (Bearer token) or OAuth 2.0 (Sub-Account / Agency)
+Header: Authorization: Bearer <api_key>
+
+Core Endpoints:
+- Contacts: GET/POST/PUT/DELETE /contacts, upsert by email/phone, tags, custom fields, tasks, notes
+- Conversations: /conversations - messages, SMS, email, chat threads
+- Calendar: /calendars - events, appointments, availability slots, booking links
+- Opportunities: /opportunities - pipeline stages, deal tracking, revenue
+- Payments: /payments - invoices, subscriptions, transactions
+- Workflows: /workflows - trigger automation, add/remove contacts from workflows
+- Webhooks: /webhooks - real-time event notifications for contact changes, appointment bookings, etc.
+- Locations: /locations - sub-account management for multi-tenant setups
+
+Rate Limits: 100 requests/minute per sub-account
+
+Integration Patterns:
+- OpenClaw Bridge Kit: AI-driven GHL automation (chat to CRM actions)
+- n8n Workflows: Multi-step automation with visual workflow builder
+- Webhook Listeners: Real-time event processing for contact/appointment changes
+
+Common Workflows:
+1. Lead Capture: Contact upsert -> tag assignment -> add to nurture workflow -> SMS/email
+2. Pipeline Management: Create opportunity -> move through stages -> close deal -> invoice
+3. Appointment Booking: Check availability -> create calendar event -> confirmation SMS
+4. Campaign Automation: Segment contacts by tags -> trigger workflow -> track conversions`,
+			Tags: []string{"ghl", "gohighlevel", "crm", "marketing", "automation", "api"},
+		},
 	}
 }
