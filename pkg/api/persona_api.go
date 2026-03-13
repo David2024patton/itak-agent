@@ -193,7 +193,8 @@ func (p *PersonaAPI) getPersona(w http.ResponseWriter, _ *http.Request, name str
 	json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 }
 
-// updatePersona modifies a persona (blocks edits to locked/default).
+// updatePersona modifies a persona. The orchestrator (locked) can be
+// edited for personality fields only; its is_default/is_locked flags stay true.
 func (p *PersonaAPI) updatePersona(w http.ResponseWriter, r *http.Request, name string) {
 	itakBackend, ok := p.backend.(*memory.ITakDBBackend)
 	if !ok {
@@ -207,11 +208,8 @@ func (p *PersonaAPI) updatePersona(w http.ResponseWriter, r *http.Request, name 
 		if pStr(n.Properties, "name") != name {
 			continue
 		}
-		if pBool(n.Properties, "is_locked") {
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{"error": "cannot edit the default persona"})
-			return
-		}
+
+		isLocked := pBool(n.Properties, "is_locked")
 
 		var req PersonaData
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -222,14 +220,29 @@ func (p *PersonaAPI) updatePersona(w http.ResponseWriter, r *http.Request, name 
 
 		props := personaToMap(req)
 		props["updated_at"] = time.Now().Format(time.RFC3339)
-		props["is_default"] = false
-		props["is_locked"] = false
 		if ca := pStr(n.Properties, "created_at"); ca != "" {
 			props["created_at"] = ca
 		}
 
+		if isLocked {
+			// Orchestrator: allow name/role/personality edits only.
+			// Force is_default and is_locked to stay true.
+			props["is_default"] = true
+			props["is_locked"] = true
+			// Keep original goals/tools if not provided
+			if len(req.Goals) == 0 {
+				props["goals"] = n.Properties["goals"]
+			}
+			if len(req.Tools) == 0 {
+				props["tools"] = n.Properties["tools"]
+			}
+		} else {
+			props["is_default"] = false
+			props["is_locked"] = false
+		}
+
 		db.Graph.UpdateNode(n.ID, props)
-		debug.Info("persona", "Updated persona: %s", name)
+		debug.Info("persona", "Updated persona: %s (locked=%v)", name, isLocked)
 		json.NewEncoder(w).Encode(map[string]string{"status": "updated", "name": name})
 		return
 	}

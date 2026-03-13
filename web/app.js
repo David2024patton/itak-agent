@@ -275,7 +275,7 @@ function navigate(page) {
     analytics: 'Analytics',
     logs: 'Logs',
     agents: 'Agents',
-    personas: 'Personas',
+    personas: 'Agents',
     settings: 'Settings',
     tasks: 'Task Board',
     presentations: 'Presentations',
@@ -395,14 +395,14 @@ function renderChatMessages() {
 function renderChat(container) {
   if (!container) container = document.getElementById('page-content');
 
-  // Build agent selector.
+  // Build agent selector from focused agents.
   const agentOpts = state.agents.map(a =>
     `<option value="${a.name}" ${state.chatAgent === a.name ? 'selected' : ''}>${a.name}</option>`
   ).join('');
 
-  // Build persona selector.
-  const personaOpts = state.personas.map(p =>
-    `<option value="${p.name}" ${state.chatPersona === p.name ? 'selected' : ''}>${p.name}${p.is_locked ? ' 🔒' : ''}</option>`
+  // Also include personas that are focused agents (not orchestrator).
+  const focusedPersonaOpts = state.personas.filter(p => !p.is_default).map(p =>
+    `<option value="${p.name}" ${state.chatAgent === p.name ? 'selected' : ''}>${p.name}</option>`
   ).join('');
 
   const selectStyle = `
@@ -424,12 +424,11 @@ function renderChat(container) {
             <select id="chat-agent-select" onchange="state.chatAgent=this.value" style="${selectStyle}">
               <option value="">Orchestrator (auto-route)</option>
               ${agentOpts}
+              ${focusedPersonaOpts}
             </select>
-            <span class="section-label" style="margin:0;">Persona:</span>
-            <select id="chat-persona-select" onchange="state.chatPersona=this.value" style="${selectStyle}">
-              <option value="">Default</option>
-              ${personaOpts}
-            </select>
+            <button class="btn" style="font-size:11px;padding:4px 10px;" onclick="navigate('personas')" title="Create a new focused agent">
+              + New Agent
+            </button>
             <button class="canvas-toggle ${state.canvasOpen ? 'active' : ''}" onclick="toggleCanvas()" title="Toggle Canvas preview">
               🖼 Canvas
             </button>
@@ -1776,126 +1775,246 @@ async function searchResearch() {
   }).join('');
 }
 
-// ── Personas Page ─────────────────────────────────────────────────
+// ── Agent Management Page ─────────────────────────────────────────
 async function renderPersonas(container) {
   if (!container) container = document.getElementById('page-content');
   await fetchPersonas();
 
-  const cards = state.personas.map(p => {
-    const locked = p.is_locked || p.is_default;
-    const goalsHTML = (p.goals || []).map(g => `<span class="badge" style="font-size:10px;">${g}</span>`).join('');
-    const toolsHTML = (p.tools || []).map(t => `<span class="badge" style="font-size:10px;background:var(--bg-input);">${t}</span>`).join('');
+  // Separate orchestrator from focused agents
+  const orchestrator = state.personas.find(p => p.is_default || p.is_locked);
+  const focusedAgents = state.personas.filter(p => !p.is_default && !p.is_locked);
+
+  // ── Orchestrator card ──
+  const orchCard = orchestrator ? `
+    <div class="card" style="border-left:3px solid var(--blue);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:16px;font-weight:800;color:var(--text-primary);">🧠 Orchestrator</span>
+          <span class="badge" style="font-size:9px;background:var(--blue);color:#fff;">CORE</span>
+        </div>
+        <button class="btn" style="font-size:11px;padding:4px 10px;" onclick="editOrchestrator()">Customize</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:8px;line-height:1.5;">${orchestrator.personality || 'No personality set'}</div>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+        <span style="font-size:10px;color:var(--text-muted);">Name: <strong style="color:var(--text-primary);">${orchestrator.name}</strong></span>
+        <span style="font-size:10px;color:var(--text-muted);">Role: <strong style="color:var(--text-primary);">${orchestrator.role || 'Tech Lead'}</strong></span>
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:6px;padding:6px 8px;background:var(--bg-input);border-radius:var(--radius-sm);border:1px dashed var(--border);">
+        🔒 Core delegation logic, system prompt, and max_delegations are locked to ensure stability.
+      </div>
+    </div>
+  ` : `
+    <div class="card" style="border-left:3px solid var(--yellow);text-align:center;padding:16px;">
+      <span style="color:var(--text-muted);">Orchestrator not initialized. It will be created on first API call.</span>
+    </div>
+  `;
+
+  // ── Focused agent cards ──
+  const agentCards = focusedAgents.map(a => {
+    const goalsHTML = (a.goals || []).map(g => `<span class="badge" style="font-size:10px;">${g}</span>`).join('');
+    const toolsHTML = (a.tools || []).map(t => `<span class="badge" style="font-size:10px;background:var(--bg-input);">${t}</span>`).join('');
     return `
-      <div class="card" style="position:relative;">
+      <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:15px;font-weight:700;color:var(--text-primary);">${p.name}</span>
-            ${locked ? '<span style="font-size:12px;" title="Locked - cannot edit or delete">🔒</span>' : ''}
+            <span style="font-size:14px;font-weight:700;color:var(--text-primary);">${a.name}</span>
+            <span class="badge" style="font-size:9px;">${a.role || 'Agent'}</span>
           </div>
-          <span class="badge" style="font-size:10px;">${p.role || 'No role'}</span>
-        </div>
-        <div style="font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.5;">${p.personality || ''}</div>
-        ${goalsHTML ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;"><span style="font-size:10px;color:var(--text-muted);margin-right:4px;">Goals:</span>${goalsHTML}</div>` : ''}
-        ${toolsHTML ? `<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;"><span style="font-size:10px;color:var(--text-muted);margin-right:4px;">Tools:</span>${toolsHTML}</div>` : ''}
-        <div style="display:flex;gap:4px;margin-top:6px;">
-          <span style="font-size:10px;color:var(--text-muted);">Autonomy: ${p.autonomy}/4</span>
-          <span style="font-size:10px;color:var(--text-muted);">Max loops: ${p.max_loops || 10}</span>
-        </div>
-        ${!locked ? `
-          <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
-            <button class="btn" style="font-size:11px;padding:4px 10px;" onclick="editPersona('${p.name}')">Edit</button>
-            <button class="btn" style="font-size:11px;padding:4px 10px;color:var(--red);" onclick="deletePersona('${p.name}')">Delete</button>
+          <div style="display:flex;gap:4px;">
+            <button class="btn" style="font-size:11px;padding:3px 8px;" onclick="editAgent('${a.name}')">Edit</button>
+            <button class="btn" style="font-size:11px;padding:3px 8px;color:var(--red);" onclick="deleteAgent('${a.name}')">Delete</button>
           </div>
-        ` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">${a.personality || ''}</div>
+        ${goalsHTML ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;"><span style="font-size:10px;color:var(--text-muted);margin-right:2px;">Goals:</span>${goalsHTML}</div>` : ''}
+        ${toolsHTML ? `<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;"><span style="font-size:10px;color:var(--text-muted);margin-right:2px;">Tools:</span>${toolsHTML}</div>` : ''}
+        <div style="display:flex;gap:12px;margin-top:6px;">
+          <span style="font-size:10px;color:var(--text-muted);">Autonomy: ${a.autonomy}/4</span>
+          <span style="font-size:10px;color:var(--text-muted);">Max loops: ${a.max_loops || 10}</span>
+        </div>
       </div>`;
   }).join('');
 
   container.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <span class="section-label">Personas (${state.personas.length})</span>
-      <button class="btn btn-primary" style="font-size:12px;padding:6px 14px;" onclick="openPersonaModal()">+ New Persona</button>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;">
-      ${cards || '<div style="color:var(--text-muted);text-align:center;padding:20px;">No personas yet</div>'}
+    <div style="margin-bottom:16px;">
+      <span class="section-label">Orchestrator</span>
+      <p style="font-size:11px;color:var(--text-muted);margin:2px 0 8px 0;">The brain that routes tasks to focused agents. You can customize its personality and how it addresses you.</p>
+      ${orchCard}
     </div>
 
-    <!-- Persona Modal -->
-    <div id="persona-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:none;align-items:center;justify-content:center;">
-      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;width:100%;max-width:500px;">
-        <h3 id="persona-modal-title" style="margin:0 0 12px 0;font-size:16px;color:var(--text-primary);">New Persona</h3>
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span class="section-label">Focused Agents (${focusedAgents.length})</span>
+        <button class="btn btn-primary" style="font-size:12px;padding:6px 14px;" onclick="openAgentModal()">+ New Agent</button>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px 0;">Specialized workers that receive delegated tasks. Each agent has a role, personality, tools, and autonomy level.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px;">
+        ${agentCards || '<div style="color:var(--text-muted);text-align:center;padding:20px;">No focused agents yet. Click "+ New Agent" to create one.</div>'}
+      </div>
+    </div>
+
+    <!-- Orchestrator Edit Modal -->
+    <div id="orch-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;width:100%;max-width:460px;">
+        <h3 style="margin:0 0 12px 0;font-size:16px;color:var(--text-primary);">🧠 Customize Orchestrator</h3>
         <div style="display:flex;flex-direction:column;gap:10px;">
-          <input type="hidden" id="persona-edit-original">
-          <input type="text" id="persona-name" class="form-control" placeholder="Name (e.g. developer)">
-          <input type="text" id="persona-role" class="form-control" placeholder="Role (e.g. Full Stack Developer)">
-          <textarea id="persona-personality" class="form-control" rows="3" placeholder="Personality description..."></textarea>
-          <input type="text" id="persona-goals" class="form-control" placeholder="Goals (comma separated)">
-          <input type="text" id="persona-tools" class="form-control" placeholder="Tools (comma separated)">
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">Display Name (what the agent goes by)</label>
+            <input type="text" id="orch-name" class="form-control" placeholder="e.g. Mike">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">Your Name (how the agent addresses you)</label>
+            <input type="text" id="orch-user-name" class="form-control" placeholder="e.g. David">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">Personality / Attitude</label>
+            <textarea id="orch-personality" class="form-control" rows="3" placeholder="Direct, professional, no fluff..."></textarea>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);padding:6px 8px;background:var(--bg-input);border-radius:var(--radius-sm);border:1px dashed var(--border);">
+            🔒 Core delegation logic is locked and cannot be changed.
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+          <button class="btn btn-secondary" onclick="closeOrchModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveOrchestrator()">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Create/Edit Modal -->
+    <div id="agent-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;width:100%;max-width:500px;">
+        <h3 id="agent-modal-title" style="margin:0 0 12px 0;font-size:16px;color:var(--text-primary);">New Focused Agent</h3>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <input type="hidden" id="agent-edit-original">
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">Name *</label>
+            <input type="text" id="agent-name" class="form-control" placeholder="e.g. frontend_dev">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">Role *</label>
+            <input type="text" id="agent-role" class="form-control" placeholder="e.g. Frontend Developer">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">Personality *</label>
+            <textarea id="agent-personality" class="form-control" rows="3" placeholder="Describe how this agent behaves, communicates, and approaches tasks..."></textarea>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">Goals (comma separated, max 3)</label>
+            <input type="text" id="agent-goals" class="form-control" placeholder="e.g. code_quality, performance, testing">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);">Tools (comma separated)</label>
+            <input type="text" id="agent-tools" class="form-control" placeholder="e.g. shell, file_read, file_write, grep">
+          </div>
           <div style="display:flex;gap:12px;">
             <div style="flex:1;">
               <label style="font-size:11px;color:var(--text-muted);">Max Loops</label>
-              <input type="number" id="persona-maxloops" class="form-control" value="10" min="1" max="50">
+              <input type="number" id="agent-maxloops" class="form-control" value="10" min="1" max="50">
             </div>
             <div style="flex:1;">
-              <label style="font-size:11px;color:var(--text-muted);">Autonomy (0-4)</label>
-              <input type="number" id="persona-autonomy" class="form-control" value="2" min="0" max="4">
+              <label style="font-size:11px;color:var(--text-muted);">Autonomy (0=supervised, 4=autopilot)</label>
+              <input type="number" id="agent-autonomy" class="form-control" value="2" min="0" max="4">
             </div>
           </div>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
-          <button class="btn btn-secondary" onclick="closePersonaModal()">Cancel</button>
-          <button class="btn btn-primary" onclick="savePersona()">Save Persona</button>
+          <button class="btn btn-secondary" onclick="closeAgentModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveFocusedAgent()">Save Agent</button>
         </div>
       </div>
     </div>
   `;
 }
 
-function openPersonaModal(data) {
-  const modal = document.getElementById('persona-modal');
+// ── Orchestrator edit ─────────────────────────────────────────────
+function editOrchestrator() {
+  const orch = state.personas.find(p => p.is_default || p.is_locked);
+  const modal = document.getElementById('orch-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  document.getElementById('orch-name').value = orch?.name || 'mike';
+  document.getElementById('orch-user-name').value = orch?.role || '';
+  document.getElementById('orch-personality').value = orch?.personality || '';
+}
+
+function closeOrchModal() {
+  const modal = document.getElementById('orch-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function saveOrchestrator() {
+  const orch = state.personas.find(p => p.is_default || p.is_locked);
+  if (!orch) return;
+
+  const body = {
+    name: document.getElementById('orch-name').value.trim() || 'mike',
+    role: document.getElementById('orch-user-name').value.trim(),
+    personality: document.getElementById('orch-personality').value.trim(),
+    is_default: true,
+    is_locked: true,
+  };
+
+  // Use a special endpoint for orchestrator updates
+  const res = await api(`/v1/personas/${orch.name}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+
+  closeOrchModal();
+  await renderPersonas();
+}
+
+// ── Focused Agent CRUD ────────────────────────────────────────────
+function openAgentModal(data) {
+  const modal = document.getElementById('agent-modal');
   if (!modal) return;
   modal.style.display = 'flex';
 
   if (data) {
-    document.getElementById('persona-modal-title').textContent = 'Edit Persona';
-    document.getElementById('persona-edit-original').value = data.name;
-    document.getElementById('persona-name').value = data.name;
-    document.getElementById('persona-name').disabled = true;
-    document.getElementById('persona-role').value = data.role || '';
-    document.getElementById('persona-personality').value = data.personality || '';
-    document.getElementById('persona-goals').value = (data.goals || []).join(', ');
-    document.getElementById('persona-tools').value = (data.tools || []).join(', ');
-    document.getElementById('persona-maxloops').value = data.max_loops || 10;
-    document.getElementById('persona-autonomy').value = data.autonomy || 2;
+    document.getElementById('agent-modal-title').textContent = 'Edit Focused Agent';
+    document.getElementById('agent-edit-original').value = data.name;
+    document.getElementById('agent-name').value = data.name;
+    document.getElementById('agent-name').disabled = true;
+    document.getElementById('agent-role').value = data.role || '';
+    document.getElementById('agent-personality').value = data.personality || '';
+    document.getElementById('agent-goals').value = (data.goals || []).join(', ');
+    document.getElementById('agent-tools').value = (data.tools || []).join(', ');
+    document.getElementById('agent-maxloops').value = data.max_loops || 10;
+    document.getElementById('agent-autonomy').value = data.autonomy || 2;
   } else {
-    document.getElementById('persona-modal-title').textContent = 'New Persona';
-    document.getElementById('persona-edit-original').value = '';
-    document.getElementById('persona-name').value = '';
-    document.getElementById('persona-name').disabled = false;
-    document.getElementById('persona-role').value = '';
-    document.getElementById('persona-personality').value = '';
-    document.getElementById('persona-goals').value = '';
-    document.getElementById('persona-tools').value = '';
-    document.getElementById('persona-maxloops').value = 10;
-    document.getElementById('persona-autonomy').value = 2;
+    document.getElementById('agent-modal-title').textContent = 'New Focused Agent';
+    document.getElementById('agent-edit-original').value = '';
+    document.getElementById('agent-name').value = '';
+    document.getElementById('agent-name').disabled = false;
+    document.getElementById('agent-role').value = '';
+    document.getElementById('agent-personality').value = '';
+    document.getElementById('agent-goals').value = '';
+    document.getElementById('agent-tools').value = 'shell, file_read, file_write';
+    document.getElementById('agent-maxloops').value = 10;
+    document.getElementById('agent-autonomy').value = 2;
   }
 }
 
-function closePersonaModal() {
-  const modal = document.getElementById('persona-modal');
+function closeAgentModal() {
+  const modal = document.getElementById('agent-modal');
   if (modal) modal.style.display = 'none';
 }
 
-async function savePersona() {
-  const original = document.getElementById('persona-edit-original')?.value;
-  const name = document.getElementById('persona-name').value.trim();
-  const role = document.getElementById('persona-role').value.trim();
-  const personality = document.getElementById('persona-personality').value.trim();
-  const goals = document.getElementById('persona-goals').value.split(',').map(s => s.trim()).filter(Boolean);
-  const tools = document.getElementById('persona-tools').value.split(',').map(s => s.trim()).filter(Boolean);
-  const maxLoops = parseInt(document.getElementById('persona-maxloops').value) || 10;
-  const autonomy = parseInt(document.getElementById('persona-autonomy').value) || 2;
+async function saveFocusedAgent() {
+  const original = document.getElementById('agent-edit-original')?.value;
+  const name = document.getElementById('agent-name').value.trim();
+  const role = document.getElementById('agent-role').value.trim();
+  const personality = document.getElementById('agent-personality').value.trim();
+  const goals = document.getElementById('agent-goals').value.split(',').map(s => s.trim()).filter(Boolean);
+  const tools = document.getElementById('agent-tools').value.split(',').map(s => s.trim()).filter(Boolean);
+  const maxLoops = parseInt(document.getElementById('agent-maxloops').value) || 10;
+  const autonomy = parseInt(document.getElementById('agent-autonomy').value) || 2;
 
-  if (!name) { alert('Name is required'); return; }
+  if (!name) { alert('Agent name is required'); return; }
+  if (!role) { alert('Role is required'); return; }
+  if (!personality) { alert('Personality is required'); return; }
+  if (goals.length > 3) { alert('Max 3 goals allowed'); return; }
 
   const body = { name, role, personality, goals, tools, max_loops: maxLoops, autonomy };
 
@@ -1907,25 +2026,25 @@ async function savePersona() {
   }
 
   if (res && !res.error) {
-    closePersonaModal();
+    closeAgentModal();
     await renderPersonas();
   } else {
-    alert(res?.error || 'Failed to save persona');
+    alert(res?.error || 'Failed to save agent');
   }
 }
 
-async function editPersona(name) {
-  const persona = state.personas.find(p => p.name === name);
-  if (persona) openPersonaModal(persona);
+async function editAgent(name) {
+  const agent = state.personas.find(p => p.name === name);
+  if (agent) openAgentModal(agent);
 }
 
-async function deletePersona(name) {
-  if (!confirm(`Delete persona "${name}"?`)) return;
+async function deleteAgent(name) {
+  if (!confirm(`Delete agent "${name}"? This cannot be undone.`)) return;
   const res = await api(`/v1/personas/${name}`, { method: 'DELETE' });
   if (res && !res.error) {
     await renderPersonas();
   } else {
-    alert(res?.error || 'Failed to delete persona');
+    alert(res?.error || 'Failed to delete agent');
   }
 }
 
