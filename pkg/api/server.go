@@ -235,6 +235,34 @@ Do not ask the user for permission. Execute all steps autonomously to produce th
 		return
 	}
 
+	// Auto-record agent activity for the embed pipeline.
+	if s.bus != nil {
+		s.bus.Publish(eventbus.Event{
+			Topic:     "agent.chat_complete",
+			Agent:     "orchestrator",
+			Message:   truncate(response, 200),
+			Timestamp: time.Now(),
+			Data: map[string]interface{}{
+				"input":  truncate(req.Message, 200),
+				"output": truncate(response, 500),
+			},
+		})
+	}
+
+	// Persist to graph as AgentActivity node (embed agent pipeline).
+	if s.graphBackend != nil {
+		if itakDB, ok := s.graphBackend.(*memory.ITakDBBackend); ok {
+			db := itakDB.DB()
+			db.CreateNode([]string{"AgentActivity"}, map[string]interface{}{
+				"agent":     "orchestrator",
+				"action":    "chat",
+				"data":      truncate(response, 1000),
+				"timestamp": time.Now().Format(time.RFC3339),
+				"status":    "success",
+			}, nil)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, ChatResponse{Response: response})
 }
 
@@ -478,6 +506,18 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
+
+		// Publish task.created event for real-time dashboard.
+		if s.bus != nil {
+			s.bus.Publish(eventbus.Event{
+				Topic:     "task.created",
+				Agent:     "system",
+				Message:   "Task created: " + req.Title,
+				Timestamp: time.Now(),
+				Data:      map[string]interface{}{"task_id": t.ID, "title": t.Title},
+			})
+		}
+
 		writeJSON(w, http.StatusCreated, t)
 		return
 	}
@@ -520,6 +560,18 @@ func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
+
+		// Publish task.updated event for real-time dashboard.
+		if s.bus != nil {
+			s.bus.Publish(eventbus.Event{
+				Topic:     "task.updated",
+				Agent:     req.AssignedAgent,
+				Message:   fmt.Sprintf("Task %s: %s", string(req.Status), req.Title),
+				Timestamp: time.Now(),
+				Data:      map[string]interface{}{"task_id": id, "status": string(req.Status), "agent": req.AssignedAgent},
+			})
+		}
+
 		writeJSON(w, http.StatusOK, t)
 		return
 	}
@@ -529,6 +581,18 @@ func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
+
+		// Publish task.deleted event.
+		if s.bus != nil {
+			s.bus.Publish(eventbus.Event{
+				Topic:     "task.deleted",
+				Agent:     "system",
+				Message:   "Task deleted",
+				Timestamp: time.Now(),
+				Data:      map[string]interface{}{"task_id": id},
+			})
+		}
+
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 		return
 	}
