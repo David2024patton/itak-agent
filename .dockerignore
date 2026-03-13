@@ -1,0 +1,36 @@
+# Native inference engine (not needed for dashboard-only Docker)
+models/
+lib/
+lib_cudart/
+lib_b8209_cuda/
+bin/
+
+# Build artifacts
+*.exe
+itakagent
+
+# Data / runtime
+data/
+
+# Version control
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs
+docs/
+assets/

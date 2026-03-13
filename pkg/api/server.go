@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -14,17 +15,22 @@ import (
 	"github.com/David2024patton/iTaKAgent/pkg/agent"
 	"github.com/David2024patton/iTaKAgent/pkg/debug"
 	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
+	"github.com/David2024patton/iTaKAgent/pkg/memory"
+	"github.com/David2024patton/iTaKAgent/pkg/tasks"
 	"github.com/David2024patton/iTaKAgent/web"
 )
 
 // Server provides the REST API and embedded dashboard for iTaKAgent.
 type Server struct {
-	mu     sync.Mutex
-	orch   *agent.Orchestrator
-	bus    *eventbus.EventBus
-	server *http.Server
-	port   int
-	start  time.Time
+	mu           sync.Mutex
+	orch         *agent.Orchestrator
+	bus          *eventbus.EventBus
+	taskMgr      *tasks.Manager
+	graphBackend memory.GraphBackend
+	server       *http.Server
+	port         int
+	start        time.Time
+	dataDir      string
 
 	// WebSocket clients for live event streaming.
 	wsClients   map[chan []byte]struct{}
@@ -32,13 +38,16 @@ type Server struct {
 }
 
 // NewServer creates an API server wired to the orchestrator and event bus.
-func NewServer(orch *agent.Orchestrator, bus *eventbus.EventBus, port int) *Server {
+func NewServer(orch *agent.Orchestrator, bus *eventbus.EventBus, taskMgr *tasks.Manager, graphBackend memory.GraphBackend, port int, dataDir string) *Server {
 	return &Server{
-		orch:      orch,
-		bus:       bus,
-		port:      port,
-		start:     time.Now(),
-		wsClients: make(map[chan []byte]struct{}),
+		orch:         orch,
+		bus:          bus,
+		taskMgr:      taskMgr,
+		graphBackend: graphBackend,
+		port:         port,
+		dataDir:      dataDir,
+		start:        time.Now(),
+		wsClients:    make(map[chan []byte]struct{}),
 	}
 }
 
@@ -56,6 +65,25 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/v1/doctor", s.handleDoctor)
 	mux.HandleFunc("/v1/events", s.handleEventsWS)
 	mux.HandleFunc("/debug/snapshot", s.handleDebugSnapshot)
+	
+	// Tasks endpoints
+	mux.HandleFunc("/v1/tasks", s.handleTasks)
+	mux.HandleFunc("/v1/tasks/", s.handleTaskByID)
+
+	// Graph visualization API
+	RegisterGraphRoutes(mux, s.graphBackend)
+
+	// ZIP ingestion API
+	RegisterIngestRoutes(mux, s.graphBackend)
+
+	// Knowledge API (repo ingestion, unified search, auto-docs, deps)
+	RegisterKnowledgeRoutes(mux, s.graphBackend)
+
+	// Superagent generated web assets
+	slidesDir := filepath.Join(s.dataDir, "slides")
+	reportsDir := filepath.Join(s.dataDir, "reports")
+	mux.Handle("/slides/", http.StripPrefix("/slides/", http.FileServer(http.Dir(slidesDir))))
+	mux.Handle("/reports/", http.StripPrefix("/reports/", http.FileServer(http.Dir(reportsDir))))
 
 	// ── Dashboard static files (embedded) ─────────────────────
 	// Serve web/index.html, web/styles.css, web/app.js from Go embed.
@@ -69,7 +97,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		// If it's a known static file, serve it directly.
-		if path == "/styles.css" || path == "/app.js" || path == "/favicon.ico" {
+		if path == "/styles.css" || path == "/app.js" || path == "/favicon.ico" || path == "/graph.html" {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
@@ -84,7 +112,7 @@ func (s *Server) Start() error {
 	})
 
 	s.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.port),
+		Addr:    fmt.Sprintf("0.0.0.0:%d", s.port),
 		Handler: corsMiddleware(mux),
 	}
 
@@ -158,6 +186,24 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	if req.Message == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'message' is required"})
 		return
+	}
+
+	// Route /deep-research commands sent via the UI into full Swarm mode
+	if strings.HasPrefix(req.Message, "/deep-research ") {
+		topic := strings.TrimSpace(strings.TrimPrefix(req.Message, "/deep-research "))
+		if topic == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Usage: /deep-research <topic>"})
+			return
+		}
+
+		req.Message = fmt.Sprintf(`DEEP RESEARCH INITIATED: The user has requested a comprehensive, multi-agent deep research report on the topic: "%s".
+
+Your mandatory delegation strategy:
+1. Deploy the "researcher" or "browser" agent to scour the web, perform searches, and gather extensive raw data, statistics, and citations about this topic.
+2. Deploy the "operator" or "coder" agent to analyze the gathered data, structure it, and synthesize it.
+3. Deploy the "architect" or "operator" agent to use the 'report_generate' or 'slide_generate' tool to create a rich, final output artifact (JSON report or HTML slide deck) presenting the synthesized findings.
+
+Do not ask the user for permission. Execute all steps autonomously to produce the final presentation artifact.`, topic)
 	}
 
 	debug.Info("api", "Chat request: %s", truncate(req.Message, 80))
@@ -379,6 +425,96 @@ func (s *Server) handleDebugSnapshot(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, snapshot)
 }
 
+// ── Task Management ────────────────────────────────────────────────
+
+// handleTasks handles GET /v1/tasks and POST /v1/tasks
+func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		allTasks := s.taskMgr.GetTasks()
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"tasks": allTasks,
+			"count": len(allTasks),
+		})
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		var req struct {
+			Title       string `json:"title"`
+			Description string `json:"description"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			return
+		}
+		if req.Title == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "title required"})
+			return
+		}
+
+		t, err := s.taskMgr.CreateTask(req.Title, req.Description)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusCreated, t)
+		return
+	}
+
+	writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+}
+
+// handleTaskByID handles GET, PUT, DELETE for /v1/tasks/{id}
+func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/v1/tasks/")
+	if id == "" || id == r.URL.Path {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing task id"})
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		t, err := s.taskMgr.GetTask(id)
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, t)
+		return
+	}
+
+	if r.Method == http.MethodPut {
+		var req struct {
+			Title         string       `json:"title"`
+			Description   string       `json:"description"`
+			Status        tasks.Status `json:"status"`
+			AssignedAgent string       `json:"assigned_agent"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			return
+		}
+
+		t, err := s.taskMgr.UpdateTask(id, req.Title, req.Description, req.Status, req.AssignedAgent)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, t)
+		return
+	}
+
+	if r.Method == http.MethodDelete {
+		if err := s.taskMgr.DeleteTask(id); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+		return
+	}
+
+	writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+}
+
 // ── WebSocket Event Streaming ─────────────────────────────────────
 
 // handleEventsWS upgrades to WebSocket and streams events from the EventBus.
@@ -446,6 +582,8 @@ func (s *Server) forwardEvents() {
 				"topic":   evt.Topic,
 				"level":   "info",
 				"source":  evt.Agent,
+				"agent":   evt.Agent,
+				"tool":    evt.Tool,
 				"message": evt.Message,
 				"data":    evt.Data,
 				"time":    evt.Timestamp.UTC().Format(time.RFC3339),

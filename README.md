@@ -20,13 +20,12 @@
 
 ## 📑 Table of Contents
 - [🖥 Dashboard UI](#-dashboard-ui)
+- [🧠 Knowledge Pipeline](#-knowledge-pipeline)
 - [🤖 What Is iTaK Agent?](#-what-is-itak-agent)
 - [⚡ How It Works](#-how-it-works)
 - [🚀 Quick Start](#-quick-start)
 - [⚙️ Configuration Guide](#-configuration-guide)
 - [🧰 Built-in Tools](#-built-in-tools)
-- [🧠 Hybrid Memory Architecture](#-hybrid-memory-architecture)
-- [🧩 Extension System (GOHub)](#-extension-system-gohub)
 - [🛡️ iTaK Shield (Embedded Guardrails)](#️-itak-shield-embedded-guardrails)
 - [🛠 Extending the Agent](#-extending-the-agent)
 
@@ -65,11 +64,79 @@ iTaK Agent features a beautiful, real-time dashboard served directly from the em
 
 ---
 
+## 🧠 Knowledge Pipeline
+
+iTaK Agent ships with a multi-database knowledge ingestion system that turns entire repositories, ZIP archives, and structured datasets into searchable, graph-connected knowledge. Every piece of ingested content is stored across **four engines simultaneously** for maximum recall and redundancy.
+
+### Multi-Database Architecture
+
+| Engine | Purpose | What It Stores |
+|---|---|---|
+| **Graph** | Relationships and structure | Nodes (Template, Script, Config, Page, etc.) with typed edges (CONTAINS, IMPORTS, REFERENCES) |
+| **Vector** | Semantic similarity | Content fingerprints for dedup and similarity search |
+| **Table** | Structured metadata | File paths, sizes, extensions, MIME types, timestamps |
+| **Full-Text Search** | Keyword matching | Indexed text content for instant grep-like queries |
+
+### GitHub Repository Ingestion
+
+Ingest an entire GitHub repository (or GitLab, Bitbucket, Codeberg) with a single API call:
+
+```bash
+curl -X POST http://localhost:42100/v1/graph/ingest/repo \
+  -H 'Content-Type: application/json' \
+  -d '{"url": "expressjs/express"}'
+```
+
+The pipeline automatically:
+1. Downloads the repository as a ZIP archive
+2. Classifies every file by type (Script, Config, Page, Stylesheet, Image, Document, etc.)
+3. Creates a Template hub node with CONTAINS edges to every file
+4. Detects cross-file references (imports, includes, requires)
+5. Indexes text content for full-text search
+6. Generates content fingerprints for deduplication
+
+### Knowledge Query Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/graph/ingest/repo` | POST | Ingest a GitHub/GitLab/Bitbucket repo |
+| `/v1/knowledge/search?q=router` | GET | Unified search across all 4 engines |
+| `/v1/knowledge/describe/{id}` | GET | Auto-generated documentation for a node |
+| `/v1/knowledge/deps/{id}` | GET | Dependency audit for a template |
+| `/v1/knowledge/list` | GET | List all ingested knowledge bases |
+
+### Hierarchical Graph Explorer
+
+The Graph Explorer provides a 3-level drill-down view instead of showing hundreds of flat nodes:
+
+**Level 1: Overview** - Template hubs and top-level session nodes
+
+<img src="docs/screenshots/graph_overview.png" alt="Graph Overview" width="800" />
+
+**Level 2: Type Clusters** - Click a template to see files grouped by type (Script x141, Config x7, etc.)
+
+<img src="docs/screenshots/graph_cluster_view.png" alt="Cluster View" width="800" />
+
+**Level 3: Individual Files** - Click a cluster to browse individual files with metadata panels
+
+<img src="docs/screenshots/graph_file_drill.png" alt="File Drill" width="800" />
+
+Features:
+- Breadcrumb navigation (Overview > Template > Cluster)
+- Escape key to go back one level
+- Glow effects on hub nodes, dashed lines for import edges
+- Right-click context menu for edit, link, expand, and delete
+- Side panel with full node metadata, properties, and relationships
+
+<img src="docs/screenshots/graph_node_panel.png" alt="Node Panel" width="800" />
+
+---
+
 ## 🤖 What Is iTaK Agent?
 
 iTaK Agent is a dual-purpose AI framework built in **Go**.
 
-Its primary form is a **fully bundled, batteries-included agent** that features an embedded Core orchestrator, integrated Memory, and native Shield guardrails—all optimized to work seamlessly with **smaller, efficient models** you can run locally.
+Its primary form is a **fully bundled, batteries-included agent** that features an embedded Core orchestrator, integrated Memory, and native Shield guardrails. All of these are optimized to work seamlessly with **smaller, efficient models** you can run locally.
 
 However, its secret weapon is its **modular architecture**. Every major piece of the iTaK Agent is built as an individual component first. This allows the open-source community to use iTaK components (like the security guardrails or the memory system) independently in other projects, while the main iTaK Agent bundles them all together for the ultimate out-of-the-box experience.
 
@@ -682,6 +749,15 @@ iTaK Agent is the core framework, but it's part of a bigger system:
 - [x] Vulkan GPU compute (MatMul, Softmax, RoPE, SiLU, GELU, RMSNorm)
 - [x] GGUF and SafeTensors model file parsers
 - [x] `serve` subcommand for API-only mode
+- [x] Multi-DB knowledge pipeline (Graph + Vector + Table + FTS)
+- [x] GitHub/GitLab/Bitbucket/Codeberg repo ingestion
+- [x] Unified search across all 4 database engines
+- [x] Auto-documentation generator for ingested repos
+- [x] Dependency auditing tool
+- [x] Hierarchical Graph Explorer with 3-level drill-down
+- [ ] DebugMemory: error/fix pair storage for solution recall
+- [ ] WebResearch: per-website research node tracking
+- [ ] Real embedding model integration (semantic search)
 - [ ] iTaK Forge live preview server (Tier 1: process isolation)
 - [ ] Local model marketplace with hardware auto-detect
 - [ ] Manager-worker hierarchy (agents delegate to sub-agents)

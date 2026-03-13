@@ -1,0 +1,20 @@
+services:
+  agent:
+    build:
+      context: ..
+      dockerfile: Agent/Dockerfile
+    container_name: itak-agent
+    ports:
+      - "42800:42800"
+    environment:
+      - ITAK_API_PORT=42800
+    volumes:
+      - agent-data:/app/data
+      - ./itakagent.yaml:/app/itakagent.yaml:ro
+    # Chromium needs a larger /dev/shm than Docker's default 64MB
+    shm_size: '256m'
+    working_dir: /app
+    restart: unless-stopped
+
+volumes:
+  agent-data:
