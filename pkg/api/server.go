@@ -120,6 +120,9 @@ func (s *Server) Start() error {
 	RegisterCronRoutes(mux, s.scheduler)
 	s.scheduler.Start()
 
+	// Session management API
+	RegisterSessionRoutes(mux, s.orch)
+
 	// Seed knowledge injection (first boot only).
 	if s.graphBackend != nil {
 		if itakDB, ok := s.graphBackend.(*memory.ITakDBBackend); ok {
@@ -210,13 +213,17 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 // ChatRequest is the JSON body for /v1/chat.
 type ChatRequest struct {
-	Message string `json:"message"`
+	Message   string `json:"message"`
+	SessionID int    `json:"session_id,omitempty"` // resume existing session (0 = new)
+	Channel   string `json:"channel,omitempty"`    // web, discord, whatsapp, telegram, api
+	Agent     string `json:"agent,omitempty"`      // route to specific agent
 }
 
 // ChatResponse is the JSON response from /v1/chat.
 type ChatResponse struct {
-	Response string `json:"response"`
-	Error    string `json:"error,omitempty"`
+	Response  string `json:"response"`
+	SessionID int    `json:"session_id,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // handleChat processes a user message through the orchestrator.
@@ -256,10 +263,50 @@ Do not ask the user for permission. Execute all steps autonomously to produce th
 
 	debug.Info("api", "Chat request: %s", truncate(req.Message, 80))
 
+	// Session management: create or resume session.
+	sessionID := req.SessionID
+	channel := req.Channel
+	if channel == "" {
+		channel = "web"
+	}
+	if sessionID == 0 && s.orch.Memory != nil {
+		// Auto-create a new session with first message as title.
+		title := truncate(req.Message, 60)
+		sessionID = s.orch.Memory.Archive.StartSessionWithMeta(channel, title)
+	}
+
+	// Log the user message to the session archive.
+	if s.orch.Memory != nil && sessionID > 0 {
+		s.orch.Memory.Archive.LogMessage(memory.LogMessage{
+			Role:      "user",
+			Content:   req.Message,
+			Timestamp: time.Now(),
+		})
+	}
+
 	response, err := s.orch.Run(r.Context(), req.Message)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ChatResponse{Error: err.Error()})
+		writeJSON(w, http.StatusInternalServerError, ChatResponse{Error: err.Error(), SessionID: sessionID})
 		return
+	}
+
+	// Log the assistant response to the session archive.
+	if s.orch.Memory != nil && sessionID > 0 {
+		// Save messages to disk for persistence.
+		msgs, _ := s.orch.Memory.Archive.LoadConversation(sessionID)
+		if msgs == nil {
+			msgs = []memory.LogMessage{}
+		}
+		// Update message count in session metadata.
+		s.orch.Memory.Archive.UpdateSessionMeta(sessionID, "", "", len(msgs)+1)
+	}
+
+	// Auto-compact if context gets too large (over 40 messages).
+	if s.orch.Memory != nil && sessionID > 0 {
+		msgs, _ := s.orch.Memory.Archive.LoadConversation(sessionID)
+		if len(msgs) > 40 {
+			go s.orch.Memory.Archive.CompactSession(sessionID, 20)
+		}
 	}
 
 	// Auto-record agent activity for the embed pipeline.
@@ -281,16 +328,18 @@ Do not ask the user for permission. Execute all steps autonomously to produce th
 		if itakDB, ok := s.graphBackend.(*memory.ITakDBBackend); ok {
 			db := itakDB.DB()
 			db.CreateNode([]string{"AgentActivity"}, map[string]interface{}{
-				"agent":     "orchestrator",
-				"action":    "chat",
-				"data":      truncate(response, 1000),
-				"timestamp": time.Now().Format(time.RFC3339),
-				"status":    "success",
+				"agent":      "orchestrator",
+				"action":     "chat",
+				"data":       truncate(response, 1000),
+				"session_id": sessionID,
+				"channel":    channel,
+				"timestamp":  time.Now().Format(time.RFC3339),
+				"status":     "success",
 			}, nil)
 		}
 	}
 
-	writeJSON(w, http.StatusOK, ChatResponse{Response: response})
+	writeJSON(w, http.StatusOK, ChatResponse{Response: response, SessionID: sessionID})
 }
 
 // handleAgents returns the list of available agents and their capabilities.
@@ -301,7 +350,8 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agents := make([]AgentInfo, 0, len(s.orch.Agents))
+	// Core agents from YAML config.
+	agents := make([]AgentInfo, 0, len(s.orch.Agents)+14)
 	for _, ag := range s.orch.Agents {
 		agents = append(agents, AgentInfo{
 			Name:        ag.Config.Name,
@@ -311,8 +361,23 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 			Tools:       ag.Tools.Names(),
 			MaxLoops:    ag.Config.MaxLoops,
 			Model:       ag.Config.LLM.Model,
+			Source:      "core",
 		})
 	}
+
+	// Focus agents from seed catalog.
+	for _, fa := range seed.GetFocusAgents() {
+		agents = append(agents, AgentInfo{
+			Name:        fa.Name,
+			Role:        fa.Role,
+			Personality: fa.Description,
+			Goals:       fa.Goals,
+			Tools:       fa.Tools,
+			Source:      fa.Source,
+			Category:    fa.Category,
+		})
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"agents": agents,
 		"count":  len(agents),
@@ -326,8 +391,10 @@ type AgentInfo struct {
 	Personality string   `json:"personality"`
 	Goals       []string `json:"goals"`
 	Tools       []string `json:"tools"`
-	MaxLoops    int      `json:"max_loops"`
-	Model       string   `json:"model"`
+	MaxLoops    int      `json:"max_loops,omitempty"`
+	Model       string   `json:"model,omitempty"`
+	Source      string   `json:"source,omitempty"`   // core, focus, custom
+	Category    string   `json:"category,omitempty"` // marketing, dev, data, creative, ops
 }
 
 // handleAgentChat routes directly to a specific agent (bypasses orchestrator).

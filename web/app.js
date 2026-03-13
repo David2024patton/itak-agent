@@ -12,6 +12,7 @@ const state = {
   chatMessages: [],
   chatAgent: null,
   chatPersona: null,
+  sessionId: null,
   personas: [],
   logs: [],
   logFilter: 'all',
@@ -80,16 +81,24 @@ async function fetchSnapshot() {
 }
 
 async function sendChat(message, agentName) {
+  const body = { message };
+  if (state.sessionId) body.session_id = state.sessionId;
+  body.channel = 'web';
   if (agentName) {
     return await api(`/v1/agents/${agentName}/chat`, {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify(body),
     });
   }
-  return await api('/v1/chat', {
+  const result = await api('/v1/chat', {
     method: 'POST',
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(body),
   });
+  // Track session from server response.
+  if (result && result.session_id) {
+    state.sessionId = result.session_id;
+  }
+  return result;
 }
 
 async function fetchTokens() {
@@ -278,6 +287,7 @@ function navigate(page) {
     analytics: 'Analytics',
     logs: 'Logs',
     agents: 'Agents',
+    sessions: 'Sessions',
     personas: 'Agents',
     settings: 'Settings',
     tasks: 'Task Board',
@@ -300,6 +310,7 @@ async function renderPage() {
     case 'analytics': await renderAnalytics(content); break;
     case 'logs': renderLogs(content); break;
     case 'agents': await renderAgentsPage(content); break;
+    case 'sessions': await renderSessionsPage(content); break;
     case 'personas': await renderPersonas(content); break;
     case 'settings': renderSettings(content); break;
     case 'tasks': await renderTasks(content); break;
@@ -1171,11 +1182,55 @@ async function renderAgentsPage(container) {
   await fetchAgents();
   if (state.page !== 'agents') return;
 
+  const core = state.agents.filter(a => a.source === 'core' || !a.source);
+  const focus = state.agents.filter(a => a.source === 'focus');
+
+  // Group focus agents by category.
+  const categories = {};
+  focus.forEach(a => {
+    const cat = a.category || 'general';
+    if (!categories[cat]) categories[cat] = [];
+    categories[cat].push(a);
+  });
+
+  const categoryIcons = {
+    marketing: '📢', creative: '🎨', data: '📊', ops: '⚙️', dev: '💻', general: '🤖'
+  };
+
   container.innerHTML = `
-    <div class="section-label">Active Agents (${state.agents.length})</div>
+    <div class="section-label">Core Agents (${core.length})</div>
     <div class="card-grid">
-      ${state.agents.map(a => agentCardFull(a)).join('')}
+      ${core.map(a => agentCardFull(a)).join('')}
     </div>
+
+    ${focus.length > 0 ? `
+      <div class="section-label" style="margin-top:32px;">Focus Agents (${focus.length})</div>
+      <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+        Specialized agents activated on demand. Click to start a chat.
+      </div>
+      ${Object.entries(categories).map(([cat, agents]) => `
+        <div style="margin-bottom:24px;">
+          <div style="font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:10px;font-weight:600;">
+            ${categoryIcons[cat] || '🤖'} ${cat}
+          </div>
+          <div class="card-grid">
+            ${agents.map(a => `
+              <div class="agent-card" onclick="startChatWith('${a.name}')" style="border-left:3px solid var(--accent);">
+                <div class="agent-card-head">
+                  <span class="agent-card-name">${capitalize(a.name)}</span>
+                  <span class="badge badge-general" style="font-size:9px;">${a.source || 'focus'}</span>
+                </div>
+                <div class="agent-card-desc" style="margin-bottom:4px;">${a.personality || a.role || 'No description'}</div>
+                <div class="tool-tags">
+                  ${(a.tools || []).slice(0, 6).map(t => `<span class="tool-tag">${t}</span>`).join('')}
+                  ${(a.tools || []).length > 6 ? `<span class="tool-tag">+${a.tools.length - 6}</span>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
+    ` : ''}
 
     ${state.agents.length === 0 ? `
       <div class="empty-state">
@@ -3145,4 +3200,140 @@ async function deleteAutomation(id) {
   if (!confirm('Delete this automation?')) return;
   await fetch(`/v1/automations/${id}`, { method: 'DELETE' });
   renderAutomationsPage(document.getElementById('page-content'));
+}
+
+// ── Page: Sessions ─────────────────────────────────────────────────
+async function renderSessionsPage(container) {
+  if (!container) container = document.getElementById('page-content');
+  container.innerHTML = '<div class="spinner" style="margin:40px auto;"></div>';
+
+  let sessions = [];
+  try {
+    const res = await fetch('/v1/sessions');
+    const data = await res.json();
+    sessions = data.sessions || [];
+  } catch (e) {
+    console.error('Sessions fetch error:', e);
+  }
+
+  if (state.page !== 'sessions') return;
+
+  const channelColors = {
+    web: '#f97316', discord: '#5865F2', whatsapp: '#25D366',
+    telegram: '#26A5E4', api: '#8b5cf6'
+  };
+  const channelIcons = {
+    web: '🌐', discord: '💬', whatsapp: '📱', telegram: '✈️', api: '⚡'
+  };
+
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div class="section-label" style="margin:0;">Chat Sessions (${sessions.length})</div>
+      <button class="btn-primary" onclick="createNewSession()" style="padding:6px 16px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;">
+        + New Session
+      </button>
+    </div>
+
+    ${sessions.length === 0 ? `
+      <div class="empty-state">
+        <div class="empty-icon">💬</div>
+        <div class="empty-text">No chat sessions yet. Start a conversation to create one.</div>
+      </div>
+    ` : `
+      <div class="card-grid">
+        ${sessions.map(s => {
+          const ch = s.channel || 'web';
+          const statusLabel = s.status === 'active' ? '● ACTIVE' : s.status || 'archived';
+          const statusColor = s.status === 'active' ? 'var(--success)' : 'var(--text-muted)';
+          const timeAgo = formatTimeAgo(s.timestamp);
+          return `
+            <div class="agent-card" onclick="resumeSession(${s.id})" style="cursor:pointer;border-left:3px solid ${channelColors[ch] || '#666'};">
+              <div class="agent-card-head" style="align-items:flex-start;">
+                <div style="flex:1;">
+                  <span class="agent-card-name" style="font-size:14px;">${s.title || 'Untitled Session'}</span>
+                  <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">
+                    <span class="badge" style="background:${channelColors[ch] || '#666'};color:#fff;font-size:9px;padding:2px 6px;">
+                      ${channelIcons[ch] || '🌐'} ${ch}
+                    </span>
+                    <span style="font-size:10px;color:${statusColor};font-weight:600;">${statusLabel}</span>
+                  </div>
+                </div>
+                <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;">${timeAgo}</span>
+              </div>
+              <div class="agent-card-desc" style="margin:6px 0;font-size:12px;max-height:48px;overflow:hidden;">
+                ${s.summary || 'No summary available'}
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+                <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                  ${(s.agents_used || []).slice(0, 3).map(a => `
+                    <span class="tool-tag" style="font-size:9px;">${a}</span>
+                  `).join('')}
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span style="font-size:11px;color:var(--text-muted);">${s.message_count || 0} msgs</span>
+                  <button onclick="event.stopPropagation();compactSession(${s.id})" title="Compact context" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0;">🗜️</button>
+                  <button onclick="event.stopPropagation();deleteSession(${s.id})" title="Delete session" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0;">🗑️</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `}
+  `;
+}
+
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return '';
+  const now = new Date();
+  const then = new Date(timestamp);
+  const diffMs = now - then;
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHrs = Math.floor(diffMins / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return then.toLocaleDateString();
+}
+
+async function createNewSession() {
+  try {
+    const res = await fetch('/v1/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel: 'web', title: 'New Session' })
+    });
+    const data = await res.json();
+    state.sessionId = data.session_id;
+    navigate('chat');
+  } catch (e) {
+    console.error('Create session error:', e);
+  }
+}
+
+function resumeSession(id) {
+  state.sessionId = id;
+  navigate('chat');
+}
+
+async function compactSession(id) {
+  if (!confirm('Compact this session? This will summarize older messages to save context.')) return;
+  try {
+    await fetch(`/v1/sessions/${id}/compact`, { method: 'POST' });
+    renderSessionsPage(document.getElementById('page-content'));
+  } catch (e) {
+    console.error('Compact error:', e);
+  }
+}
+
+async function deleteSession(id) {
+  if (!confirm('Archive this session?')) return;
+  try {
+    await fetch(`/v1/sessions/${id}`, { method: 'DELETE' });
+    renderSessionsPage(document.getElementById('page-content'));
+  } catch (e) {
+    console.error('Delete session error:', e);
+  }
 }
