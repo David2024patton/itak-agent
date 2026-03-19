@@ -6,21 +6,58 @@ iTaK Agent runs entirely on your hardware. Your data never leaves your machine.
 
 ---
 
-## Quick Start
+## Install
+
+### One-Line Install (recommended)
+
+**Linux / macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/David2024patton/itak-agent/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/David2024patton/itak-agent/main/install.ps1 | iex
+```
+
+This downloads the latest binary, installs it to your system, and adds it to PATH so you can run `itak-agent` from any terminal.
+
+### Direct Download
+
+Download pre-compiled binaries from [GitHub Releases](https://github.com/David2024patton/itak-agent/releases):
+
+| Platform | Architecture | Download |
+|----------|-------------|----------|
+| **Windows** | x64 | `itak-agent-windows-amd64.exe` |
+| **Windows** | ARM64 | `itak-agent-windows-arm64.exe` |
+| **macOS** | Intel | `itak-agent-darwin-amd64` |
+| **macOS** | Apple Silicon | `itak-agent-darwin-arm64` |
+| **Linux** | x64 | `itak-agent-linux-amd64` |
+| **Linux** | ARM64 | `itak-agent-linux-arm64` |
+
+### Run
 
 ```bash
-# Clone and run with Docker
-git clone https://github.com/David2024patton/itak-agent.git
-cd itak-agent
-docker compose up -d
+# Start the agent (opens dashboard on port 42800)
+itak-agent --port 42800
 
-# Open the dashboard
+# Open in your browser
 http://localhost:42800
 ```
 
-Or build from source:
+### Docker
 
 ```bash
+git clone https://github.com/David2024patton/itak-agent.git
+cd itak-agent
+docker compose up -d
+```
+
+### Build from Source
+
+```bash
+git clone https://github.com/David2024patton/itak-agent.git
+cd itak-agent
 go build -o itak-agent ./cmd/itakagent
 ./itak-agent --port 42800
 ```
