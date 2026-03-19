@@ -168,6 +168,9 @@ func (s *Server) Start() error {
 	// SaaS: Usage analytics
 	RegisterUsageRoutes(mux)
 
+	// SaaS: Authentication
+	RegisterAuthRoutes(mux)
+
 	// Project management API
 	RegisterProjectRoutes(mux, s.graphBackend)
 
@@ -224,19 +227,34 @@ func (s *Server) Start() error {
 	}
 	fileServer := http.FileServer(http.FS(staticFS))
 
-	// Catch-all: serve static files or fall back to index.html for SPA routes.
+	// Catch-all: serve landing at /, dashboard at /dashboard, static files directly.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		// If it's a known static file, serve it directly.
+		// Known static files serve directly.
 		if path == "/styles.css" || path == "/app.js" || path == "/favicon.ico" || path == "/graph.html" {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
-		// Everything else gets index.html (SPA hash routing).
-		data, err := fs.ReadFile(staticFS, "index.html")
-		if err != nil {
-			http.Error(w, "index.html not found", http.StatusInternalServerError)
+		// /dashboard serves the main app (index.html).
+		if path == "/dashboard" || strings.HasPrefix(path, "/dashboard/") {
+			data, err := fs.ReadFile(staticFS, "index.html")
+			if err != nil {
+				http.Error(w, "index.html not found", 500)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(data)
 			return
+		}
+		// Root and everything else gets landing.html.
+		data, err := fs.ReadFile(staticFS, "landing.html")
+		if err != nil {
+			// Fallback to index.html if no landing page.
+			data, err = fs.ReadFile(staticFS, "index.html")
+			if err != nil {
+				http.Error(w, "page not found", 500)
+				return
+			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(data)
