@@ -475,6 +475,7 @@ function navigate(page) {
     conversationAI: 'Conversation AI',
     contentAI: 'Content AI',
     agentTemplates: 'Agent Templates',
+    admin: 'Admin Panel',
   };
   const titleEl = document.getElementById('page-title');
   const titleText = titles[page] || page;
@@ -523,8 +524,301 @@ async function renderPage() {
     case 'conversationAI': await renderConversationAIPage(content); break;
     case 'contentAI': await renderContentAIPage(content); break;
     case 'agentTemplates': await renderAgentTemplatesPage(content); break;
+    case 'admin': await renderAdmin(content); break;
     default: renderChat(content);
   }
+}
+
+// ── Admin nav visibility ──────────────────────────────────────────
+// Show admin nav item if user is admin/superadmin.
+function checkAdminNavVisibility() {
+  try {
+    const userData = localStorage.getItem('itak_user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      if (user.role === 'superadmin' || user.role === 'admin') {
+        const el = document.getElementById('admin-nav-item');
+        if (el) el.style.display = '';
+      }
+    }
+  } catch(e) {}
+}
+// Run on load.
+setTimeout(checkAdminNavVisibility, 200);
+
+// ── Admin Dashboard ───────────────────────────────────────────────
+async function renderAdmin(container) {
+  const token = localStorage.getItem('itak_token');
+  if (!token) {
+    container.innerHTML = '<div style="padding:40px;text-align:center;"><h2>Access Denied</h2><p style="color:var(--text-muted);">Admin access required. Please log in.</p></div>';
+    return;
+  }
+
+  container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">Loading admin panel...</div>';
+
+  // Fetch stats and users in parallel.
+  const headers = { 'Authorization': 'Bearer ' + token };
+  let stats = {}, users = [], allFeatures = [];
+  try {
+    const [statsRes, usersRes, featRes] = await Promise.all([
+      fetch('/v1/admin/stats', { headers }),
+      fetch('/v1/admin/users', { headers }),
+      fetch('/v1/admin/features', { headers })
+    ]);
+    if (!statsRes.ok) {
+      container.innerHTML = '<div style="padding:40px;text-align:center;"><h2 style="color:#ef4444;">Access Denied</h2><p style="color:var(--text-muted);">You need admin privileges to view this page.</p></div>';
+      return;
+    }
+    stats = await statsRes.json();
+    const usersData = await usersRes.json();
+    users = usersData.users || [];
+    const featData = await featRes.json();
+    allFeatures = featData.features || [];
+  } catch (e) {
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444;">Failed to load admin data: ' + e.message + '</div>';
+    return;
+  }
+
+  // Build the admin panel HTML.
+  container.innerHTML = `
+    <div style="padding:24px;max-width:1200px;margin:0 auto;">
+      <!-- Stats Cards -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:32px;">
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Total Users</div>
+          <div style="font-size:32px;font-weight:800;">${stats.total_users || 0}</div>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Active Today</div>
+          <div style="font-size:32px;font-weight:800;color:#22c55e;">${stats.active_today || 0}</div>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Live Sessions</div>
+          <div style="font-size:32px;font-weight:800;color:#6366f1;">${stats.active_sessions || 0}</div>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Pro / Agency</div>
+          <div style="font-size:32px;font-weight:800;">${stats.pro_users || 0} / ${stats.agency_users || 0}</div>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Memory</div>
+          <div style="font-size:32px;font-weight:800;">${stats.memory_mb || 0}<span style="font-size:14px;color:var(--text-muted);">MB</span></div>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Goroutines</div>
+          <div style="font-size:32px;font-weight:800;">${stats.goroutines || 0}</div>
+        </div>
+      </div>
+
+      <!-- Actions Bar -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 style="font-size:18px;font-weight:700;margin:0;">User Management</h2>
+        <button onclick="adminShowAddUser()" style="padding:8px 20px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">+ Add User</button>
+      </div>
+
+      <!-- Users Table -->
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(255,255,255,0.02);">
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">User</th>
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Role</th>
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Tier</th>
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Features</th>
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Status</th>
+              <th style="padding:12px 16px;text-align:right;font-weight:600;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${users.map(u => `
+              <tr style="border-bottom:1px solid var(--border);" id="admin-row-${u.id}">
+                <td style="padding:12px 16px;">
+                  <div style="font-weight:600;">${u.display_name || u.email}</div>
+                  <div style="font-size:11px;color:var(--text-muted);">${u.email}</div>
+                </td>
+                <td style="padding:12px 16px;">
+                  <span style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:${u.role === 'superadmin' ? 'rgba(245,158,11,0.15);color:#f59e0b' : u.role === 'admin' ? 'rgba(99,102,241,0.15);color:#818cf8' : 'rgba(255,255,255,0.05);color:var(--text-muted)'};">${u.role}</span>
+                </td>
+                <td style="padding:12px 16px;">
+                  <span style="padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;background:${u.tier === 'agency' ? 'rgba(245,158,11,0.15);color:#f59e0b' : 'rgba(99,102,241,0.15);color:#818cf8'};">${u.tier}</span>
+                </td>
+                <td style="padding:12px 16px;">
+                  <span style="font-size:11px;color:var(--text-muted);">${(u.features || []).length} modules</span>
+                </td>
+                <td style="padding:12px 16px;">
+                  <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;${u.disabled ? 'color:#ef4444' : 'color:#22c55e'};">
+                    <span style="width:8px;height:8px;border-radius:50%;background:${u.disabled ? '#ef4444' : '#22c55e'};"></span>
+                    ${u.disabled ? 'Disabled' : 'Active'}
+                  </span>
+                </td>
+                <td style="padding:12px 16px;text-align:right;">
+                  <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
+                    <button onclick="adminManageFeatures('${u.email}')" title="Features" style="padding:4px 10px;background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.3);border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;">Features</button>
+                    <button onclick="adminPromoteUser('${u.email}')" title="Promote" style="padding:4px 10px;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;">Promote</button>
+                    <button onclick="adminToggleUser('${u.email}', ${!u.disabled})" title="${u.disabled ? 'Enable' : 'Disable'}" style="padding:4px 10px;background:${u.disabled ? 'rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)'};border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;">${u.disabled ? 'Enable' : 'Disable'}</button>
+                    ${u.role !== 'superadmin' ? '<button onclick="adminRemoveUser(\'' + u.email + '\')" title="Remove" style="padding:4px 10px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;">Remove</button>' : ''}
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add User Modal -->
+    <div id="admin-add-modal" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);align-items:center;justify-content:center;">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:28px;width:100%;max-width:440px;">
+        <h3 style="margin:0 0 16px;font-size:18px;font-weight:700;">Add New User</h3>
+        <div style="display:grid;gap:12px;">
+          <input id="admin-add-name" placeholder="Full Name" style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:14px;">
+          <input id="admin-add-email" type="email" placeholder="Email" style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:14px;">
+          <input id="admin-add-password" type="password" placeholder="Password" style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:14px;">
+          <select id="admin-add-role" style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:14px;">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+          <select id="admin-add-tier" style="padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:14px;">
+            <option value="pro">Pro</option>
+            <option value="agency">Agency</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button onclick="adminDoAddUser()" style="flex:1;padding:10px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Create</button>
+          <button onclick="document.getElementById('admin-add-modal').style.display='none'" style="flex:1;padding:10px;background:rgba(255,255,255,0.06);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;font-weight:600;cursor:pointer;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Features Modal -->
+    <div id="admin-features-modal" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);align-items:center;justify-content:center;">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:28px;width:100%;max-width:500px;max-height:80vh;overflow-y:auto;">
+        <h3 style="margin:0 0 4px;font-size:18px;font-weight:700;">Manage Features</h3>
+        <p id="admin-features-email" style="font-size:13px;color:var(--text-muted);margin:0 0 16px;"></p>
+        <div id="admin-features-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button onclick="adminSaveFeatures()" style="flex:1;padding:10px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Save</button>
+          <button onclick="document.getElementById('admin-features-modal').style.display='none'" style="flex:1;padding:10px;background:rgba(255,255,255,0.06);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;font-weight:600;cursor:pointer;">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Admin Actions ─────────────────────────────────────────────────
+function adminShowAddUser() {
+  const modal = document.getElementById('admin-add-modal');
+  modal.style.display = 'flex';
+}
+
+async function adminDoAddUser() {
+  const token = localStorage.getItem('itak_token');
+  const name = document.getElementById('admin-add-name').value;
+  const email = document.getElementById('admin-add-email').value;
+  const password = document.getElementById('admin-add-password').value;
+  const role = document.getElementById('admin-add-role').value;
+  const tier = document.getElementById('admin-add-tier').value;
+  if (!name || !email || !password) { alert('All fields required'); return; }
+  try {
+    const res = await fetch('/v1/admin/users/add', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: name, email, password, role, tier })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed'); return; }
+    document.getElementById('admin-add-modal').style.display = 'none';
+    renderPage(); // refresh
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function adminPromoteUser(email) {
+  const options = ['user', 'admin', 'superadmin'];
+  const role = prompt('Set role for ' + email + ':\\n(user / admin / superadmin)');
+  if (!role || !options.includes(role)) return;
+  const tier = prompt('Set tier for ' + email + ':\\n(pro / agency)');
+  if (!tier) return;
+  const token = localStorage.getItem('itak_token');
+  try {
+    await fetch('/v1/admin/users/promote', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, role, tier })
+    });
+    renderPage();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function adminToggleUser(email, disabled) {
+  const token = localStorage.getItem('itak_token');
+  try {
+    await fetch('/v1/admin/users/toggle', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, disabled })
+    });
+    renderPage();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function adminRemoveUser(email) {
+  if (!confirm('Remove user ' + email + '? This cannot be undone.')) return;
+  const token = localStorage.getItem('itak_token');
+  try {
+    const res = await fetch('/v1/admin/users/remove', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed'); return; }
+    renderPage();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+// Track which user we're editing features for.
+let adminFeaturesTarget = '';
+
+async function adminManageFeatures(email) {
+  adminFeaturesTarget = email;
+  const token = localStorage.getItem('itak_token');
+
+  // Get all features + user's current features.
+  const [featRes, usersRes] = await Promise.all([
+    fetch('/v1/admin/features', { headers: { 'Authorization': 'Bearer ' + token } }),
+    fetch('/v1/admin/users', { headers: { 'Authorization': 'Bearer ' + token } })
+  ]);
+  const allFeats = (await featRes.json()).features || [];
+  const allUsers = (await usersRes.json()).users || [];
+  const user = allUsers.find(u => u.email === email);
+  const userFeats = user ? (user.features || []) : [];
+
+  document.getElementById('admin-features-email').textContent = email;
+  const grid = document.getElementById('admin-features-grid');
+  grid.innerHTML = allFeats.map(f => `
+    <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;">
+      <input type="checkbox" class="admin-feat-cb" value="${f}" ${userFeats.includes(f) ? 'checked' : ''} style="accent-color:#6366f1;">
+      ${f.replace(/_/g, ' ')}
+    </label>
+  `).join('');
+
+  document.getElementById('admin-features-modal').style.display = 'flex';
+}
+
+async function adminSaveFeatures() {
+  const token = localStorage.getItem('itak_token');
+  const checkboxes = document.querySelectorAll('.admin-feat-cb');
+  const features = [];
+  checkboxes.forEach(cb => { if (cb.checked) features.push(cb.value); });
+  try {
+    await fetch('/v1/admin/users/features', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: adminFeaturesTarget, features })
+    });
+    document.getElementById('admin-features-modal').style.display = 'none';
+    renderPage();
+  } catch (e) { alert('Error: ' + e.message); }
 }
 
 // ── Theme ─────────────────────────────────────────────────────────

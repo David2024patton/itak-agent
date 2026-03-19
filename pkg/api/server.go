@@ -171,6 +171,9 @@ func (s *Server) Start() error {
 	// SaaS: Authentication
 	RegisterAuthRoutes(mux)
 
+	// SaaS: Admin panel
+	RegisterAdminRoutes(mux)
+
 	// Project management API
 	RegisterProjectRoutes(mux, s.graphBackend)
 
