@@ -156,6 +156,18 @@ func (s *Server) Start() error {
 	// Agency multi-tenant management API
 	RegisterAgencyRoutes(mux, s.graphBackend)
 
+	// SaaS: Stripe billing
+	RegisterBillingRoutes(mux)
+
+	// SaaS: Onboarding wizard
+	RegisterOnboardingRoutes(mux)
+
+	// SaaS: White-label branding for Agency tier
+	RegisterWhiteLabelRoutes(mux)
+
+	// SaaS: Usage analytics
+	RegisterUsageRoutes(mux)
+
 	// Project management API
 	RegisterProjectRoutes(mux, s.graphBackend)
 
