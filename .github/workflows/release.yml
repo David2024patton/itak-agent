@@ -33,6 +33,9 @@ jobs:
           - os: linux
             arch: arm64
             ext: ""
+          - os: android
+            arch: arm64
+            ext: ""
 
     steps:
       - uses: actions/checkout@v4

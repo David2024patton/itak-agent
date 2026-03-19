@@ -34,6 +34,7 @@ Download pre-compiled binaries from [GitHub Releases](https://github.com/David20
 | **macOS** | Apple Silicon | `itak-agent-darwin-arm64` |
 | **Linux** | x64 | `itak-agent-linux-amd64` |
 | **Linux** | ARM64 | `itak-agent-linux-arm64` |
+| **Android** | ARM64 | `itak-agent-android-arm64` |
 
 ### Run
 
