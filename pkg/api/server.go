@@ -44,7 +44,6 @@ type Server struct {
 	start        time.Time
 	dataDir      string
 	visionClient *llm.VisionClient // multimodal image processing via Ollama
-	authStore    *AuthStore         // user authentication & tier management
 
 	// WebSocket clients for live event streaming.
 	wsClients   map[chan []byte]struct{}
@@ -98,14 +97,6 @@ func NewServer(orch *agent.Orchestrator, bus *eventbus.EventBus, taskMgr *tasks.
 // Start begins listening. Non-blocking.
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
-
-	// ── Auth system ──────────────────────────────────────────
-	authStore, err := NewAuthStore(s.dataDir)
-	if err != nil {
-		return fmt.Errorf("failed to init auth store: %w", err)
-	}
-	s.authStore = authStore
-	RegisterAuthRoutes(mux, authStore)
 
 	// ── API endpoints ─────────────────────────────────────────
 	mux.HandleFunc("/health", s.handleHealth)
@@ -179,18 +170,9 @@ func (s *Server) Start() error {
 	// Encrypted credentials vault API
 	credAPI := registerCredentialsAPI(mux, s.graphBackend)
 
-	// ── Connector framework (Twilio, Stripe, GHL, Vonage, Plivo) ──
+	// ── Connector framework (Stripe reference + user-extensible) ──
 	connectorRegistry := NewConnectorRegistry(s.graphBackend, credAPI)
-	connectorRegistry.Register(NewTwilioConnector(connectorRegistry))
 	connectorRegistry.Register(NewStripeConnector(connectorRegistry))
-	connectorRegistry.Register(NewGHLConnector(connectorRegistry))
-	connectorRegistry.Register(NewVonageConnector(connectorRegistry))
-	connectorRegistry.Register(NewPlivoConnector(connectorRegistry))
-	connectorRegistry.Register(NewPayPalConnector(connectorRegistry))
-	connectorRegistry.Register(NewSquareConnector(connectorRegistry))
-	connectorRegistry.Register(NewAuthorizeNetConnector(connectorRegistry))
-	connectorRegistry.Register(NewGoCardlessConnector(connectorRegistry))
-	connectorRegistry.Register(NewJPMCZelleConnector(connectorRegistry))
 	RegisterConnectorRoutes(mux, connectorRegistry)
 
 	// Cron automations scheduler API
@@ -224,35 +206,19 @@ func (s *Server) Start() error {
 	}
 	fileServer := http.FileServer(http.FS(staticFS))
 
-	// Catch-all: serve static files, check auth for dashboard.
+	// Catch-all: serve static files or fall back to index.html for SPA routes.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		// Static files always served directly (CSS, JS, etc.).
-		if path == "/styles.css" || path == "/app.js" || path == "/favicon.ico" || path == "/graph.html" || path == "/landing.css" {
+		// If it's a known static file, serve it directly.
+		if path == "/styles.css" || path == "/app.js" || path == "/favicon.ico" || path == "/graph.html" {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
-		// Check if user is authenticated via cookie.
-		_, authErr := extractClaims(r, s.authStore)
-		isAuthed := authErr == nil
-
-		// /dashboard or any SPA route: require auth, serve index.html.
-		if isAuthed && (path == "/dashboard" || path == "/" || strings.HasPrefix(path, "/dashboard")) {
-			data, err := fs.ReadFile(staticFS, "index.html")
-			if err != nil {
-				http.Error(w, "index.html not found", http.StatusInternalServerError)
-				return
-			}
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Write(data)
-			return
-		}
-
-		// Not authenticated: serve landing page.
-		data, err := fs.ReadFile(staticFS, "landing.html")
+		// Everything else gets index.html (SPA hash routing).
+		data, err := fs.ReadFile(staticFS, "index.html")
 		if err != nil {
-			// Fallback to index.html if landing.html doesn't exist yet.
-			data, _ = fs.ReadFile(staticFS, "index.html")
+			http.Error(w, "index.html not found", http.StatusInternalServerError)
+			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(data)

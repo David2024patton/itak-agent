@@ -46,8 +46,6 @@ const state = {
   activeAgencyName: '',
   activeSubAccountName: '',
   allAgencies: [],
-  // Auth: current logged-in user.
-  user: null, // { id, email, display_name, tier }
 };
 
 // ── API Client ────────────────────────────────────────────────────
@@ -4699,92 +4697,10 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// ── Tier Gating ──────────────────────────────────────────────────
-// Maps nav-group label text to the minimum tier required.
-const TIER_LEVELS = { starter: 0, pro: 1, agency: 2 };
-const NAV_GROUP_TIERS = {
-  'Chat': 'starter',
-  'Monitor': 'starter',
-  'Agents': 'pro',
-  'Tasks': 'pro',
-  'Automations': 'pro',
-  'Database': 'pro',
-  'Marketplace': 'pro',
-  'Agency': 'agency',
-  'System': 'starter',
-};
-
-function applyTierGating(tier) {
-  const userLevel = TIER_LEVELS[tier] || 0;
-  document.querySelectorAll('.nav-group').forEach(group => {
-    const labelEl = group.querySelector('.nav-group-label span');
-    if (!labelEl) return;
-    const groupName = labelEl.textContent.trim();
-    const requiredTier = NAV_GROUP_TIERS[groupName];
-    if (!requiredTier) return;
-    const requiredLevel = TIER_LEVELS[requiredTier] || 0;
-
-    if (userLevel < requiredLevel) {
-      // Lock the group: dim it and add upgrade badge.
-      group.style.opacity = '0.4';
-      group.style.pointerEvents = 'none';
-      // Add a small upgrade indicator.
-      if (!group.querySelector('.tier-lock')) {
-        const badge = document.createElement('span');
-        badge.className = 'tier-lock';
-        badge.textContent = requiredTier === 'agency' ? '🔒 Agency' : '🔒 Pro';
-        badge.style.cssText = 'font-size:9px;font-weight:700;color:var(--accent);margin-left:6px;text-transform:uppercase;letter-spacing:.5px;';
-        labelEl.parentElement.insertBefore(badge, labelEl.nextSibling);
-      }
-    } else {
-      group.style.opacity = '1';
-      group.style.pointerEvents = 'auto';
-    }
-  });
-}
-
-function renderUserFooter(user) {
-  const footer = document.querySelector('.sidebar-footer');
-  if (!footer || !user) return;
-  const tierColor = user.tier === 'agency' ? '#a855f7' : user.tier === 'pro' ? '#3b82f6' : '#22c55e';
-  const tierLabel = user.tier.charAt(0).toUpperCase() + user.tier.slice(1);
-  footer.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">
-      <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0;">
-        ${(user.display_name || user.email)[0].toUpperCase()}
-      </div>
-      <div style="min-width:0;flex:1;">
-        <div style="font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.display_name || user.email.split('@')[0])}</div>
-        <span style="font-size:9px;font-weight:700;color:${tierColor};text-transform:uppercase;letter-spacing:.5px;">${tierLabel}</span>
-      </div>
-    </div>
-    <button onclick="handleLogout()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px;font-size:16px;" title="Log Out">⏻</button>
-  `;
-}
-
-async function handleLogout() {
-  await fetch('/v1/auth/logout', { method: 'POST' });
-  window.location.href = '/';
-}
 
 // ── Init ──────────────────────────────────────────────────────────
 (async function init() {
   loadTheme();
-
-  // ── Auth: check if user is logged in ──────────────────────
-  try {
-    const meRes = await fetch('/v1/auth/me');
-    if (meRes.ok) {
-      state.user = await meRes.json();
-    } else {
-      // Not authenticated: redirect to landing page.
-      window.location.href = '/';
-      return;
-    }
-  } catch (e) {
-    window.location.href = '/';
-    return;
-  }
 
   // Determine page from hash.
   const hash = window.location.hash.replace('#', '') || 'chat';
@@ -4793,10 +4709,6 @@ async function handleLogout() {
   // Fetch initial data.
   await Promise.all([fetchStatus(), fetchAgents(), fetchPersonas(), fetchAllAgencies()]);
   addLog('info', 'dashboard', 'Dashboard loaded');
-
-  // Apply tier gating to sidebar.
-  applyTierGating(state.user.tier);
-  renderUserFooter(state.user);
 
   // Navigate to correct page.
   navigate(state.page);
