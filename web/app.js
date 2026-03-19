@@ -46,8 +46,6 @@ const state = {
   activeAgencyName: '',
   activeSubAccountName: '',
   allAgencies: [],
-  // Auth: current logged-in user.
-  user: null, // { id, email, display_name, tier }
 };
 
 // ── API Client ────────────────────────────────────────────────────
@@ -778,6 +776,7 @@ function renderChat(container) {
             <button class="btn" onclick="document.getElementById('chat-file-input').click()" title="Attach image" style="padding:6px 10px;font-size:16px;line-height:1;flex-shrink:0;">📎</button>
             <input type="text" id="chat-input" placeholder="Type a message... (Enter to send, Ctrl+V to paste image)" autofocus
               onkeydown="if(event.key==='Enter')handleChatSend()">
+            <button class="voice-btn" id="voice-btn" onclick="toggleVoiceInput()" title="Voice input (speech-to-text)">🎤</button>
             <button class="btn btn-primary" onclick="handleChatSend()">Send</button>
           </div>
         </div>
@@ -2383,6 +2382,55 @@ function renderSettings(container) {
       </div>
     </div>
 
+    <div class="settings-section" id="llm-provider-section">
+      <h3>LLM Provider</h3>
+      <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block;">Provider</label>
+            <select id="llm-provider" class="form-control" onchange="llmProviderChanged()">
+              <option value="">Loading providers...</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block;">Model</label>
+            <select id="llm-model" class="form-control">
+              <option value="">Select provider first</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block;">API Base URL</label>
+            <input type="text" id="llm-api-base" class="form-control" placeholder="http://localhost:11434/v1" oninput="debouncedFetchModels()">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block;">API Key <span style="color:var(--text-muted)">(optional for local)</span></label>
+            <input type="password" id="llm-api-key" class="form-control" placeholder="sk-... (leave blank for local)">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="saveLLMConfig()">Save Config</button>
+          <button class="btn" onclick="testLLMConnection()">Test Connection</button>
+          <button class="btn" onclick="fetchLLMModels()">Refresh Models</button>
+          <button class="btn" onclick="autoDetectLLMs()" title="Scan common ports for running LLM services">Auto-Detect</button>
+        </div>
+        <div id="llm-test-result" style="display:none;"></div>
+        <div id="llm-detect-result" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="settings-section" id="model-browser-section">
+      <h3>Model Browser</h3>
+      <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:12px;">
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="model-search" class="form-control" placeholder="Search models (e.g. llama3, qwen, mistral)..." style="flex:1;">
+          <button class="btn btn-primary" onclick="browseModels()">Browse</button>
+        </div>
+        <div id="model-browser-results" style="display:none;max-height:300px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
     <div class="settings-section">
       <h3>System Info</h3>
       <div class="card" style="font-family:var(--mono);font-size:12px;white-space:pre-wrap;">${
@@ -2461,6 +2509,8 @@ function renderSettings(container) {
 
   // Load embedding status and models asynchronously.
   loadEmbedSettings();
+  // Load LLM provider dropdown and saved config.
+  loadLLMProviders();
 }
 
 // ── Embedding Settings Helpers ────────────────────────────────────
@@ -2490,6 +2540,244 @@ async function loadEmbedSettings() {
         `</option>`
       ).join('');
     }
+  }
+}
+
+// ── LLM Provider Config ──────────────────────────────────────────
+let _fetchModelsTimer = null;
+function debouncedFetchModels() {
+  clearTimeout(_fetchModelsTimer);
+  _fetchModelsTimer = setTimeout(() => fetchLLMModels(), 800);
+}
+
+async function loadLLMProviders() {
+  try {
+    const res = await fetch('/v1/models/providers');
+    if (!res.ok) return;
+    const data = await res.json();
+    const sel = document.getElementById('llm-provider');
+    if (!sel) return;
+    const providers = data.providers || [];
+    sel.innerHTML = '<option value="">-- Select Provider --</option>' +
+      providers.map(p =>
+        `<option value="${p.slug}" data-base="${p.api_base}" data-category="${p.category}">${p.name} (${p.category})</option>`
+      ).join('');
+    // Load saved config and pre-select.
+    const cfgRes = await fetch('/v1/models/global');
+    if (cfgRes.ok) {
+      const cfgData = await cfgRes.json();
+      const cfg = cfgData.config || {};
+      if (cfg.provider) sel.value = cfg.provider;
+      const baseEl = document.getElementById('llm-api-base');
+      const keyEl = document.getElementById('llm-api-key');
+      if (baseEl && cfg.api_base) baseEl.value = cfg.api_base;
+      if (baseEl && !cfg.api_base && cfg.ollama_endpoint) baseEl.value = cfg.ollama_endpoint;
+      if (keyEl && cfg.api_key) keyEl.value = cfg.api_key;
+      // Auto-fetch models for the saved provider.
+      if (cfg.provider || cfg.api_base) {
+        setTimeout(() => fetchLLMModels(cfg.model || cfg.ollama_model), 300);
+      }
+    }
+  } catch (e) { console.error('Failed to load LLM providers:', e); }
+}
+
+function llmProviderChanged() {
+  const sel = document.getElementById('llm-provider');
+  const opt = sel.selectedOptions[0];
+  if (!opt) return;
+  const base = opt.dataset.base || '';
+  const baseEl = document.getElementById('llm-api-base');
+  if (baseEl && base) baseEl.value = base;
+  fetchLLMModels();
+}
+
+async function fetchLLMModels(preselect) {
+  const provider = document.getElementById('llm-provider')?.value || '';
+  const apiBase = document.getElementById('llm-api-base')?.value || '';
+  const apiKey = document.getElementById('llm-api-key')?.value || '';
+  const sel = document.getElementById('llm-model');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Loading models...</option>';
+  try {
+    const res = await fetch('/v1/models/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, api_base: apiBase, api_key: apiKey })
+    });
+    if (!res.ok) {
+      sel.innerHTML = '<option value="">Failed to load models</option>';
+      return;
+    }
+    const data = await res.json();
+    const models = data.models || [];
+    if (models.length === 0) {
+      sel.innerHTML = '<option value="">No models found</option>';
+      return;
+    }
+    sel.innerHTML = models.map(m => {
+      const name = typeof m === 'string' ? m : (m.id || m.name || m);
+      return `<option value="${name}" ${name === preselect ? 'selected' : ''}>${name}</option>`;
+    }).join('');
+  } catch (e) {
+    sel.innerHTML = '<option value="">Connection failed</option>';
+  }
+}
+
+async function testLLMConnection() {
+  const provider = document.getElementById('llm-provider')?.value || '';
+  const apiBase = document.getElementById('llm-api-base')?.value || '';
+  const apiKey = document.getElementById('llm-api-key')?.value || '';
+  const resultDiv = document.getElementById('llm-test-result');
+  if (!resultDiv) return;
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = '<div class="card" style="padding:8px;font-size:12px;color:var(--text-secondary);">Testing connection...</div>';
+  try {
+    const res = await fetch('/v1/models/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, api_base: apiBase, api_key: apiKey })
+    });
+    const data = await res.json();
+    if (res.ok && data.models) {
+      resultDiv.innerHTML = `<div class="card" style="padding:8px;font-size:12px;color:var(--green);border-left:3px solid var(--green);">
+        Connected successfully. Found ${data.models.length} model(s).
+      </div>`;
+    } else {
+      resultDiv.innerHTML = `<div class="card" style="padding:8px;font-size:12px;color:var(--red);border-left:3px solid var(--red);">
+        Connection failed: ${data.error || 'Unknown error'}
+      </div>`;
+    }
+  } catch (e) {
+    resultDiv.innerHTML = `<div class="card" style="padding:8px;font-size:12px;color:var(--red);border-left:3px solid var(--red);">
+      Connection failed: ${e.message}
+    </div>`;
+  }
+}
+
+async function saveLLMConfig() {
+  const provider = document.getElementById('llm-provider')?.value || '';
+  const apiBase = document.getElementById('llm-api-base')?.value || '';
+  const apiKey = document.getElementById('llm-api-key')?.value || '';
+  const model = document.getElementById('llm-model')?.value || '';
+  const isOllama = provider === 'ollama' || apiBase.includes('11434');
+  const cfg = {
+    model_type: isOllama ? 'ollama' : 'api',
+    provider, model, api_base: apiBase, api_key: apiKey,
+    ollama_model: isOllama ? model : '',
+    ollama_endpoint: isOllama ? apiBase.replace('/v1', '') : ''
+  };
+  try {
+    const res = await fetch('/v1/models/global', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg)
+    });
+    if (res.ok) {
+      addLog('info', 'settings', `LLM config saved: ${provider} / ${model}`);
+      const resultDiv = document.getElementById('llm-test-result');
+      if (resultDiv) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `<div class="card" style="padding:8px;font-size:12px;color:var(--green);border-left:3px solid var(--green);">
+          Configuration saved. Provider: ${provider}, Model: ${model}
+        </div>`;
+      }
+    }
+  } catch (e) { console.error('Failed to save LLM config:', e); }
+}
+
+// ── Auto-Detect LLM Services ───────────────────────────────────
+async function autoDetectLLMs() {
+  const resultDiv = document.getElementById('llm-detect-result');
+  if (!resultDiv) return;
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = '<div class="card" style="padding:8px;font-size:12px;color:var(--text-secondary);">Scanning for local LLM services...</div>';
+
+  const endpoints = [
+    { name: 'Ollama', port: 11434, path: '/api/tags', slug: 'ollama' },
+    { name: 'LM Studio', port: 1234, path: '/v1/models', slug: 'lmstudio' },
+    { name: 'iTaK Torch', port: 8080, path: '/v1/models', slug: 'torch' },
+    { name: 'vLLM', port: 8000, path: '/v1/models', slug: 'vllm' },
+    { name: 'LocalAI', port: 8081, path: '/v1/models', slug: 'localai' },
+    { name: 'text-gen-webui', port: 5000, path: '/v1/models', slug: 'textgen' },
+    { name: 'llama.cpp', port: 8082, path: '/v1/models', slug: 'llamacpp' },
+    { name: 'TabbyAPI', port: 5001, path: '/v1/models', slug: 'tabby' },
+    { name: 'Jan', port: 1337, path: '/v1/models', slug: 'jan' },
+    { name: 'KoboldCpp', port: 5002, path: '/api/v1/model', slug: 'kobold' },
+  ];
+
+  const found = [];
+  const checks = endpoints.map(async ep => {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 2000);
+      const res = await fetch(`http://localhost:${ep.port}${ep.path}`, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (res.ok) found.push(ep);
+    } catch (e) { /* not running */ }
+  });
+  await Promise.all(checks);
+
+  if (found.length === 0) {
+    resultDiv.innerHTML = '<div class="card" style="padding:8px;font-size:12px;color:var(--text-muted);">No local LLM services detected. Start Ollama, LM Studio, or another LLM server first.</div>';
+    return;
+  }
+
+  resultDiv.innerHTML = `<div class="card" style="padding:8px;font-size:12px;">
+    <div style="color:var(--green);font-weight:600;margin-bottom:8px;">Found ${found.length} service(s):</div>
+    ${found.map(ep => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">
+        <span><span style="color:var(--green);">&#9679;</span> ${ep.name} (port ${ep.port})</span>
+        <button class="btn btn-primary" style="padding:2px 10px;font-size:11px;" onclick="selectDetectedLLM('${ep.slug}','${ep.port}')">Use This</button>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+function selectDetectedLLM(slug, port) {
+  const sel = document.getElementById('llm-provider');
+  const baseEl = document.getElementById('llm-api-base');
+  if (sel) {
+    for (let opt of sel.options) { if (opt.value === slug) { sel.value = slug; break; } }
+  }
+  if (baseEl) baseEl.value = `http://localhost:${port}/v1`;
+  fetchLLMModels();
+}
+
+// ── Model Browser ─────────────────────────────────────────────
+async function browseModels() {
+  const query = document.getElementById('model-search')?.value?.trim() || '';
+  const resultsDiv = document.getElementById('model-browser-results');
+  if (!resultsDiv) return;
+  resultsDiv.style.display = 'block';
+  resultsDiv.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--text-secondary);">Searching models...</div>';
+
+  // First try to list from connected provider.
+  try {
+    const provider = document.getElementById('llm-provider')?.value || 'ollama';
+    const apiBase = document.getElementById('llm-api-base')?.value || 'http://localhost:11434/v1';
+    const apiKey = document.getElementById('llm-api-key')?.value || '';
+    const res = await fetch('/v1/models/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, api_base: apiBase, api_key: apiKey })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      let models = (data.models || []).map(m => typeof m === 'string' ? m : (m.id || m.name || ''));
+      if (query) models = models.filter(m => m.toLowerCase().includes(query.toLowerCase()));
+      if (models.length === 0) {
+        resultsDiv.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--text-muted);">No matching models found.</div>';
+        return;
+      }
+      resultsDiv.innerHTML = models.map(m => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;">
+          <span style="font-family:var(--mono);">${escapeHtml(m)}</span>
+          <button class="btn" style="padding:2px 10px;font-size:11px;" onclick="document.getElementById('llm-model').innerHTML='<option value=\\'${m}\\' selected>${m}</option>';">Select</button>
+        </div>
+      `).join('');
+    }
+  } catch (e) {
+    resultsDiv.innerHTML = `<div style="padding:8px;font-size:12px;color:var(--red);">Search failed: ${e.message}</div>`;
   }
 }
 
@@ -4699,92 +4987,92 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// ── Tier Gating ──────────────────────────────────────────────────
-// Maps nav-group label text to the minimum tier required.
-const TIER_LEVELS = { starter: 0, pro: 1, agency: 2 };
-const NAV_GROUP_TIERS = {
-  'Chat': 'starter',
-  'Monitor': 'starter',
-  'Agents': 'pro',
-  'Tasks': 'pro',
-  'Automations': 'pro',
-  'Database': 'pro',
-  'Marketplace': 'pro',
-  'Agency': 'agency',
-  'System': 'starter',
-};
 
-function applyTierGating(tier) {
-  const userLevel = TIER_LEVELS[tier] || 0;
-  document.querySelectorAll('.nav-group').forEach(group => {
-    const labelEl = group.querySelector('.nav-group-label span');
-    if (!labelEl) return;
-    const groupName = labelEl.textContent.trim();
-    const requiredTier = NAV_GROUP_TIERS[groupName];
-    if (!requiredTier) return;
-    const requiredLevel = TIER_LEVELS[requiredTier] || 0;
+// ── Voice I/O (Speech-to-Text + Text-to-Speech) ──────────────────
+let _voiceRecognition = null;
+let _voiceRecording = false;
 
-    if (userLevel < requiredLevel) {
-      // Lock the group: dim it and add upgrade badge.
-      group.style.opacity = '0.4';
-      group.style.pointerEvents = 'none';
-      // Add a small upgrade indicator.
-      if (!group.querySelector('.tier-lock')) {
-        const badge = document.createElement('span');
-        badge.className = 'tier-lock';
-        badge.textContent = requiredTier === 'agency' ? '🔒 Agency' : '🔒 Pro';
-        badge.style.cssText = 'font-size:9px;font-weight:700;color:var(--accent);margin-left:6px;text-transform:uppercase;letter-spacing:.5px;';
-        labelEl.parentElement.insertBefore(badge, labelEl.nextSibling);
-      }
-    } else {
-      group.style.opacity = '1';
-      group.style.pointerEvents = 'auto';
+function toggleVoiceInput() {
+  const btn = document.getElementById('voice-btn');
+  if (!btn) return;
+
+  // Check browser support.
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    addLog('warn', 'voice', 'Speech recognition not supported in this browser');
+    return;
+  }
+
+  if (_voiceRecording) {
+    // Stop recording.
+    if (_voiceRecognition) _voiceRecognition.stop();
+    _voiceRecording = false;
+    btn.classList.remove('recording');
+    btn.title = 'Voice input (speech-to-text)';
+    return;
+  }
+
+  // Start recording.
+  _voiceRecognition = new SpeechRecognition();
+  _voiceRecognition.continuous = false;
+  _voiceRecognition.interimResults = true;
+  _voiceRecognition.lang = 'en-US';
+
+  _voiceRecording = true;
+  btn.classList.add('recording');
+  btn.title = 'Click to stop recording';
+
+  _voiceRecognition.onresult = (event) => {
+    const input = document.getElementById('chat-input');
+    if (!input) return;
+    let transcript = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
     }
-  });
+    input.value = transcript;
+    // Auto-send on final result.
+    if (event.results[event.results.length - 1].isFinal) {
+      _voiceRecording = false;
+      btn.classList.remove('recording');
+      btn.title = 'Voice input (speech-to-text)';
+      if (transcript.trim()) handleChatSend();
+    }
+  };
+
+  _voiceRecognition.onerror = (event) => {
+    _voiceRecording = false;
+    btn.classList.remove('recording');
+    btn.title = 'Voice input (speech-to-text)';
+    if (event.error !== 'aborted') {
+      addLog('warn', 'voice', `Speech recognition error: ${event.error}`);
+    }
+  };
+
+  _voiceRecognition.onend = () => {
+    _voiceRecording = false;
+    btn.classList.remove('recording');
+    btn.title = 'Voice input (speech-to-text)';
+  };
+
+  _voiceRecognition.start();
+  addLog('info', 'voice', 'Listening for voice input...');
 }
 
-function renderUserFooter(user) {
-  const footer = document.querySelector('.sidebar-footer');
-  if (!footer || !user) return;
-  const tierColor = user.tier === 'agency' ? '#a855f7' : user.tier === 'pro' ? '#3b82f6' : '#22c55e';
-  const tierLabel = user.tier.charAt(0).toUpperCase() + user.tier.slice(1);
-  footer.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">
-      <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0;">
-        ${(user.display_name || user.email)[0].toUpperCase()}
-      </div>
-      <div style="min-width:0;flex:1;">
-        <div style="font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.display_name || user.email.split('@')[0])}</div>
-        <span style="font-size:9px;font-weight:700;color:${tierColor};text-transform:uppercase;letter-spacing:.5px;">${tierLabel}</span>
-      </div>
-    </div>
-    <button onclick="handleLogout()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px;font-size:16px;" title="Log Out">⏻</button>
-  `;
-}
-
-async function handleLogout() {
-  await fetch('/v1/auth/logout', { method: 'POST' });
-  window.location.href = '/';
+function speakText(text) {
+  if (!window.speechSynthesis) return;
+  // Strip markdown/HTML for cleaner speech.
+  const clean = text.replace(/<[^>]+>/g, '').replace(/[#*`_~]/g, '').replace(/\n+/g, '. ').trim();
+  if (!clean) return;
+  const utterance = new SpeechSynthesisUtterance(clean);
+  utterance.rate = 1.0;
+  utterance.pitch = 1.0;
+  utterance.volume = 1.0;
+  window.speechSynthesis.speak(utterance);
 }
 
 // ── Init ──────────────────────────────────────────────────────────
 (async function init() {
   loadTheme();
-
-  // ── Auth: check if user is logged in ──────────────────────
-  try {
-    const meRes = await fetch('/v1/auth/me');
-    if (meRes.ok) {
-      state.user = await meRes.json();
-    } else {
-      // Not authenticated: redirect to landing page.
-      window.location.href = '/';
-      return;
-    }
-  } catch (e) {
-    window.location.href = '/';
-    return;
-  }
 
   // Determine page from hash.
   const hash = window.location.hash.replace('#', '') || 'chat';
@@ -4793,10 +5081,6 @@ async function handleLogout() {
   // Fetch initial data.
   await Promise.all([fetchStatus(), fetchAgents(), fetchPersonas(), fetchAllAgencies()]);
   addLog('info', 'dashboard', 'Dashboard loaded');
-
-  // Apply tier gating to sidebar.
-  applyTierGating(state.user.tier);
-  renderUserFooter(state.user);
 
   // Navigate to correct page.
   navigate(state.page);
