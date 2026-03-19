@@ -8,8 +8,8 @@ package web
 
 import "embed"
 
-// Assets contains all dashboard files (index.html, styles.css, app.js, graph.html).
+// Assets contains all dashboard files (index.html, landing.html, styles.css, app.js, graph.html).
 // The Go compiler bakes these into the binary at compile time.
 //
-//go:embed index.html styles.css app.js graph.html
+//go:embed index.html landing.html styles.css app.js graph.html
 var Assets embed.FS

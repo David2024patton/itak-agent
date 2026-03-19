@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -13,12 +15,15 @@ import (
 	"time"
 
 	"github.com/David2024patton/iTaKAgent/pkg/agent"
+	"github.com/David2024patton/iTaKAgent/pkg/config"
 	"github.com/David2024patton/iTaKAgent/pkg/cron"
 	"github.com/David2024patton/iTaKAgent/pkg/debug"
 	"github.com/David2024patton/iTaKAgent/pkg/embed"
 	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
+	"github.com/David2024patton/iTaKAgent/pkg/llm"
 	"github.com/David2024patton/iTaKAgent/pkg/memory"
 	"github.com/David2024patton/iTaKAgent/pkg/seed"
+	"github.com/David2024patton/iTaKAgent/pkg/skill"
 	"github.com/David2024patton/iTaKAgent/pkg/tasks"
 	"github.com/David2024patton/iTaKAgent/web"
 )
@@ -32,41 +37,75 @@ type Server struct {
 	graphBackend memory.GraphBackend
 	embedMgr     *embed.ModelManager
 	scheduler    *cron.Scheduler
+	skillRepo    *skill.Repository
+	cfg          *config.Config
 	server       *http.Server
 	port         int
 	start        time.Time
 	dataDir      string
+	visionClient *llm.VisionClient // multimodal image processing via Ollama
+	authStore    *AuthStore         // user authentication & tier management
 
 	// WebSocket clients for live event streaming.
 	wsClients   map[chan []byte]struct{}
 	wsClientsMu sync.Mutex
+
+	// Session-to-project mapping: track which sessions have auto-created projects.
+	sessionProjects map[int]string // session_id -> project graph node ID
 }
 
 // NewServer creates an API server wired to the orchestrator and event bus.
-func NewServer(orch *agent.Orchestrator, bus *eventbus.EventBus, taskMgr *tasks.Manager, graphBackend memory.GraphBackend, port int, dataDir string) *Server {
+func NewServer(orch *agent.Orchestrator, bus *eventbus.EventBus, taskMgr *tasks.Manager, graphBackend memory.GraphBackend, port int, dataDir string, skillRepo *skill.Repository, cfg *config.Config) *Server {
 	// Create cron scheduler with a no-op dispatch for now.
 	// Real dispatch will use the orchestrator once agent context is available.
 	scheduler := cron.NewScheduler(dataDir, func(job *cron.Job) {
 		debug.Info("cron", "Dispatching job %s to agent %s: %s", job.Name, job.Agent, job.Prompt)
 	})
 
+	// Initialize vision client for image OCR/description.
+	// Uses the orchestrator's LLM config if it's pointing at Ollama.
+	var vc *llm.VisionClient
+	if cfg != nil && cfg.Orchestrator.LLM.Provider == "ollama" {
+		ollamaBase := cfg.Orchestrator.LLM.APIBase
+		if ollamaBase == "" {
+			ollamaBase = "http://localhost:11434"
+		}
+		// VisionClient uses Ollama's native /api/chat, not OpenAI /v1/chat/completions.
+		// Strip /v1 suffix if present so we get the raw Ollama base URL.
+		visionBase := strings.TrimSuffix(ollamaBase, "/v1")
+		vc = llm.NewVisionClient(visionBase, cfg.Orchestrator.LLM.Model)
+		debug.Info("api", "Vision client initialized: %s on %s", cfg.Orchestrator.LLM.Model, visionBase)
+	}
+
 	return &Server{
-		orch:         orch,
-		bus:          bus,
-		taskMgr:      taskMgr,
-		graphBackend: graphBackend,
-		embedMgr:     embed.NewModelManager(filepath.Join(dataDir, "models", "embed")),
-		scheduler:    scheduler,
-		port:         port,
-		dataDir:      dataDir,
-		start:        time.Now(),
-		wsClients:    make(map[chan []byte]struct{}),
+		orch:            orch,
+		bus:             bus,
+		taskMgr:         taskMgr,
+		graphBackend:    graphBackend,
+		embedMgr:        embed.NewModelManager(filepath.Join(dataDir, "models", "embed")),
+		scheduler:       scheduler,
+		skillRepo:       skillRepo,
+		cfg:             cfg,
+		port:            port,
+		dataDir:         dataDir,
+		start:           time.Now(),
+		wsClients:       make(map[chan []byte]struct{}),
+		sessionProjects: make(map[int]string),
+		visionClient:    vc,
 	}
 }
 
 // Start begins listening. Non-blocking.
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
+
+	// ── Auth system ──────────────────────────────────────────
+	authStore, err := NewAuthStore(s.dataDir)
+	if err != nil {
+		return fmt.Errorf("failed to init auth store: %w", err)
+	}
+	s.authStore = authStore
+	RegisterAuthRoutes(mux, authStore)
 
 	// ── API endpoints ─────────────────────────────────────────
 	mux.HandleFunc("/health", s.handleHealth)
@@ -82,6 +121,10 @@ func (s *Server) Start() error {
 	// Tasks endpoints
 	mux.HandleFunc("/v1/tasks", s.handleTasks)
 	mux.HandleFunc("/v1/tasks/", s.handleTaskByID)
+
+	// Approval endpoints (human-in-the-loop)
+	mux.HandleFunc("/v1/approvals", s.handleApprovals)
+	mux.HandleFunc("/v1/approvals/", s.handleApprovalByID)
 
 	// Graph visualization API
 	RegisterGraphRoutes(mux, s.graphBackend)
@@ -104,6 +147,9 @@ func (s *Server) Start() error {
 	// Persona management API
 	RegisterPersonaRoutes(mux, s.graphBackend)
 
+	// SQL query API
+	RegisterSQLRoutes(mux, s.graphBackend)
+
 	// Model management API (provider catalog, model auto-load, global config)
 	RegisterModelRoutes(mux, s.graphBackend)
 
@@ -113,12 +159,46 @@ func (s *Server) Start() error {
 	// Agency multi-tenant management API
 	RegisterAgencyRoutes(mux, s.graphBackend)
 
+	// Project management API
+	RegisterProjectRoutes(mux, s.graphBackend)
+
+	// Project file serving API (canvas live preview)
+	RegisterProjectServeRoutes(mux, s.dataDir)
+
+	// CRM contacts API
+	RegisterContactRoutes(mux, s.graphBackend)
+
+	// Pipeline/workflow automation API
+	RegisterPipelineRoutes(mux, s.graphBackend)
+
+	// Report templates API
+	RegisterReportRoutes(mux, s.graphBackend)
+
+	// (Knowledge API already registered above with the other graph APIs)
+
 	// Encrypted credentials vault API
-	RegisterCredentialsRoutes(mux, s.graphBackend)
+	credAPI := registerCredentialsAPI(mux, s.graphBackend)
+
+	// ── Connector framework (Twilio, Stripe, GHL, Vonage, Plivo) ──
+	connectorRegistry := NewConnectorRegistry(s.graphBackend, credAPI)
+	connectorRegistry.Register(NewTwilioConnector(connectorRegistry))
+	connectorRegistry.Register(NewStripeConnector(connectorRegistry))
+	connectorRegistry.Register(NewGHLConnector(connectorRegistry))
+	connectorRegistry.Register(NewVonageConnector(connectorRegistry))
+	connectorRegistry.Register(NewPlivoConnector(connectorRegistry))
+	connectorRegistry.Register(NewPayPalConnector(connectorRegistry))
+	connectorRegistry.Register(NewSquareConnector(connectorRegistry))
+	connectorRegistry.Register(NewAuthorizeNetConnector(connectorRegistry))
+	connectorRegistry.Register(NewGoCardlessConnector(connectorRegistry))
+	connectorRegistry.Register(NewJPMCZelleConnector(connectorRegistry))
+	RegisterConnectorRoutes(mux, connectorRegistry)
 
 	// Cron automations scheduler API
 	RegisterCronRoutes(mux, s.scheduler)
 	s.scheduler.Start()
+
+	// Marketplace API (skill store, agent catalog, plugin status)
+	RegisterMarketplaceRoutes(mux, s.skillRepo, s.cfg, s.dataDir)
 
 	// Session management API
 	RegisterSessionRoutes(mux, s.orch)
@@ -144,19 +224,35 @@ func (s *Server) Start() error {
 	}
 	fileServer := http.FileServer(http.FS(staticFS))
 
-	// Catch-all: serve static files or fall back to index.html for SPA routes.
+	// Catch-all: serve static files, check auth for dashboard.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		// If it's a known static file, serve it directly.
-		if path == "/styles.css" || path == "/app.js" || path == "/favicon.ico" || path == "/graph.html" {
+		// Static files always served directly (CSS, JS, etc.).
+		if path == "/styles.css" || path == "/app.js" || path == "/favicon.ico" || path == "/graph.html" || path == "/landing.css" {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
-		// Everything else gets index.html (SPA hash routing).
-		data, err := fs.ReadFile(staticFS, "index.html")
-		if err != nil {
-			http.Error(w, "index.html not found", http.StatusInternalServerError)
+		// Check if user is authenticated via cookie.
+		_, authErr := extractClaims(r, s.authStore)
+		isAuthed := authErr == nil
+
+		// /dashboard or any SPA route: require auth, serve index.html.
+		if isAuthed && (path == "/dashboard" || path == "/" || strings.HasPrefix(path, "/dashboard")) {
+			data, err := fs.ReadFile(staticFS, "index.html")
+			if err != nil {
+				http.Error(w, "index.html not found", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(data)
 			return
+		}
+
+		// Not authenticated: serve landing page.
+		data, err := fs.ReadFile(staticFS, "landing.html")
+		if err != nil {
+			// Fallback to index.html if landing.html doesn't exist yet.
+			data, _ = fs.ReadFile(staticFS, "index.html")
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(data)
@@ -213,16 +309,25 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 // ChatRequest is the JSON body for /v1/chat.
 type ChatRequest struct {
-	Message   string `json:"message"`
-	SessionID int    `json:"session_id,omitempty"` // resume existing session (0 = new)
-	Channel   string `json:"channel,omitempty"`    // web, discord, whatsapp, telegram, api
-	Agent     string `json:"agent,omitempty"`      // route to specific agent
+	Message     string           `json:"message"`
+	SessionID   int              `json:"session_id,omitempty"` // resume existing session (0 = new)
+	Channel     string           `json:"channel,omitempty"`    // web, discord, whatsapp, telegram, api
+	Agent       string           `json:"agent,omitempty"`      // route to specific agent
+	Attachments []ChatAttachment `json:"attachments,omitempty"`
+}
+
+// ChatAttachment represents a file (image, document) attached to a chat message.
+type ChatAttachment struct {
+	Filename string `json:"filename"`
+	MimeType string `json:"mime_type"`
+	Data     string `json:"data"` // base64 data URL or raw base64
 }
 
 // ChatResponse is the JSON response from /v1/chat.
 type ChatResponse struct {
 	Response  string `json:"response"`
 	SessionID int    `json:"session_id,omitempty"`
+	ProjectID string `json:"project_id,omitempty"` // auto-created project for this session
 	Error     string `json:"error,omitempty"`
 }
 
@@ -263,6 +368,49 @@ Do not ask the user for permission. Execute all steps autonomously to produce th
 
 	debug.Info("api", "Chat request: %s", truncate(req.Message, 80))
 
+	// Process image attachments through vision model (OCR/description).
+	if len(req.Attachments) > 0 && s.visionClient != nil {
+		var imageDataURLs []string
+		for _, att := range req.Attachments {
+			if strings.HasPrefix(att.MimeType, "image/") && att.Data != "" {
+				imageDataURLs = append(imageDataURLs, att.Data)
+			}
+		}
+
+		if len(imageDataURLs) > 0 {
+			debug.Info("api", "Processing %d image(s) through vision model...", len(imageDataURLs))
+
+			userMsg := req.Message
+			if userMsg == fmt.Sprintf("[%d image(s) attached]", len(req.Attachments)) {
+				userMsg = "" // Generic placeholder, let vision model describe freely.
+			}
+
+			visionCtx, visionCancel := context.WithTimeout(r.Context(), 45*time.Second)
+			defer visionCancel()
+
+			description, err := s.visionClient.DescribeImages(visionCtx, imageDataURLs, userMsg)
+			if err != nil {
+				debug.Warn("api", "Vision processing failed: %v", err)
+				req.Message = req.Message + "\n\n[Image attached but vision processing failed: " + err.Error() + "]"
+			} else if description != "" {
+				// Inject the vision output into the message so the orchestrator can use it.
+				if req.Message == "" || req.Message == fmt.Sprintf("[%d image(s) attached]", len(req.Attachments)) {
+					req.Message = fmt.Sprintf("[Vision Analysis of attached image]:\n%s", description)
+				} else {
+					req.Message = req.Message + fmt.Sprintf("\n\n[Vision Analysis of attached image]:\n%s", description)
+				}
+				debug.Info("api", "Vision description injected (%d chars)", len(description))
+			}
+		}
+	} else if len(req.Attachments) > 0 {
+		// No vision client available, just note the attachments.
+		var names []string
+		for _, att := range req.Attachments {
+			names = append(names, fmt.Sprintf("%s (%s)", att.Filename, att.MimeType))
+		}
+		req.Message = req.Message + "\n\n[" + fmt.Sprintf("%d", len(req.Attachments)) + " file(s) attached: " + strings.Join(names, ", ") + "]"
+	}
+
 	// Session management: create or resume session.
 	sessionID := req.SessionID
 	channel := req.Channel
@@ -273,6 +421,47 @@ Do not ask the user for permission. Execute all steps autonomously to produce th
 		// Auto-create a new session with first message as title.
 		title := truncate(req.Message, 60)
 		sessionID = s.orch.Memory.Archive.StartSessionWithMeta(channel, title)
+
+		// Also update the graph Session node with the descriptive title
+		// so sessions display readable names in the graph explorer.
+		if s.orch.Memory.Activity != nil {
+			sesID := s.orch.Memory.Activity.SessionID()
+			if sesID != "" && s.graphBackend != nil {
+				if itakDB, ok := s.graphBackend.(*memory.ITakDBBackend); ok {
+					db := itakDB.DB()
+					sesNodes, _ := db.Graph.FindByProperty("session_id", sesID)
+					if len(sesNodes) > 0 {
+						db.Graph.UpdateNode(sesNodes[0].ID, map[string]interface{}{
+							"title": title,
+							"name":  title,
+						})
+					}
+				}
+			}
+		}
+	}
+
+	// Auto-create a project for new sessions so tasks are grouped per chat.
+	if sessionID > 0 {
+		s.mu.Lock()
+		if _, exists := s.sessionProjects[sessionID]; !exists && s.graphBackend != nil {
+			projectName := "Session: " + truncate(req.Message, 50)
+			if itakDB, ok := s.graphBackend.(*memory.ITakDBBackend); ok {
+				props := map[string]interface{}{
+					"name":       projectName,
+					"status":     "active",
+					"session_id": fmt.Sprintf("%d", sessionID),
+					"auto_mode":  "true",
+					"created_at": time.Now().Format(time.RFC3339),
+				}
+				nodeID, createErr := itakDB.DB().CreateNode([]string{"Project"}, props, nil)
+				if createErr == nil {
+					s.sessionProjects[sessionID] = fmt.Sprintf("%d", nodeID)
+					debug.Info("api", "Auto-created project %d for session %d: %s", nodeID, sessionID, projectName)
+				}
+			}
+		}
+		s.mu.Unlock()
 	}
 
 	// Log the user message to the session archive.
@@ -284,21 +473,26 @@ Do not ask the user for permission. Execute all steps autonomously to produce th
 		})
 	}
 
+	// Wire the dashboard task manager and project context into the orchestrator
+	// so delegations create real, visible tasks on the board.
+	s.orch.DashboardTasks = s.taskMgr
+	s.mu.Lock()
+	s.orch.ActiveProjectID = s.sessionProjects[sessionID]
+	s.mu.Unlock()
+
 	response, err := s.orch.Run(r.Context(), req.Message)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, ChatResponse{Error: err.Error(), SessionID: sessionID})
 		return
 	}
 
-	// Log the assistant response to the session archive.
+	// Persist messages to disk after each exchange so sessions can be resumed.
 	if s.orch.Memory != nil && sessionID > 0 {
-		// Save messages to disk for persistence.
-		msgs, _ := s.orch.Memory.Archive.LoadConversation(sessionID)
-		if msgs == nil {
-			msgs = []memory.LogMessage{}
+		inMemMsgs := s.orch.Memory.Archive.CurrentMessages()
+		if len(inMemMsgs) > 0 {
+			s.orch.Memory.Archive.SaveSessionMessages(sessionID, inMemMsgs)
+			s.orch.Memory.Archive.UpdateSessionMeta(sessionID, "", "", len(inMemMsgs))
 		}
-		// Update message count in session metadata.
-		s.orch.Memory.Archive.UpdateSessionMeta(sessionID, "", "", len(msgs)+1)
 	}
 
 	// Auto-compact if context gets too large (over 40 messages).
@@ -339,7 +533,13 @@ Do not ask the user for permission. Execute all steps autonomously to produce th
 		}
 	}
 
-	writeJSON(w, http.StatusOK, ChatResponse{Response: response, SessionID: sessionID})
+	// Look up the project_id for this session.
+	var projectID string
+	s.mu.Lock()
+	projectID = s.sessionProjects[sessionID]
+	s.mu.Unlock()
+
+	writeJSON(w, http.StatusOK, ChatResponse{Response: response, SessionID: sessionID, ProjectID: projectID})
 }
 
 // handleAgents returns the list of available agents and their capabilities.
@@ -351,8 +551,20 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Core agents from YAML config.
-	agents := make([]AgentInfo, 0, len(s.orch.Agents)+14)
+	agents := make([]AgentInfo, 0, len(s.orch.Agents)+150)
+	// Agents that should NOT be tagged "core" (they're specialized, not system agents).
+	crmOverrides := map[string]struct{ Source, Category, Division string }{
+		"ghl": {"focus", "crm", "Sales"},
+	}
 	for _, ag := range s.orch.Agents {
+		source := "core"
+		category := ""
+		division := ""
+		if ov, ok := crmOverrides[ag.Config.Name]; ok {
+			source = ov.Source
+			category = ov.Category
+			division = ov.Division
+		}
 		agents = append(agents, AgentInfo{
 			Name:        ag.Config.Name,
 			Role:        ag.Config.Role,
@@ -361,7 +573,9 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 			Tools:       ag.Tools.Names(),
 			MaxLoops:    ag.Config.MaxLoops,
 			Model:       ag.Config.LLM.Model,
-			Source:      "core",
+			Source:      source,
+			Category:    category,
+			Division:    division,
 		})
 	}
 
@@ -375,12 +589,14 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 			Tools:       fa.Tools,
 			Source:      fa.Source,
 			Category:    fa.Category,
+			Division:    fa.Division,
 		})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"agents": agents,
-		"count":  len(agents),
+		"agents":    agents,
+		"count":     len(agents),
+		"divisions": seed.GetDivisions(),
 	})
 }
 
@@ -393,8 +609,9 @@ type AgentInfo struct {
 	Tools       []string `json:"tools"`
 	MaxLoops    int      `json:"max_loops,omitempty"`
 	Model       string   `json:"model,omitempty"`
-	Source      string   `json:"source,omitempty"`   // core, focus, custom
-	Category    string   `json:"category,omitempty"` // marketing, dev, data, creative, ops
+	Source      string   `json:"source,omitempty"`   // core, focus, agency
+	Category    string   `json:"category,omitempty"` // marketing, engineering, design, etc.
+	Division    string   `json:"division,omitempty"` // Engineering, Design, Sales, etc.
 }
 
 // handleAgentChat routes directly to a specific agent (bypasses orchestrator).
@@ -583,8 +800,12 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		var req struct {
-			Title       string `json:"title"`
-			Description string `json:"description"`
+			Title       string        `json:"title"`
+			Description string        `json:"description"`
+			Priority    tasks.Priority `json:"priority"`
+			Labels      []string      `json:"labels"`
+			DueDate     *time.Time    `json:"due_date"`
+			ProjectID   string        `json:"project_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
@@ -595,7 +816,7 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		t, err := s.taskMgr.CreateTask(req.Title, req.Description)
+		t, err := s.taskMgr.CreateTask(req.Title, req.Description, req.Priority, req.Labels, req.DueDate, req.ProjectID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
@@ -622,6 +843,202 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 // handleTaskByID handles GET, PUT, DELETE for /v1/tasks/{id}
 func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/v1/tasks/")
+
+	// Handle /v1/tasks/{id}/comments
+	if strings.HasSuffix(id, "/comments") {
+		id = strings.TrimSuffix(id, "/comments")
+		if r.Method == http.MethodPost {
+			var req struct {
+				Author string `json:"author"`
+				Text   string `json:"text"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+				return
+			}
+			t, err := s.taskMgr.AddComment(id, req.Author, req.Text)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusCreated, t)
+			return
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Handle /v1/tasks/{id}/execute - dispatch task to orchestrator
+	if strings.HasSuffix(id, "/execute") {
+		id = strings.TrimSuffix(id, "/execute")
+		if r.Method != http.MethodPost {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST required"})
+			return
+		}
+
+		t, err := s.taskMgr.GetTask(id)
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+
+		// Move task to In Progress immediately.
+		s.taskMgr.UpdateTaskStatus(id, tasks.StatusInProgress)
+
+		// Build the prompt from the task title + description.
+		prompt := t.Title
+		if t.Description != "" {
+			prompt += "\n\nContext: " + t.Description
+		}
+
+		// Wire orchestrator with task context and run in background.
+		s.orch.DashboardTasks = s.taskMgr
+		s.orch.ActiveProjectID = t.ProjectID
+
+		go func() {
+			result, runErr := s.orch.Run(r.Context(), prompt)
+			if runErr != nil {
+				s.taskMgr.UpdateTaskStatus(id, tasks.StatusTodo)
+				s.taskMgr.AddComment(id, "orchestrator", "Execution failed: "+runErr.Error())
+				return
+			}
+			// Post result and move to Review for auto-checks.
+			s.taskMgr.AddComment(id, "orchestrator", truncate(result, 800))
+			s.taskMgr.UpdateTaskStatus(id, tasks.StatusReview)
+		}()
+
+		writeJSON(w, http.StatusAccepted, map[string]string{
+			"status":  "executing",
+			"task_id": id,
+			"message": "Task dispatched to orchestrator",
+		})
+		return
+	}
+
+	// Handle /v1/tasks/{id}/attachments - file upload
+	if strings.HasSuffix(id, "/attachments") {
+		id = strings.TrimSuffix(id, "/attachments")
+		if r.Method != http.MethodPost {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST required"})
+			return
+		}
+
+		// Parse multipart form with 32MB limit.
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid multipart: " + err.Error()})
+			return
+		}
+
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file field required"})
+			return
+		}
+		defer file.Close()
+
+		// Save to attachments directory.
+		attDir := filepath.Join(s.dataDir, "tasks", "attachments", id)
+		os.MkdirAll(attDir, 0755)
+		savePath := filepath.Join(attDir, header.Filename)
+		out, err := os.Create(savePath)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save: " + err.Error()})
+			return
+		}
+		defer out.Close()
+		written, _ := io.Copy(out, file)
+
+		// Record attachment on the task.
+		mimeType := header.Header.Get("Content-Type")
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+		t, err := s.taskMgr.AddAttachment(id, header.Filename, savePath, mimeType, written)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, t)
+		return
+	}
+
+	// Handle /v1/tasks/{id}/wake - resume a Waiting task via webhook
+	if strings.HasSuffix(id, "/wake") {
+		id = strings.TrimSuffix(id, "/wake")
+		if r.Method != http.MethodPost {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST required"})
+			return
+		}
+		var req struct {
+			WebhookID string `json:"webhook_id"`
+			Payload   string `json:"payload,omitempty"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		if req.WebhookID == "" {
+			req.WebhookID = "manual"
+		}
+		t, err := s.taskMgr.WakeTask(id, req.WebhookID)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		// If there was a payload, add it as a comment for context.
+		if req.Payload != "" {
+			s.taskMgr.AddComment(id, "webhook", req.Payload)
+		}
+		writeJSON(w, http.StatusOK, t)
+		return
+	}
+
+	// Handle /v1/tasks/{id}/children - spawn a child task
+	if strings.HasSuffix(id, "/children") {
+		id = strings.TrimSuffix(id, "/children")
+		if r.Method != http.MethodPost {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST required"})
+			return
+		}
+		var req struct {
+			Title       string         `json:"title"`
+			Description string         `json:"description"`
+			Priority    tasks.Priority `json:"priority"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			return
+		}
+		child, err := s.taskMgr.SpawnChildTask(id, req.Title, req.Description, req.Priority)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusCreated, child)
+		return
+	}
+
+	// Handle /v1/tasks/{id}/confidence - set confidence score
+	if strings.HasSuffix(id, "/confidence") {
+		id = strings.TrimSuffix(id, "/confidence")
+		if r.Method != http.MethodPost {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST required"})
+			return
+		}
+		var req struct {
+			Score int `json:"score"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			return
+		}
+		t, err := s.taskMgr.SetConfidence(id, req.Score)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, t)
+		return
+	}
+
 	if id == "" || id == r.URL.Path {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing task id"})
 		return
@@ -639,17 +1056,25 @@ func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPut {
 		var req struct {
-			Title         string       `json:"title"`
-			Description   string       `json:"description"`
-			Status        tasks.Status `json:"status"`
-			AssignedAgent string       `json:"assigned_agent"`
+			Title         string          `json:"title"`
+			Description   string          `json:"description"`
+			Status        tasks.Status    `json:"status"`
+			Priority      tasks.Priority  `json:"priority"`
+			Labels        []string        `json:"labels"`
+			DueDate       *time.Time      `json:"due_date"`
+			SubItems      []tasks.SubItem `json:"sub_items"`
+			ProjectID     string          `json:"project_id"`
+			BlockedBy     []string        `json:"blocked_by"`
+			Blocks        []string        `json:"blocks"`
+			RecurPattern  string          `json:"recur_pattern"`
+			AssignedAgent string          `json:"assigned_agent"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 			return
 		}
 
-		t, err := s.taskMgr.UpdateTask(id, req.Title, req.Description, req.Status, req.AssignedAgent)
+		t, err := s.taskMgr.UpdateTask(id, req.Title, req.Description, req.Status, req.AssignedAgent, req.Priority, req.Labels, req.DueDate, req.SubItems, req.ProjectID, req.BlockedBy, req.Blocks, req.RecurPattern)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
@@ -805,6 +1230,77 @@ func corsMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// handleApprovals returns pending approval requests.
+func (s *Server) handleApprovals(w http.ResponseWriter, r *http.Request) {
+	corsHeaders(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "GET required"})
+		return
+	}
+
+	if s.taskMgr == nil || s.taskMgr.Approvals == nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"approvals": []interface{}{}, "count": 0})
+		return
+	}
+
+	pending := s.taskMgr.Approvals.Pending()
+	writeJSON(w, http.StatusOK, map[string]interface{}{"approvals": pending, "count": len(pending)})
+}
+
+// handleApprovalByID handles approve/reject actions.
+func (s *Server) handleApprovalByID(w http.ResponseWriter, r *http.Request) {
+	corsHeaders(w)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "POST required"})
+		return
+	}
+
+	id := strings.TrimPrefix(r.URL.Path, "/v1/approvals/")
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "approval ID required"})
+		return
+	}
+
+	var req struct {
+		Action string `json:"action"` // "approve" or "reject"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		return
+	}
+
+	if s.taskMgr == nil || s.taskMgr.Approvals == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "approval system not available"})
+		return
+	}
+
+	var err error
+	switch req.Action {
+	case "approve":
+		err = s.taskMgr.Approvals.Approve(id, "user")
+	case "reject":
+		err = s.taskMgr.Approvals.Reject(id, "user")
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "action must be 'approve' or 'reject'"})
+		return
+	}
+
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": req.Action + "d"})
 }
 
 // truncate shortens a string for logging.

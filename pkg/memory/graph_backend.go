@@ -17,8 +17,8 @@ type GraphBackend interface {
 	// LinkEntityToConversation creates a MENTIONED_IN relationship.
 	LinkEntityToConversation(entityName string, convID int)
 
-	// TrackSession records a session start.
-	TrackSession(sessionID string)
+	// TrackSession records a session start with a human-readable title.
+	TrackSession(sessionID, title string)
 
 	// TrackAction records a tool call.
 	TrackAction(sessionID, agent, tool, args, result string, embedding []float32)

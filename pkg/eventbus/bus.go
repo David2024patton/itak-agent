@@ -38,12 +38,19 @@ const (
 	TopicBrowserNavigate   = "browser.navigate"
 	TopicBrowserScreenshot = "browser.screenshot"
 	TopicBrowserClose      = "browser.close"
+	TopicBrowserSearch     = "browser.search"
+
+	// Code / file creation tracking.
+	TopicCodeCreated = "code.created"
 
 	// Debug / trace.
 	TopicDebugTrace = "debug.trace"
 
 	// File System observability.
 	TopicFileSystemActivity = "fs.activity"
+
+	// Artifact creation (slides, reports, etc.).
+	TopicArtifactCreated = "artifact.created"
 
 	// System-level.
 	TopicSystemStatus   = "system.status"

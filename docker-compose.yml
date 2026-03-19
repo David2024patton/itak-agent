@@ -9,12 +9,19 @@ services:
     environment:
       - ITAK_API_PORT=42800
     volumes:
-      - agent-data:/app/data
+      # Persist runtime data, but NOT the marketplace catalog (which is baked in).
+      - agent-sessions:/app/data/sessions
+      - agent-memory:/app/data/memory
+      - agent-models:/app/data/models
       - ./itakagent.yaml:/app/itakagent.yaml:ro
     # Chromium needs a larger /dev/shm than Docker's default 64MB
     shm_size: '256m'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     working_dir: /app
     restart: unless-stopped
 
 volumes:
-  agent-data:
+  agent-sessions:
+  agent-memory:
+  agent-models:

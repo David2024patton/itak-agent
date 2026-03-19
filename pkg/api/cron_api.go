@@ -173,6 +173,15 @@ func (c *CronAPI) updateAutomation(w http.ResponseWriter, r *http.Request, id st
 	if updates.ExecutionMode != "" {
 		existing.ExecutionMode = updates.ExecutionMode
 	}
+	if updates.AgencyID != "" {
+		existing.AgencyID = updates.AgencyID
+	}
+	if updates.SubAccountID != "" {
+		existing.SubAccountID = updates.SubAccountID
+	}
+	if updates.ProjectID != "" {
+		existing.ProjectID = updates.ProjectID
+	}
 
 	c.scheduler.AddJob(existing) // Re-add to recalculate next run.
 

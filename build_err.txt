@@ -1,0 +1,2 @@
+# github.com/David2024patton/iTaKAgent/cmd/itakagent
+cmd\itakagent\main.go:381:16: cannot use llm.NewBudgetClient(orchClient, fallback, cfg.Orchestrator.TokenBudget) (value of type *llm.BudgetClient) as llm.Client value in assignment: *llm.BudgetClient does not implement llm.Client (missing method GenerateRaw)

@@ -69,11 +69,16 @@ func (b *ITakDBBackend) LinkEntityToConversation(entityName string, convID int) 
 	b.db.Graph.CreateEdge("MENTIONED_IN", entityNodeID, convNodeID, nil)
 }
 
-func (b *ITakDBBackend) TrackSession(sessionID string) {
-	b.db.MergeNode("Session", "session_id", sessionID, map[string]interface{}{
+func (b *ITakDBBackend) TrackSession(sessionID, title string) {
+	props := map[string]interface{}{
 		"start_time": time.Now().Format(time.RFC3339),
 		"type":       "agent",
-	}, nil)
+	}
+	if title != "" {
+		props["title"] = title
+		props["name"] = title
+	}
+	b.db.MergeNode("Session", "session_id", sessionID, props, nil)
 }
 
 func (b *ITakDBBackend) TrackAction(sessionID, agent, tool, args, result string, embedding []float32) {

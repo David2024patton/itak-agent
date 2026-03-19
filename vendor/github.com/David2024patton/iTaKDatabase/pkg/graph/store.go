@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -92,6 +93,7 @@ func Open(path string) (*Store, error) {
 	err = db.Update(func(tx *bolt.Tx) error {
 		for _, bucket := range [][]byte{
 			bucketNodes, bucketEdges, bucketNodeIndex, bucketEdgeIndex, bucketMetadata,
+			bucketPropIndex, bucketConstraints, bucketIndexDefs,
 		} {
 			if _, err := tx.CreateBucketIfNotExists(bucket); err != nil {
 				return fmt.Errorf("create bucket %s: %w", string(bucket), err)
@@ -611,5 +613,569 @@ func (s *Store) updateEmbedding(id uint64, embedding []float32) {
 			return err
 		}
 		return nodes.Put(itob(id), updated)
+	})
+}
+
+// ── Edge CRUD (extended) ──────────────────────────────────────────
+
+// GetEdge retrieves a single edge by ID.
+func (s *Store) GetEdge(id uint64) (*Edge, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var edge Edge
+	err := s.db.View(func(tx *bolt.Tx) error {
+		data := tx.Bucket(bucketEdges).Get(itob(id))
+		if data == nil {
+			return fmt.Errorf("edge %d not found", id)
+		}
+		return json.Unmarshal(data, &edge)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &edge, nil
+}
+
+// DeleteEdge removes a single edge by ID and cleans up the edge index.
+func (s *Store) DeleteEdge(id uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.db.Update(func(tx *bolt.Tx) error {
+		edges := tx.Bucket(bucketEdges)
+		edgeIdx := tx.Bucket(bucketEdgeIndex)
+
+		// Find the edge to get its source for index cleanup.
+		data := edges.Get(itob(id))
+		if data == nil {
+			return fmt.Errorf("edge %d not found", id)
+		}
+
+		var edge Edge
+		if err := json.Unmarshal(data, &edge); err != nil {
+			return err
+		}
+
+		// Remove from edge index (source -> []edgeIDs).
+		srcKey := itob(edge.SourceID)
+		if existing := edgeIdx.Get(srcKey); existing != nil {
+			var ids []uint64
+			json.Unmarshal(existing, &ids)
+			filtered := make([]uint64, 0, len(ids))
+			for _, eid := range ids {
+				if eid != id {
+					filtered = append(filtered, eid)
+				}
+			}
+			if len(filtered) > 0 {
+				data, _ := json.Marshal(filtered)
+				edgeIdx.Put(srcKey, data)
+			} else {
+				edgeIdx.Delete(srcKey)
+			}
+		}
+
+		return edges.Delete(itob(id))
+	})
+}
+
+// UpdateEdge updates an edge's properties. Merges with existing.
+func (s *Store) UpdateEdge(id uint64, props map[string]interface{}) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.db.Update(func(tx *bolt.Tx) error {
+		edges := tx.Bucket(bucketEdges)
+		data := edges.Get(itob(id))
+		if data == nil {
+			return fmt.Errorf("edge %d not found", id)
+		}
+
+		var edge Edge
+		if err := json.Unmarshal(data, &edge); err != nil {
+			return err
+		}
+
+		if edge.Properties == nil {
+			edge.Properties = make(map[string]interface{})
+		}
+		for k, v := range props {
+			edge.Properties[k] = v
+		}
+
+		updated, err := json.Marshal(edge)
+		if err != nil {
+			return err
+		}
+		return edges.Put(itob(id), updated)
+	})
+}
+
+// FindEdgesBetween returns all edges between two nodes (either direction).
+func (s *Store) FindEdgesBetween(nodeA, nodeB uint64) ([]Edge, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var result []Edge
+	err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketEdges).ForEach(func(k, v []byte) error {
+			var edge Edge
+			if err := json.Unmarshal(v, &edge); err == nil {
+				if (edge.SourceID == nodeA && edge.TargetID == nodeB) ||
+					(edge.SourceID == nodeB && edge.TargetID == nodeA) {
+					result = append(result, edge)
+				}
+			}
+			return nil
+		})
+	})
+	return result, err
+}
+
+// ── Shortest Path ─────────────────────────────────────────────────
+
+// PathResult holds the shortest path between two nodes.
+type PathResult struct {
+	Found    bool     `json:"found"`
+	Distance int      `json:"distance"`
+	NodeIDs  []uint64 `json:"node_ids"`
+	Edges    []uint64 `json:"edge_ids,omitempty"`
+}
+
+// ShortestPath finds the shortest path between two nodes using BFS.
+// edgeType can be empty to follow all edge types.
+func (s *Store) ShortestPath(fromID, toID uint64, edgeType string) (*PathResult, error) {
+	if fromID == toID {
+		return &PathResult{Found: true, Distance: 0, NodeIDs: []uint64{fromID}}, nil
+	}
+
+	type queueItem struct {
+		nodeID uint64
+		path   []uint64
+		edges  []uint64
+	}
+
+	visited := map[uint64]bool{fromID: true}
+	queue := []queueItem{{nodeID: fromID, path: []uint64{fromID}}}
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		outEdges, err := s.GetEdgesFrom(current.nodeID)
+		if err != nil {
+			continue
+		}
+
+		for _, edge := range outEdges {
+			if edgeType != "" && edge.Type != edgeType {
+				continue
+			}
+
+			if edge.TargetID == toID {
+				newPath := make([]uint64, len(current.path)+1)
+				copy(newPath, current.path)
+				newPath[len(current.path)] = toID
+
+				edgePath := make([]uint64, len(current.edges)+1)
+				copy(edgePath, current.edges)
+				edgePath[len(current.edges)] = edge.ID
+
+				return &PathResult{
+					Found:    true,
+					Distance: len(newPath) - 1,
+					NodeIDs:  newPath,
+					Edges:    edgePath,
+				}, nil
+			}
+
+			if !visited[edge.TargetID] {
+				visited[edge.TargetID] = true
+				newPath := make([]uint64, len(current.path)+1)
+				copy(newPath, current.path)
+				newPath[len(current.path)] = edge.TargetID
+
+				edgePath := make([]uint64, len(current.edges)+1)
+				copy(edgePath, current.edges)
+				edgePath[len(current.edges)] = edge.ID
+
+				queue = append(queue, queueItem{
+					nodeID: edge.TargetID,
+					path:   newPath,
+					edges:  edgePath,
+				})
+			}
+		}
+	}
+
+	return &PathResult{Found: false}, nil
+}
+
+// ── Bidirectional Traversal ───────────────────────────────────────
+
+// TraverseBidirectional does a BFS that follows both outgoing AND incoming edges.
+func (s *Store) TraverseBidirectional(startID uint64, maxDepth int, edgeType string) ([]TraversalResult, error) {
+	visited := make(map[uint64]bool)
+	var results []TraversalResult
+
+	type queueItem struct {
+		nodeID uint64
+		depth  int
+		path   []uint64
+	}
+
+	queue := []queueItem{{nodeID: startID, depth: 0, path: []uint64{startID}}}
+	visited[startID] = true
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		node, err := s.GetNode(current.nodeID)
+		if err != nil {
+			continue
+		}
+
+		results = append(results, TraversalResult{
+			Node:  *node,
+			Depth: current.depth,
+			Path:  current.path,
+		})
+
+		if current.depth >= maxDepth {
+			continue
+		}
+
+		// Outgoing edges.
+		outEdges, _ := s.GetEdgesFrom(current.nodeID)
+		for _, edge := range outEdges {
+			if edgeType != "" && edge.Type != edgeType {
+				continue
+			}
+			if !visited[edge.TargetID] {
+				visited[edge.TargetID] = true
+				newPath := make([]uint64, len(current.path)+1)
+				copy(newPath, current.path)
+				newPath[len(current.path)] = edge.TargetID
+				queue = append(queue, queueItem{
+					nodeID: edge.TargetID,
+					depth:  current.depth + 1,
+					path:   newPath,
+				})
+			}
+		}
+
+		// Incoming edges.
+		inEdges, _ := s.GetEdgesTo(current.nodeID)
+		for _, edge := range inEdges {
+			if edgeType != "" && edge.Type != edgeType {
+				continue
+			}
+			if !visited[edge.SourceID] {
+				visited[edge.SourceID] = true
+				newPath := make([]uint64, len(current.path)+1)
+				copy(newPath, current.path)
+				newPath[len(current.path)] = edge.SourceID
+				queue = append(queue, queueItem{
+					nodeID: edge.SourceID,
+					depth:  current.depth + 1,
+					path:   newPath,
+				})
+			}
+		}
+	}
+
+	return results, nil
+}
+
+// ── Batch Operations ──────────────────────────────────────────────
+
+// BatchNodeInput holds data for batch node creation.
+type BatchNodeInput struct {
+	Labels     []string               `json:"labels"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
+	Embedding  []float32              `json:"embedding,omitempty"`
+}
+
+// BatchCreateNodes inserts multiple nodes in a single transaction.
+func (s *Store) BatchCreateNodes(inputs []BatchNodeInput) ([]uint64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ids := make([]uint64, 0, len(inputs))
+
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		nodes := tx.Bucket(bucketNodes)
+		idx := tx.Bucket(bucketNodeIndex)
+
+		for _, input := range inputs {
+			id, err := nodes.NextSequence()
+			if err != nil {
+				return err
+			}
+
+			now := time.Now()
+			node := Node{
+				ID:         id,
+				Labels:     input.Labels,
+				Properties: input.Properties,
+				Embedding:  input.Embedding,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
+
+			data, err := json.Marshal(node)
+			if err != nil {
+				return err
+			}
+
+			if err := nodes.Put(itob(id), data); err != nil {
+				return err
+			}
+
+			// Update label index.
+			for _, label := range input.Labels {
+				key := []byte(label)
+				existing := idx.Get(key)
+				var labelIDs []uint64
+				if existing != nil {
+					json.Unmarshal(existing, &labelIDs)
+				}
+				labelIDs = append(labelIDs, id)
+				idData, _ := json.Marshal(labelIDs)
+				idx.Put(key, idData)
+			}
+
+			ids = append(ids, id)
+		}
+		return nil
+	})
+
+	return ids, err
+}
+
+// BatchEdgeInput holds data for batch edge creation.
+type BatchEdgeInput struct {
+	Type       string                 `json:"type"`
+	SourceID   uint64                 `json:"source_id"`
+	TargetID   uint64                 `json:"target_id"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
+}
+
+// BatchCreateEdges inserts multiple edges in a single transaction.
+func (s *Store) BatchCreateEdges(inputs []BatchEdgeInput) ([]uint64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ids := make([]uint64, 0, len(inputs))
+
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		edges := tx.Bucket(bucketEdges)
+		edgeIdx := tx.Bucket(bucketEdgeIndex)
+
+		for _, input := range inputs {
+			id, err := edges.NextSequence()
+			if err != nil {
+				return err
+			}
+
+			edge := Edge{
+				ID:         id,
+				Type:       input.Type,
+				SourceID:   input.SourceID,
+				TargetID:   input.TargetID,
+				Properties: input.Properties,
+				CreatedAt:  time.Now(),
+			}
+
+			data, err := json.Marshal(edge)
+			if err != nil {
+				return err
+			}
+
+			if err := edges.Put(itob(id), data); err != nil {
+				return err
+			}
+
+			srcKey := itob(input.SourceID)
+			existing := edgeIdx.Get(srcKey)
+			var edgeIDs []uint64
+			if existing != nil {
+				json.Unmarshal(existing, &edgeIDs)
+			}
+			edgeIDs = append(edgeIDs, id)
+			idData, _ := json.Marshal(edgeIDs)
+			edgeIdx.Put(srcKey, idData)
+
+			ids = append(ids, id)
+		}
+		return nil
+	})
+
+	return ids, err
+}
+
+// ── Counting ──────────────────────────────────────────────────────
+
+// NodeCountByLabel returns the count of nodes with the given label.
+func (s *Store) NodeCountByLabel(label string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	count := 0
+	s.db.View(func(tx *bolt.Tx) error {
+		idx := tx.Bucket(bucketNodeIndex)
+		idData := idx.Get([]byte(label))
+		if idData == nil {
+			return nil
+		}
+		var ids []uint64
+		if err := json.Unmarshal(idData, &ids); err != nil {
+			return nil
+		}
+		count = len(ids)
+		return nil
+	})
+	return count
+}
+
+// AllNodes returns every node in the database.
+func (s *Store) AllNodes() []Node {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var nodes []Node
+	s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketNodes).ForEach(func(k, v []byte) error {
+			var node Node
+			if err := json.Unmarshal(v, &node); err == nil {
+				nodes = append(nodes, node)
+			}
+			return nil
+		})
+	})
+	return nodes
+}
+
+// ── Export / Import ───────────────────────────────────────────────
+
+// GraphExport holds the full serialized graph state.
+type GraphExport struct {
+	Nodes []Node `json:"nodes"`
+	Edges []Edge `json:"edges"`
+}
+
+// ExportJSON writes the entire graph (nodes + edges) as JSON to the writer.
+func (s *Store) ExportJSON(w io.Writer) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var export GraphExport
+
+	s.db.View(func(tx *bolt.Tx) error {
+		tx.Bucket(bucketNodes).ForEach(func(k, v []byte) error {
+			var node Node
+			if err := json.Unmarshal(v, &node); err == nil {
+				export.Nodes = append(export.Nodes, node)
+			}
+			return nil
+		})
+		tx.Bucket(bucketEdges).ForEach(func(k, v []byte) error {
+			var edge Edge
+			if err := json.Unmarshal(v, &edge); err == nil {
+				export.Edges = append(export.Edges, edge)
+			}
+			return nil
+		})
+		return nil
+	})
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(export)
+}
+
+// ImportJSON reads a GraphExport from the reader and creates all nodes/edges.
+func (s *Store) ImportJSON(r io.Reader) (int, int, error) {
+	var export GraphExport
+	if err := json.NewDecoder(r).Decode(&export); err != nil {
+		return 0, 0, fmt.Errorf("decode graph export: %w", err)
+	}
+
+	nodeCount := 0
+	edgeCount := 0
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		nodes := tx.Bucket(bucketNodes)
+		edges := tx.Bucket(bucketEdges)
+		idx := tx.Bucket(bucketNodeIndex)
+		edgeIdx := tx.Bucket(bucketEdgeIndex)
+
+		for _, node := range export.Nodes {
+			data, err := json.Marshal(node)
+			if err != nil {
+				continue
+			}
+			key := itob(node.ID)
+			if err := nodes.Put(key, data); err != nil {
+				return err
+			}
+
+			// Update label index.
+			for _, label := range node.Labels {
+				lk := []byte(label)
+				existing := idx.Get(lk)
+				var ids []uint64
+				if existing != nil {
+					json.Unmarshal(existing, &ids)
+				}
+				ids = append(ids, node.ID)
+				idData, _ := json.Marshal(ids)
+				idx.Put(lk, idData)
+			}
+			nodeCount++
+		}
+
+		for _, edge := range export.Edges {
+			data, err := json.Marshal(edge)
+			if err != nil {
+				continue
+			}
+			key := itob(edge.ID)
+			if err := edges.Put(key, data); err != nil {
+				return err
+			}
+
+			srcKey := itob(edge.SourceID)
+			existing := edgeIdx.Get(srcKey)
+			var ids []uint64
+			if existing != nil {
+				json.Unmarshal(existing, &ids)
+			}
+			ids = append(ids, edge.ID)
+			idData, _ := json.Marshal(ids)
+			edgeIdx.Put(srcKey, idData)
+			edgeCount++
+		}
+
+		return nil
+	})
+
+	return nodeCount, edgeCount, err
+}
+
+// ── Backup ────────────────────────────────────────────────────────
+
+// Backup creates a consistent snapshot of the graph database.
+func (s *Store) Backup(destPath string) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.db.View(func(tx *bolt.Tx) error {
+		return tx.CopyFile(destPath, 0600)
 	})
 }

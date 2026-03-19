@@ -14,7 +14,7 @@ func TestHealthEndpoint(t *testing.T) {
 	bus := eventbus.New()
 	defer bus.Close()
 
-	s := NewServer(nil, bus, 0)
+	s := NewServer(nil, bus, nil, nil, 0, "", nil, nil)
 	// Create test handler directly.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
@@ -44,7 +44,7 @@ func TestChatEndpointRequiresPOST(t *testing.T) {
 	bus := eventbus.New()
 	defer bus.Close()
 
-	s := NewServer(nil, bus, 0)
+	s := NewServer(nil, bus, nil, nil, 0, "", nil, nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/chat", s.handleChat)
 
@@ -61,7 +61,7 @@ func TestChatEndpointRequiresMessage(t *testing.T) {
 	bus := eventbus.New()
 	defer bus.Close()
 
-	s := NewServer(nil, bus, 0)
+	s := NewServer(nil, bus, nil, nil, 0, "", nil, nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/chat", s.handleChat)
 
@@ -80,7 +80,7 @@ func TestCORSHeaders(t *testing.T) {
 	bus := eventbus.New()
 	defer bus.Close()
 
-	s := NewServer(nil, bus, 0)
+	s := NewServer(nil, bus, nil, nil, 0, "", nil, nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
 

@@ -61,6 +61,9 @@ COPY --from=browser-builder /gobrowser /app/gobrowser
 # Copy Agent web assets (dashboard HTML/CSS/JS)
 COPY Agent/web/ /app/web/
 
+# Copy Agent data assets (marketplace catalog, etc.)
+COPY Agent/data/ /app/data/
+
 # Make gobrowser available on PATH so the agent can shell out to it
 ENV PATH="/app:${PATH}"
 
@@ -68,7 +71,7 @@ ENV PATH="/app:${PATH}"
 ENV ITAK_API_PORT=42800
 EXPOSE 42800
 
-VOLUME /app/data
+# Note: persistence is handled by docker-compose volume mounts on specific subdirs.
 
 ENTRYPOINT ["/app/itakagent"]
 CMD ["serve"]

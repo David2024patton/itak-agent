@@ -10,6 +10,7 @@ import (
 
 	"github.com/David2024patton/iTaKDatabase/pkg/graph"
 	"github.com/David2024patton/iTaKDatabase/pkg/search"
+	isql "github.com/David2024patton/iTaKDatabase/pkg/sql"
 	"github.com/David2024patton/iTaKDatabase/pkg/table"
 	"github.com/David2024patton/iTaKDatabase/pkg/vector"
 )
@@ -28,6 +29,7 @@ type DB struct {
 	Vector *vector.Index
 	Table  *table.Engine
 	Search *search.Engine
+	SQL    *isql.Executor
 	path   string
 }
 
@@ -58,6 +60,7 @@ func Open(dir string) (*DB, error) {
 		Vector: v,
 		Table:  t,
 		Search: s,
+		SQL:    isql.NewExecutor(t),
 		path:   dir,
 	}
 
@@ -156,7 +159,7 @@ func (db *DB) Stats() Stats {
 func (db *DB) rebuildVectorIndex() int {
 	count := 0
 
-	labels := []string{"Action", "Page", "Search", "Message", "Fact", "Entity", "Session", "BrowserSession"}
+	labels := []string{"Action", "Page", "Search", "Message", "Fact", "Entity", "Session", "BrowserSession", "CodeFunc", "CodeType"}
 	for _, label := range labels {
 		nodes, err := db.Graph.FindByLabel(label)
 		if err != nil {

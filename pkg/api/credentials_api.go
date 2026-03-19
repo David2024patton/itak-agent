@@ -29,11 +29,17 @@ type CredentialsAPI struct {
 	key     []byte // 32-byte AES-256 key
 }
 
-// RegisterCredentialsRoutes adds credential vault endpoints.
+// RegisterCredentialsRoutes adds credential vault endpoints (public entry point).
 func RegisterCredentialsRoutes(mux *http.ServeMux, backend memory.GraphBackend) {
+	registerCredentialsAPI(mux, backend)
+}
+
+// registerCredentialsAPI adds credential vault endpoints and returns the
+// CredentialsAPI instance so connectors can look up encrypted credentials.
+func registerCredentialsAPI(mux *http.ServeMux, backend memory.GraphBackend) *CredentialsAPI {
 	if backend == nil {
 		debug.Warn("api", "Graph backend is nil, credentials API disabled")
-		return
+		return nil
 	}
 
 	// Derive encryption key from env var or generate a default.
@@ -48,6 +54,7 @@ func RegisterCredentialsRoutes(mux *http.ServeMux, backend memory.GraphBackend) 
 	mux.HandleFunc("/v1/credentials", c.handleCredentials)
 	mux.HandleFunc("/v1/credentials/", c.handleCredentialByID)
 	debug.Info("api", "Credentials API registered (/v1/credentials)")
+	return c
 }
 
 // Credential represents a stored credential.

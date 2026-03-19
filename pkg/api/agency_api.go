@@ -68,6 +68,7 @@ type SubAccount struct {
 
 // activeAgencyID is the currently active agency context (global state for now).
 var activeAgencyID uint64 = 0
+var activeSubAccountID uint64 = 0
 
 // GET/POST /v1/agency
 func (a *AgencyAPI) handleAgency(w http.ResponseWriter, r *http.Request) {
@@ -109,9 +110,16 @@ func (a *AgencyAPI) handleAgencyByID(w http.ResponseWriter, r *http.Request) {
 
 	agencyID := parts[0]
 
-	// Sub-routes: /v1/agency/{id}/accounts or /v1/agency/{id}/scrape
+	// Sub-routes: /v1/agency/{id}/accounts or /v1/agency/{id}/accounts/{subId} or /v1/agency/{id}/scrape
 	if len(parts) == 2 {
-		switch parts[1] {
+		sub := parts[1]
+		// Handle /v1/agency/{id}/accounts/{subId}
+		if strings.HasPrefix(sub, "accounts/") {
+			subID := strings.TrimPrefix(sub, "accounts/")
+			a.handleSubAccountByID(w, r, agencyID, subID)
+			return
+		}
+		switch sub {
 		case "accounts":
 			a.handleSubAccounts(w, r, agencyID)
 		case "scrape":
@@ -145,12 +153,41 @@ func (a *AgencyAPI) handleActiveAgency(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"active_agency_id": activeAgencyID,
-		})
+		resp := map[string]interface{}{
+			"active_agency_id":     activeAgencyID,
+			"active_subaccount_id": activeSubAccountID,
+			"agency_name":          "",
+			"subaccount_name":      "",
+		}
+
+		// Resolve names if backend available.
+		if itakBackend, ok := a.backend.(*memory.ITakDBBackend); ok && activeAgencyID > 0 {
+			db := itakBackend.DB()
+			if nodes, _ := db.Graph.FindByLabel("Agency"); nodes != nil {
+				for _, n := range nodes {
+					if n.ID == activeAgencyID {
+						resp["agency_name"] = pStr(n.Properties, "name")
+						break
+					}
+				}
+			}
+			if activeSubAccountID > 0 {
+				if nodes, _ := db.Graph.FindByLabel("SubAccount"); nodes != nil {
+					for _, n := range nodes {
+						if n.ID == activeSubAccountID {
+							resp["subaccount_name"] = pStr(n.Properties, "name")
+							break
+						}
+					}
+				}
+			}
+		}
+		json.NewEncoder(w).Encode(resp)
+
 	case http.MethodPut:
 		var body struct {
-			AgencyID uint64 `json:"agency_id"`
+			AgencyID     uint64 `json:"agency_id"`
+			SubAccountID uint64 `json:"subaccount_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -158,10 +195,12 @@ func (a *AgencyAPI) handleActiveAgency(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		activeAgencyID = body.AgencyID
-		debug.Info("agency", "Active agency set to %d", activeAgencyID)
+		activeSubAccountID = body.SubAccountID
+		debug.Info("agency", "Active context set: agency=%d subaccount=%d", activeAgencyID, activeSubAccountID)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status":           "updated",
-			"active_agency_id": activeAgencyID,
+			"status":               "updated",
+			"active_agency_id":     activeAgencyID,
+			"active_subaccount_id": activeSubAccountID,
 		})
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -392,6 +431,38 @@ func (a *AgencyAPI) createSubAccount(w http.ResponseWriter, r *http.Request, age
 	debug.Info("agency", "Created sub-account %q under agency %s (id=%d)", sa.Name, agencyID, id)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{"status": "created", "id": id})
+}
+
+// handleSubAccountByID handles operations on a specific sub-account.
+func (a *AgencyAPI) handleSubAccountByID(w http.ResponseWriter, r *http.Request, agencyID, subID string) {
+	switch r.Method {
+	case http.MethodDelete:
+		a.deleteSubAccount(w, r, agencyID, subID)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (a *AgencyAPI) deleteSubAccount(w http.ResponseWriter, _ *http.Request, agencyID, subID string) {
+	itakBackend, ok := a.backend.(*memory.ITakDBBackend)
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "requires iTaK Database"})
+		return
+	}
+
+	db := itakBackend.DB()
+	nodes, _ := db.Graph.FindByLabel("SubAccount")
+	for _, n := range nodes {
+		if fmt.Sprintf("%d", n.ID) == subID && pStr(n.Properties, "agency_id") == agencyID {
+			db.Graph.DeleteNode(n.ID)
+			debug.Info("agency", "Deleted sub-account %s from agency %s", subID, agencyID)
+			json.NewEncoder(w).Encode(map[string]interface{}{"status": "deleted", "id": subID})
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNotFound)
+	json.NewEncoder(w).Encode(map[string]string{"error": "sub-account not found"})
 }
 
 // handleScrape scrapes a website URL and stores extracted content as Knowledge nodes.

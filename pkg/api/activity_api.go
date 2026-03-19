@@ -31,12 +31,14 @@ func RegisterActivityRoutes(mux *http.ServeMux, backend memory.GraphBackend) {
 
 // ActivityRecord represents a single agent activity event.
 type ActivityRecord struct {
-	Agent     string `json:"agent"`
-	Action    string `json:"action"`    // research, code, delegate, embed, fix, chat
-	Data      string `json:"data"`      // result/context summary
-	TaskID    string `json:"task_id,omitempty"`
-	Timestamp string `json:"timestamp"`
-	Status    string `json:"status,omitempty"` // success, error, partial
+	Agent      string `json:"agent"`
+	Action     string `json:"action"`    // research, code, delegate, embed, fix, chat
+	Data       string `json:"data"`      // result/context summary
+	TaskID     string `json:"task_id,omitempty"`
+	AgencyID   string `json:"agency_id,omitempty"`
+	ProjectID  string `json:"project_id,omitempty"`
+	Timestamp  string `json:"timestamp"`
+	Status     string `json:"status,omitempty"` // success, error, partial
 }
 
 // GET/POST /v1/activity
@@ -76,6 +78,8 @@ func (a *ActivityAPI) listActivity(w http.ResponseWriter, _ *http.Request) {
 			Action:    pStr(n.Properties, "action"),
 			Data:      pStr(n.Properties, "data"),
 			TaskID:    pStr(n.Properties, "task_id"),
+			AgencyID:  pStr(n.Properties, "agency_id"),
+			ProjectID: pStr(n.Properties, "project_id"),
 			Timestamp: pStr(n.Properties, "timestamp"),
 			Status:    pStr(n.Properties, "status"),
 		})
@@ -131,12 +135,14 @@ func (a *ActivityAPI) recordActivity(w http.ResponseWriter, r *http.Request) {
 
 	db := itakBackend.DB()
 	props := map[string]interface{}{
-		"agent":     rec.Agent,
-		"action":    rec.Action,
-		"data":      rec.Data,
-		"task_id":   rec.TaskID,
-		"timestamp": rec.Timestamp,
-		"status":    rec.Status,
+		"agent":      rec.Agent,
+		"action":     rec.Action,
+		"data":       rec.Data,
+		"task_id":    rec.TaskID,
+		"agency_id":  rec.AgencyID,
+		"project_id": rec.ProjectID,
+		"timestamp":  rec.Timestamp,
+		"status":     rec.Status,
 	}
 
 	id, err := db.CreateNode([]string{"AgentActivity"}, props, nil)

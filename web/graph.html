@@ -790,7 +790,7 @@ function updateBreadcrumb() {
   // Root crumb
   const rootBtn = document.createElement('button');
   rootBtn.className = currentView.level === 'root' ? 'crumb-current' : 'crumb';
-  rootBtn.textContent = '\u{1F3E0} Overview';
+  rootBtn.textContent = '\u25C9 Graph';
   rootBtn.addEventListener('click', () => {
     viewStack = [];
     currentView = { level: 'root' };
@@ -891,9 +891,21 @@ document.getElementById('zoom-out').addEventListener('click', () => {
   d3.select('#graph').transition().duration(300).call(zoomBehavior.scaleBy, 0.7);
 });
 document.getElementById('zoom-reset').addEventListener('click', () => {
+  if (!gGroup || !gGroup.node()) return;
   const w = window.innerWidth, h = window.innerHeight - 52;
+  const bounds = gGroup.node().getBBox();
+  if (bounds.width === 0 || bounds.height === 0) {
+    // No content, reset to center
+    d3.select('#graph').transition().duration(500)
+      .call(zoomBehavior.transform, d3.zoomIdentity);
+    return;
+  }
+  const padding = 0.85; // 15% padding around content
+  const scale = Math.min(w / bounds.width, h / bounds.height) * padding;
+  const tx = w / 2 - (bounds.x + bounds.width / 2) * scale;
+  const ty = h / 2 - (bounds.y + bounds.height / 2) * scale;
   d3.select('#graph').transition().duration(500)
-    .call(zoomBehavior.transform, d3.zoomIdentity.translate(w/2, h/2).scale(1).translate(-w/2, -h/2));
+    .call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
 });
 
 // Filter Buttons

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -16,14 +17,22 @@ import (
 	"github.com/David2024patton/iTaKAgent/pkg/api"
 	"github.com/David2024patton/iTaKAgent/pkg/config"
 	"github.com/David2024patton/iTaKAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/embed"
 	"github.com/David2024patton/iTaKAgent/pkg/eventbus"
 	"github.com/David2024patton/iTaKAgent/pkg/guard"
 	"github.com/David2024patton/iTaKAgent/pkg/llm"
 	"github.com/David2024patton/iTaKAgent/pkg/mcp"
 	"github.com/David2024patton/iTaKAgent/pkg/memory"
+	"github.com/David2024patton/iTaKAgent/pkg/plugin"
+	"github.com/David2024patton/iTaKAgent/pkg/plugin/cli"
+	"github.com/David2024patton/iTaKAgent/pkg/plugin/dashboard"
+	"github.com/David2024patton/iTaKAgent/pkg/plugin/discord"
+	"github.com/David2024patton/iTaKAgent/pkg/plugin/visionclaw"
+	webplugin "github.com/David2024patton/iTaKAgent/pkg/plugin/web"
 	"github.com/David2024patton/iTaKAgent/pkg/skill"
 	"github.com/David2024patton/iTaKAgent/pkg/tool"
 	"github.com/David2024patton/iTaKAgent/pkg/tool/builtins"
+	"github.com/David2024patton/iTaKAgent/pkg/tasks"
 	"github.com/David2024patton/iTaKAgent/pkg/ui"
 	"github.com/David2024patton/iTaKAgent/pkg/ws"
 )
@@ -182,11 +191,8 @@ memory:
   auto_reflect: true
   auto_entities: true
   session_workspace: true
-  neo4j:
-    enabled: false
-    uri: "bolt://localhost:7687"
-    username: "neo4j"
-    password: "password"
+  graph:
+    enabled: true
 
 data_dir: "./data"
 
@@ -251,8 +257,14 @@ agents:
 	debug.Info("main", "Config: %s", configPath)
 	debug.Info("main", "Orchestrator model: %s @ %s", cfg.Orchestrator.LLM.Model, cfg.Orchestrator.LLM.APIBase)
 
+	// -- Initialize embedding engine --
+	cfg.Embeddings.Defaults()
+	if err := embed.Init(cfg.Embeddings); err != nil {
+		debug.Warn("main", "Embedding engine init failed: %v (semantic search disabled)", err)
+	}
+
 	// -- Initialize memory system --
-	mem, err := memory.NewManager(cfg.DataDir, cfg.Memory.WindowSize, cfg.Memory.Neo4j.Enabled, cfg.Memory.Neo4j.URI, cfg.Memory.Neo4j.Username, cfg.Memory.Neo4j.Password)
+	mem, err := memory.NewManager(cfg.DataDir, cfg.Memory.WindowSize, cfg.Memory.Graph.Enabled)
 	if err != nil {
 		debug.Error("main", "Failed to initialize memory: %v", err)
 		fmt.Fprintf(os.Stderr, "Error: Failed to initialize memory: %v\n", err)
@@ -273,6 +285,15 @@ agents:
 
 	// -- Initialize event bus (central pub/sub for all subsystems) --
 	bus := eventbus.New()
+
+	// -- Wire activity tracking bridge (EventBus -> graph) --
+	if mem.Activity != nil {
+		activityBridge := memory.NewActivityBridge(mem.Activity, bus)
+		if activityBridge != nil {
+			defer activityBridge.Close()
+			debug.Info("main", "Activity bridge active: all agent actions will be tracked in graph")
+		}
+	}
 
 	// -- Start WebSocket server (for dashboard connections) --
 	wsPort := 47200
@@ -348,6 +369,8 @@ agents:
 
 	// -- Build the orchestrator's LLM client (with failover + budget) --
 	var orchClient llm.Client
+	// Orchestrator needs JSON-constrained output for delegation routing.
+	cfg.Orchestrator.LLM.ForceJSON = true
 	orchClient = llm.NewOpenAIClient(cfg.Orchestrator.LLM) // primary
 
 	// Wrap with FailoverClient if additional providers are active.
@@ -439,6 +462,14 @@ agents:
 	orch.Guard = inputGuard      // Share the guard with orchestrator.
 	// orch.Doctor is wired after Doctor creation below.
 
+	// -- Initialize LCM (Lossless Context Management) compaction engine --
+	// Uses the orchestrator's LLM client for summarization calls.
+	compactionCfg := memory.DefaultCompactionConfig()
+	compactionEngine := memory.NewCompactionEngine(cfg.DataDir, mem.Archive.NextID(), orchClient, compactionCfg)
+	mem.Session.SetCompaction(compactionEngine)
+	debug.Info("main", "LCM compaction engine initialized (leaf threshold: %d tokens, fresh tail: %d)",
+		compactionCfg.LeafChunkTokens, compactionCfg.FreshTailCount)
+
 	// -- Initialize MCP clients from config --
 	var mcpManager *mcp.Manager
 	if len(cfg.MCP) > 0 {
@@ -508,11 +539,83 @@ agents:
 		spinner.Start(status)
 	}
 
+	// -- Initialize Tasks Manager --
+	taskMgr, err := tasks.NewManager(cfg.DataDir)
+	if err != nil {
+		debug.Warn("main", "Failed to initialize tasks manager: %v", err)
+	}
+
 	// -- Start REST API server --
 	apiPort := 42100 + (os.Getpid() % 900) // deterministic 5-digit port per process
-	apiServer := api.NewServer(orch, bus, apiPort)
+	if envPort := os.Getenv("ITAK_API_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
+			apiPort = p
+		}
+	}
+	apiServer := api.NewServer(orch, bus, taskMgr, mem.Backend, apiPort, cfg.DataDir, skillRepo, cfg)
 	if err := apiServer.Start(); err != nil {
 		debug.Warn("main", "REST API failed to start: %v", err)
+	}
+
+	// -- Start Plugin Manager (channel plugins) --
+	pluginHandler := func(ctx context.Context, msg plugin.InboundMessage) (string, error) {
+		return orch.Run(ctx, msg.Text)
+	}
+	pluginMgr := plugin.NewManager(pluginHandler)
+
+	// Register Web (REST API) plugin if enabled.
+	if cfg.Plugins.Web.Enabled {
+		wPort := cfg.Plugins.Web.Port
+		if wPort == 0 {
+			wPort = apiPort // default to the existing API port
+		}
+		wp := webplugin.New(webplugin.Config{Port: wPort}, orch, bus, taskMgr, mem.Backend, cfg.DataDir, pluginHandler)
+		pluginMgr.Register(wp)
+	}
+
+	// Register Dashboard (WebSocket) plugin if enabled.
+	if cfg.Plugins.Dashboard.Enabled {
+		dPort := cfg.Plugins.Dashboard.Port
+		if dPort == 0 {
+			dPort = wsPort // default to the existing WS port
+		}
+		dp := dashboard.New(dashboard.Config{Port: dPort}, bus, pluginHandler)
+		pluginMgr.Register(dp)
+	}
+
+	// Register Discord bot plugin if enabled.
+	if cfg.Plugins.Discord.Enabled {
+		discordPlugin := discord.New(discord.Config{
+			Token:      cfg.Plugins.Discord.Token,
+			GuildID:    cfg.Plugins.Discord.GuildID,
+			ChannelIDs: cfg.Plugins.Discord.ChannelIDs,
+			Prefix:     cfg.Plugins.Discord.Prefix,
+		}, pluginHandler)
+		pluginMgr.Register(discordPlugin)
+	}
+
+	// Register VisionClaw (Ray-Ban glasses) plugin if enabled.
+	if cfg.Plugins.VisionClaw.Enabled {
+		vcPlugin := visionclaw.New(visionclaw.Config{
+			Port:           cfg.Plugins.VisionClaw.Port,
+			AllowedOrigins: cfg.Plugins.VisionClaw.AllowedOrigins,
+		}, pluginHandler)
+		pluginMgr.Register(vcPlugin)
+	}
+
+	// Register CLI REPL plugin (interactive mode only).
+	if !serveMode && !mcpServeMode && cfg.Plugins.CLI.Enabled {
+		cliPlugin := cli.New(cli.Config{
+			Prompt: cfg.Plugins.CLI.Prompt,
+		}, pluginHandler)
+		pluginMgr.Register(cliPlugin)
+	}
+
+	// Start all registered plugins.
+	if pluginMgr.Count() > 0 {
+		if err := pluginMgr.StartAll(context.Background()); err != nil {
+			debug.Warn("main", "Plugin manager start error: %v", err)
+		}
 	}
 
 	// -- Start Doctor (self-healing monitor) --
@@ -563,6 +666,7 @@ agents:
 		builtins.CleanupBrowser() // Kill Chrome, save cookies.
 		archiveConversation(mem)
 		doctor.Stop()
+		pluginMgr.StopAll()
 		apiServer.Stop()
 		if mcpManager != nil {
 			mcpManager.Close()
@@ -667,6 +771,38 @@ agents:
 			continue
 		}
 
+		// -- Deep Research Command: /deep-research <topic> --
+		// Creates a swarm orchestration sequence for exhaustive research
+		if strings.HasPrefix(input, "/deep-research ") {
+			topic := strings.TrimSpace(strings.TrimPrefix(input, "/deep-research "))
+			if topic == "" {
+				ui.Error("Usage: /deep-research <topic>")
+				continue
+			}
+			
+			ui.Response(fmt.Sprintf("🚀 Initiating Deep Research on: %s", topic))
+			
+			// Inject a highly optimized system prompt instructing the orchestrator to deploy a multi-agent team
+			deepResearchPrompt := fmt.Sprintf(`DEEP RESEARCH INITIATED: The user has requested a comprehensive, multi-agent deep research report on the topic: "%s".
+
+Your mandatory delegation strategy:
+1. Deploy the "researcher" or "browser" agent to scour the web, perform searches, and gather extensive raw data, statistics, and citations about this topic.
+2. Deploy the "operator" or "coder" agent to analyze the gathered data, structure it, and synthesize it.
+3. Deploy the "architect" or "operator" agent to use the 'report_generate' or 'slide_generate' tool to create a rich, final output artifact (JSON report or HTML slide deck) presenting the synthesized findings.
+
+Do not ask the user for permission. Execute all steps autonomously to produce the final presentation artifact.`, topic)
+			
+			response, err := orch.Run(ctx, deepResearchPrompt)
+			spinner.Stop()
+			if err != nil {
+				debug.Error("main", "Deep Research error: %v", err)
+				ui.Error(fmt.Sprintf("Error: %v", err))
+				continue
+			}
+			ui.Response(response)
+			continue
+		}
+
 		response, err := orch.Run(ctx, input)
 		spinner.Stop()
 		if err != nil {
@@ -709,6 +845,22 @@ func buildToolCatalog(mem *memory.Manager, cfg *config.Config, workDir string, s
 	tools["conversation_search"] = &builtins.ConversationSearchTool{Manager: mem}
 	tools["conversation_read"] = &builtins.ConversationReadTool{Manager: mem}
 
+	// LCM memory recall tools (search/expand/describe compacted history).
+	if ce := mem.Session.Compaction(); ce != nil {
+		sessionID := mem.Archive.NextID()
+		tools["mem_grep"] = &builtins.MemGrepTool{
+			Compaction: ce,
+			Archive:    mem.Archive,
+			SessionID:  sessionID,
+		}
+		tools["mem_describe"] = &builtins.MemDescribeTool{Compaction: ce}
+		tools["mem_expand"] = &builtins.MemExpandTool{
+			Compaction: ce,
+			Archive:    mem.Archive,
+			SessionID:  sessionID,
+		}
+	}
+
 	// Web (browser) tools.
 	tools["web_navigate"] = &builtins.WebNavigateTool{}
 	tools["web_click"] = &builtins.WebClickTool{}
@@ -740,6 +892,66 @@ func buildToolCatalog(mem *memory.Manager, cfg *config.Config, workDir string, s
 
 	// Code search tool.
 	tools["grep_search"] = &builtins.GrepSearchTool{}
+
+	// Code knowledge graph tools.
+	if backend, ok := mem.Backend.(*memory.ITakDBBackend); ok {
+		db := backend.DB()
+		tools["code_index"] = &builtins.CodeIndexTool{DB: db}
+		tools["code_query"] = &builtins.CodeQueryTool{DB: db}
+	}
+
+	// Superagent presentation tools
+	tools["slide_generate"] = &builtins.SlideGenerateTool{DataDir: cfg.DataDir, Bus: bus}
+	tools["report_generate"] = &builtins.ReportGenerateTool{DataDir: cfg.DataDir}
+
+	// Network engineering tools.
+	tools["net_ping"] = &builtins.NetPingTool{}
+	tools["net_traceroute"] = &builtins.NetTracerouteTool{}
+	tools["net_dns"] = &builtins.NetDNSTool{}
+	tools["net_portscan"] = &builtins.NetPortScanTool{}
+	tools["net_interfaces"] = &builtins.NetInterfacesTool{}
+	tools["net_routes"] = &builtins.NetRoutesTool{}
+	tools["net_arp"] = &builtins.NetARPTool{}
+	tools["net_ssh"] = &builtins.NetSSHTool{}
+	tools["net_skill"] = &builtins.NetSkillTool{DataDir: cfg.DataDir}
+
+	// MedgeClaw / K-Dense scientific skills (182 biomedical skills)
+	tools["medge_skill"] = &builtins.MedgeSkillTool{}
+
+	// Workflow management tools (chat-to-workflow).
+	apiPort := 42100
+	if envPort := os.Getenv("ITAK_API_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
+			apiPort = p
+		}
+	}
+	tools["workflow_list"] = &builtins.WorkflowListTool{APIPort: apiPort}
+	tools["workflow_get"] = &builtins.WorkflowGetTool{APIPort: apiPort}
+	tools["workflow_create"] = &builtins.WorkflowCreateTool{APIPort: apiPort}
+	tools["workflow_update"] = &builtins.WorkflowUpdateTool{APIPort: apiPort}
+	tools["workflow_execute"] = &builtins.WorkflowExecuteTool{APIPort: apiPort}
+
+	// Voice agent tools (phone receptionist).
+	tools["voice_answer"] = &builtins.VoiceAnswerTool{}
+	tools["voice_speak"] = &builtins.VoiceSpeakTool{}
+	tools["voice_gather"] = &builtins.VoiceGatherTool{}
+	tools["voice_transfer"] = &builtins.VoiceTransferTool{}
+	tools["voice_hold"] = &builtins.VoiceHoldTool{}
+	tools["voice_hangup"] = &builtins.VoiceHangupTool{}
+	tools["voice_record"] = &builtins.VoiceRecordTool{}
+	tools["voice_call_list"] = &builtins.VoiceCallListTool{}
+	tools["voice_make_call"] = &builtins.VoiceMakeCallTool{}
+
+	// Nyne.ai people/business intelligence tools.
+	tools["nyne_person_enrich"] = &builtins.NynePersonEnrichTool{}
+	tools["nyne_person_search"] = &builtins.NynePersonSearchTool{}
+	tools["nyne_company_enrich"] = &builtins.NyneCompanyEnrichTool{}
+	tools["nyne_person_interests"] = &builtins.NynePersonInterestsTool{}
+
+	// AgentMail email communication tools.
+	tools["email_send"] = &builtins.AgentMailSendTool{}
+	tools["email_list"] = &builtins.AgentMailListTool{}
+	tools["email_read"] = &builtins.AgentMailReadTool{}
 
 	debug.Info("main", "Tool catalog built: %d tools available", len(tools))
 	return tools

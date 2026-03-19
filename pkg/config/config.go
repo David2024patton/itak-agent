@@ -7,6 +7,7 @@ import (
 
 	"github.com/David2024patton/iTaKAgent/pkg/agent"
 	"github.com/David2024patton/iTaKAgent/pkg/debug"
+	"github.com/David2024patton/iTaKAgent/pkg/embed"
 	"github.com/David2024patton/iTaKAgent/pkg/llm"
 
 	"gopkg.in/yaml.v3"
@@ -18,8 +19,10 @@ type Config struct {
 	Agents       []AgentYAML                 `yaml:"agents"`
 	Providers    map[string]ProviderKeyYAML  `yaml:"providers,omitempty"`
 	Integrations map[string]Integration      `yaml:"integrations,omitempty"`
+	Plugins      PluginsYAML                 `yaml:"plugins,omitempty"`
 	DataDir      string                      `yaml:"data_dir,omitempty"`
 	Memory       MemoryYAML                  `yaml:"memory,omitempty"`
+	Embeddings   embed.Config                `yaml:"embeddings,omitempty"`
 	ShellSafety  ShellSafetyYAML             `yaml:"shell_safety,omitempty"`
 	Doctor       DoctorYAML                  `yaml:"doctor,omitempty"`
 	MCP          []MCPServerYAML             `yaml:"mcp,omitempty"` // external MCP server connections
@@ -54,15 +57,13 @@ type MemoryYAML struct {
 	AutoReflect      bool        `yaml:"auto_reflect,omitempty"`      // default: true
 	AutoEntities     bool        `yaml:"auto_entities,omitempty"`     // default: true
 	SessionWorkspace bool        `yaml:"session_workspace,omitempty"` // default: true
-	Neo4j            Neo4jConfig `yaml:"neo4j,omitempty"`
+	ActivityTracking bool        `yaml:"activity_tracking,omitempty"` // default: true -- track all actions in graph
+	Graph            GraphConfig `yaml:"graph,omitempty"`
 }
 
-// Neo4jConfig configures the hybrid memory graph connection.
-type Neo4jConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	URI      string `yaml:"uri"`
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
+// GraphConfig configures the embedded iTaK Database graph backend.
+type GraphConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 // ShellSafetyYAML holds shell security settings.
@@ -113,6 +114,66 @@ type Integration struct {
 	Endpoint string `yaml:"endpoint,omitempty"`
 }
 
+// ── Plugin Configuration ───────────────────────────────────────────
+
+// PluginsYAML holds configuration for all channel plugins.
+type PluginsYAML struct {
+	Web        WebPluginYAML        `yaml:"web,omitempty"`
+	Dashboard  DashboardPluginYAML  `yaml:"dashboard,omitempty"`
+	Discord    DiscordPluginYAML    `yaml:"discord,omitempty"`
+	VisionClaw VisionClawPluginYAML `yaml:"visionclaw,omitempty"`
+	CLI        CLIPluginYAML        `yaml:"cli,omitempty"`
+	Voice      VoicePluginYAML      `yaml:"voice,omitempty"`
+}
+
+// WebPluginYAML configures the REST API plugin.
+type WebPluginYAML struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+	Port    int  `yaml:"port,omitempty"`
+}
+
+// DashboardPluginYAML configures the WebSocket dashboard plugin.
+type DashboardPluginYAML struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+	Port    int  `yaml:"port,omitempty"`
+}
+
+// DiscordPluginYAML configures the Discord bot plugin.
+type DiscordPluginYAML struct {
+	Enabled    bool     `yaml:"enabled,omitempty"`
+	Token      string   `yaml:"token,omitempty"`
+	GuildID    string   `yaml:"guild_id,omitempty"`
+	ChannelIDs []string `yaml:"channel_ids,omitempty"`
+	Prefix     string   `yaml:"prefix,omitempty"`
+}
+
+// VisionClawPluginYAML configures the Ray-Ban glasses gateway plugin.
+type VisionClawPluginYAML struct {
+	Enabled        bool     `yaml:"enabled,omitempty"`
+	Port           int      `yaml:"port,omitempty"`
+	AllowedOrigins []string `yaml:"allowed_origins,omitempty"`
+}
+
+// CLIPluginYAML configures the interactive REPL plugin.
+type CLIPluginYAML struct {
+	Enabled bool   `yaml:"enabled,omitempty"`
+	Prompt  string `yaml:"prompt,omitempty"`
+}
+
+// VoicePluginYAML configures the voice/phone agent plugin.
+type VoicePluginYAML struct {
+	Enabled           bool              `yaml:"enabled,omitempty"`
+	Port              int               `yaml:"port,omitempty"`
+	TelephonyProvider string            `yaml:"telephony_provider,omitempty"` // twilio, telnyx, vonage, plivo, bandwidth
+	TelephonyConfig   map[string]string `yaml:"telephony_config,omitempty"`
+	STTProvider       string            `yaml:"stt_provider,omitempty"`       // deepgram, assemblyai, whisper
+	STTConfig         map[string]string `yaml:"stt_config,omitempty"`
+	TTSProvider       string            `yaml:"tts_provider,omitempty"`       // elevenlabs, local
+	TTSConfig         map[string]string `yaml:"tts_config,omitempty"`
+	Greeting          string            `yaml:"greeting,omitempty"`
+	MenuEnabled       bool              `yaml:"menu_enabled,omitempty"`
+}
+
 // Load reads and parses a iTaKAgent config file, expanding environment variables.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
@@ -140,7 +201,7 @@ func Load(path string) (*Config, error) {
 		cfg.Memory.WindowSize = 20
 	}
 
-	debug.Info("config", "Neo4j Configuration parsed: Enabled=%v, URI=%s", cfg.Memory.Neo4j.Enabled, cfg.Memory.Neo4j.URI)
+	debug.Info("config", "Graph database: enabled=%v", cfg.Memory.Graph.Enabled)
 	// Enable memory features by default (YAML omits = zero value = false,
 	// so we flip the logic: disabled_* fields, or just default to true here)
 	// For simplicity, we default both to true if not explicitly set in YAML.

@@ -2,10 +2,9 @@
 
 orchestrator:
   llm:
-    provider: nvidia_nim
-    model: nvidia/nemotron-3-nano-30b-a3b
-    api_base: https://integrate.api.nvidia.com/v1
-    api_key: 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
+    provider: ollama
+    model: qwen3-vl:2b
+    api_base: http://host.docker.internal:11434/v1
   max_delegations: 5
 
 # Shell safety  -  block dangerous commands
@@ -21,7 +20,7 @@ shell_safety:
 
 # Memory settings
 memory:
-  window_size: 20
+  window_size: 8
   auto_reflect: true
   auto_entities: true
   session_workspace: true
@@ -151,7 +150,18 @@ agents:
 
   - name: coder
     role: Software Developer
-    personality: "Pragmatic developer who writes clean, working code"
+    personality: |
+      You are a code builder. ALWAYS follow this process:
+      1. Run skill_list to see available templates
+      2. Run skill_load to load the matching template
+      3. Follow the template step by step using file_write for each file
+      4. Never skip steps. Create every file the template says to create.
+      If no template matches, write clean working code using file_write.
+    llm:
+      provider: ollama
+      model: qwen3:1.7b
+      api_base: http://host.docker.internal:11434/v1
+    skills_dir: /app/data/skills
     goals:
       - correctness
       - readability
@@ -162,7 +172,9 @@ agents:
       - memory_save
       - memory_recall
       - grep_search
-    max_loops: 10
+      - skill_list
+      - skill_load
+    max_loops: 15
 
   - name: ghl
     role: GoHighLevel CRM & Marketing Automation Specialist

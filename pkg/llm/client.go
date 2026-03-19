@@ -16,14 +16,16 @@ import (
 // Client is the interface for all LLM providers.
 type Client interface {
 	Chat(ctx context.Context, messages []Message, tools []ToolDef) (*Response, error)
+	GenerateRaw(ctx context.Context, tokens []int32, maxTokens int) (string, error)
 }
 
 // ProviderConfig holds connection details for an LLM provider.
 type ProviderConfig struct {
-	Provider string `yaml:"provider" json:"provider"`
-	Model    string `yaml:"model" json:"model"`
-	APIBase  string `yaml:"api_base" json:"api_base"`
-	APIKey   string `yaml:"api_key" json:"api_key"`
+	Provider  string `yaml:"provider" json:"provider"`
+	Model     string `yaml:"model" json:"model"`
+	APIBase   string `yaml:"api_base" json:"api_base"`
+	APIKey    string `yaml:"api_key" json:"api_key"`
+	ForceJSON bool   `yaml:"-" json:"-"` // runtime flag: force JSON output (orchestrator only)
 }
 
 // OpenAIClient implements Client for any OpenAI-compatible API.
@@ -53,11 +55,18 @@ func (c *OpenAIClient) NoToolsSupport() bool {
 	return c.noToolsSupport
 }
 
+// responseFormat tells the API to constrain output to valid JSON.
+type responseFormat struct {
+	Type string `json:"type"`
+}
+
 // chatRequest is the request body for /chat/completions.
 type chatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
-	Tools    []ToolDef `json:"tools,omitempty"`
+	Model          string                 `json:"model"`
+	Messages       []Message              `json:"messages"`
+	Tools          []ToolDef              `json:"tools,omitempty"`
+	ResponseFormat *responseFormat        `json:"response_format,omitempty"`
+	Options        map[string]interface{} `json:"options,omitempty"` // Ollama-specific options
 }
 
 // chatResponse is the response body from /chat/completions.
@@ -82,6 +91,15 @@ func (c *OpenAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 	// Only send tools if the model supports them.
 	if len(tools) > 0 && !c.noToolsSupport {
 		reqBody.Tools = tools
+	}
+	// Ollama-specific: disable thinking mode (saves tokens for qwen3/deepseek).
+	if c.config.Provider == "ollama" {
+		reqBody.Options = map[string]interface{}{"think": false}
+	}
+	// Force JSON output only for orchestrator routing calls (no tools).
+	// Do NOT force JSON for focused agent calls (they need free-form output).
+	if c.config.Provider == "ollama" && len(tools) == 0 && c.config.ForceJSON {
+		reqBody.ResponseFormat = &responseFormat{Type: "json_object"}
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
@@ -171,6 +189,79 @@ func (c *OpenAIClient) Chat(ctx context.Context, messages []Message, tools []Too
 		result.FinishReason, len(result.ToolCalls), len(result.Content))
 
 	return result, nil
+}
+
+// rawTokenRequest represents the request payload for exact token ID injection.
+type rawTokenRequest struct {
+	Model     string  `json:"model"`
+	Tokens    []int32 `json:"tokens"`
+	MaxTokens int     `json:"max_tokens"`
+}
+
+// rawTokenResponse represents the response payload from exact token ID injection.
+type rawTokenResponse struct {
+	Model    string `json:"model"`
+	Response string `json:"response"`
+}
+
+// GenerateRaw sends an array of pre-computed token IDs directly to iTaK Torch,
+// bypassing the text tokenizer. This requires the backend to support /v1/generate_raw.
+func (c *OpenAIClient) GenerateRaw(ctx context.Context, tokens []int32, maxTokens int) (string, error) {
+	reqBody := rawTokenRequest{
+		Model:     c.config.Model,
+		Tokens:    tokens,
+		MaxTokens: maxTokens,
+	}
+
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("marshal request: %w", err)
+	}
+
+	// Assuming the backend is iTaK Torch with the new /v1/generate_raw endpoint.
+	// We safely trim any trailing /v1 from the APIBase to construct the route properly.
+	baseURL := strings.TrimSuffix(c.config.APIBase, "/v1")
+	url := baseURL + "/v1/generate_raw"
+
+	debug.Debug("llm", "POST %s (model: %s, tokens: %d)", url, c.config.Model, len(tokens))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if c.config.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.config.APIKey)
+	}
+
+	start := time.Now()
+	resp, err := c.httpClient.Do(req)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		debug.Error("llm", "HTTP request failed after %s: %v", elapsed, err)
+		return "", fmt.Errorf("http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		debug.Error("llm", "API error (HTTP %d): %s", resp.StatusCode, truncateStr(string(respBytes), 500))
+		return "", fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBytes))
+	}
+
+	var rawResp rawTokenResponse
+	if err := json.Unmarshal(respBytes, &rawResp); err != nil {
+		debug.Error("llm", "Failed to parse raw token response JSON: %v", err)
+		return "", fmt.Errorf("unmarshal response: %w", err)
+	}
+
+	return rawResp.Response, nil
 }
 
 // ModelInfo holds basic info about an available model.

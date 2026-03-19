@@ -33,6 +33,7 @@ type Job struct {
 	Prompt         string `json:"prompt"`           // what to tell the agent
 	AgencyID       string `json:"agency_id,omitempty"`
 	SubAccountID   string `json:"subaccount_id,omitempty"`
+	ProjectID      string `json:"project_id,omitempty"`
 	Enabled        bool   `json:"enabled"`
 	ExecutionMode  string `json:"execution_mode"`   // main or isolated
 	WebhookSecret  string `json:"webhook_secret,omitempty"`

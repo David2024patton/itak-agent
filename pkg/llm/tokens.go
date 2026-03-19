@@ -201,6 +201,42 @@ func (bc *BudgetClient) Chat(ctx context.Context, messages []Message, tools []To
 	return resp, nil
 }
 
+// GenerateRaw routes raw token generation to primary or fallback based on budget consumption.
+func (bc *BudgetClient) GenerateRaw(ctx context.Context, tokens []int32, maxTokens int) (string, error) {
+	bc.mu.Lock()
+	threshold := int64(float64(bc.MaxTokens) * bc.FallbackPct)
+	overBudget := bc.Used >= bc.MaxTokens
+	fallbackZone := bc.Used >= threshold
+	bc.mu.Unlock()
+
+	if overBudget {
+		debug.Warn("budget", "Token budget exhausted (%d/%d)  -  rejecting raw token request", bc.Used, bc.MaxTokens)
+		return "", fmt.Errorf("token budget exhausted: used %d of %d", bc.Used, bc.MaxTokens)
+	}
+
+	client := bc.Primary
+	if fallbackZone && bc.Fallback != nil {
+		if !bc.switched {
+			debug.Info("budget", "Budget %.0f%% consumed (%d/%d)  -  switching to fallback model",
+				float64(bc.Used)/float64(bc.MaxTokens)*100, bc.Used, bc.MaxTokens)
+			bc.switched = true
+		}
+		client = bc.Fallback
+	}
+
+	resp, err := client.GenerateRaw(ctx, tokens, maxTokens)
+	if err != nil {
+		return "", err
+	}
+
+	// We can't strictly track generated token usage for `GenerateRaw` without the usage block, 
+	// but we can estimate or count based on input + output length if we had to.
+	// For now, we skip precise tracking of GenerateRaw or assume `maxTokens` was used, 
+	// depending on how strict we want the budget. We'll leave it untracked for raw test calls.
+
+	return resp, nil
+}
+
 // BudgetRemaining returns the remaining token budget.
 func (bc *BudgetClient) BudgetRemaining() int64 {
 	bc.mu.Lock()

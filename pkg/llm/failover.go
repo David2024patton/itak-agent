@@ -79,6 +79,37 @@ func (fc *FailoverClient) Chat(ctx context.Context, messages []Message, tools []
 	return nil, fmt.Errorf("all %d providers failed, last error: %w", len(ordered), lastErr)
 }
 
+// GenerateRaw tries each provider in order until one succeeds for raw token injection.
+func (fc *FailoverClient) GenerateRaw(ctx context.Context, tokens []int32, maxTokens int) (string, error) {
+	fc.mu.Lock()
+	start := fc.primary
+	providers := append([]namedClient{}, fc.providers...)
+	fc.mu.Unlock()
+
+	// Reorder: start from current primary, then wrap around.
+	ordered := make([]namedClient, 0, len(providers))
+	for i := 0; i < len(providers); i++ {
+		idx := (start + i) % len(providers)
+		ordered = append(ordered, providers[idx])
+	}
+
+	var lastErr error
+	for _, p := range ordered {
+		debug.Debug("llm", "Attempting provider for raw tokens: %s", p.Name)
+
+		resp, err := p.Client.GenerateRaw(ctx, tokens, maxTokens)
+		if err == nil {
+			// Success
+			return resp, nil
+		}
+
+		debug.Warn("llm", "Provider %s failed: %v  -  trying next", p.Name, err)
+		lastErr = err
+	}
+
+	return "", fmt.Errorf("all %d providers failed, last error: %w", len(ordered), lastErr)
+}
+
 // CurrentProvider returns the name of the current primary provider.
 func (fc *FailoverClient) CurrentProvider() string {
 	fc.mu.Lock()

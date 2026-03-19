@@ -1,151 +1,228 @@
 package seed
 
-// FocusAgent defines a specialized agent that comes pre-loaded with the system.
-//
-// What: Agent definitions for domain-specific AI specialists.
-// Why:  Users should have access to a catalog of focused agents beyond the
-//       core YAML agents (scout, operator, browser, researcher, coder, architect).
-//       These can be activated on demand without editing YAML files.
-// How:  Loaded by the API's /v1/agents endpoint and displayed in the dashboard's
-//       Agents tab as a separate "Focus Agents" section.
+import (
+	_ "embed"
+	"encoding/json"
+	"log"
+)
+
+//go:embed agency_catalog.json
+var agencyCatalogJSON []byte
+
+// FocusAgent describes a specialist agent from the catalog.
 type FocusAgent struct {
 	Name        string   `json:"name"`
 	Role        string   `json:"role"`
 	Description string   `json:"description"`
-	Category    string   `json:"category"`  // marketing, dev, data, creative, ops
-	Source      string   `json:"source"`     // core, focus, custom
-	Goals       []string `json:"goals"`
+	Category    string   `json:"category"`
+	Division    string   `json:"division"`
+	Source      string   `json:"source"`
+	Goals       []string `json:"goals,omitempty"`
 	Tools       []string `json:"tools"`
 }
 
-// GetFocusAgents returns the built-in catalog of specialized focus agents.
-func GetFocusAgents() []FocusAgent {
-	return []FocusAgent{
-		{
-			Name:        "seo",
-			Role:        "SEO & Content Strategist",
-			Description: "Analyzes websites for SEO issues, generates keyword strategies, writes meta descriptions, and audits content for search engine optimization.",
-			Category:    "marketing",
-			Source:      "focus",
-			Goals:       []string{"seo_audit", "keyword_research", "content_optimization", "meta_generation"},
-			Tools:       []string{"web_navigate", "web_extract", "web_search", "file_write", "memory_save"},
-		},
-		{
-			Name:        "social",
-			Role:        "Social Media Manager",
-			Description: "Creates social media posts, schedules content, analyzes engagement metrics, and manages brand presence across platforms.",
-			Category:    "marketing",
-			Source:      "focus",
-			Goals:       []string{"content_creation", "scheduling", "engagement_analysis", "brand_management"},
-			Tools:       []string{"http_fetch", "file_write", "memory_save", "web_search"},
-		},
-		{
-			Name:        "email",
-			Role:        "Email Marketing Specialist",
-			Description: "Writes email campaigns, creates drip sequences, designs templates, and optimizes open/click rates.",
-			Category:    "marketing",
-			Source:      "focus",
-			Goals:       []string{"campaign_design", "copywriting", "segmentation", "analytics"},
-			Tools:       []string{"http_fetch", "file_write", "memory_save"},
-		},
-		{
-			Name:        "ads",
-			Role:        "Paid Advertising Specialist",
-			Description: "Creates ad copy for Google Ads, Facebook Ads, and other platforms. Optimizes campaigns for ROI and manages budgets.",
-			Category:    "marketing",
-			Source:      "focus",
-			Goals:       []string{"ad_copywriting", "campaign_optimization", "budget_management", "audience_targeting"},
-			Tools:       []string{"http_fetch", "file_write", "web_search", "memory_save"},
-		},
-		{
-			Name:        "copywriter",
-			Role:        "Professional Copywriter",
-			Description: "Writes compelling copy for landing pages, sales pages, product descriptions, and brand messaging.",
-			Category:    "creative",
-			Source:      "focus",
-			Goals:       []string{"persuasive_writing", "brand_voice", "conversion_optimization"},
-			Tools:       []string{"file_write", "file_read", "web_search", "memory_save"},
-		},
-		{
-			Name:        "designer",
-			Role:        "UI/UX Designer",
-			Description: "Creates wireframes, mockups, and design systems. Reviews interfaces for usability and accessibility.",
-			Category:    "creative",
-			Source:      "focus",
-			Goals:       []string{"ui_design", "ux_audit", "design_systems", "accessibility"},
-			Tools:       []string{"file_write", "file_read", "web_search", "memory_save"},
-		},
-		{
-			Name:        "data",
-			Role:        "Data Analyst",
-			Description: "Analyzes datasets, creates visualizations, builds reports, and extracts insights from structured and unstructured data.",
-			Category:    "data",
-			Source:      "focus",
-			Goals:       []string{"data_analysis", "visualization", "reporting", "pattern_detection"},
-			Tools:       []string{"shell", "file_read", "file_write", "memory_save", "grep_search"},
-		},
-		{
-			Name:        "devops",
-			Role:        "DevOps Engineer",
-			Description: "Manages CI/CD pipelines, Docker containers, Kubernetes deployments, and infrastructure as code.",
-			Category:    "ops",
-			Source:      "focus",
-			Goals:       []string{"infrastructure", "deployment", "monitoring", "automation"},
-			Tools:       []string{"shell", "file_read", "file_write", "memory_save"},
-		},
-		{
-			Name:        "security",
-			Role:        "Security Auditor",
-			Description: "Audits code for vulnerabilities, reviews API security, checks for common attack vectors (OWASP Top 10), and recommends hardening measures.",
-			Category:    "ops",
-			Source:      "focus",
-			Goals:       []string{"vulnerability_scanning", "code_audit", "penetration_testing", "compliance"},
-			Tools:       []string{"file_read", "grep_search", "shell", "web_search", "memory_save"},
-		},
-		{
-			Name:        "sales",
-			Role:        "Sales Pipeline Manager",
-			Description: "Manages leads, tracks deal stages, generates proposals, and provides sales forecasting and CRM data analysis.",
-			Category:    "marketing",
-			Source:      "focus",
-			Goals:       []string{"lead_management", "proposal_generation", "forecasting", "crm_analysis"},
-			Tools:       []string{"http_fetch", "file_write", "memory_save", "memory_recall"},
-		},
-		{
-			Name:        "support",
-			Role:        "Customer Support Agent",
-			Description: "Handles customer inquiries, creates knowledge base articles, triages support tickets, and provides troubleshooting assistance.",
-			Category:    "ops",
-			Source:      "focus",
-			Goals:       []string{"ticket_triage", "knowledge_base", "troubleshooting", "customer_communication"},
-			Tools:       []string{"http_fetch", "file_write", "file_read", "web_search", "memory_save"},
-		},
-		{
-			Name:        "legal",
-			Role:        "Legal & Compliance Reviewer",
-			Description: "Reviews contracts, terms of service, privacy policies, and compliance documents. Identifies legal risks and suggests improvements.",
-			Category:    "ops",
-			Source:      "focus",
-			Goals:       []string{"contract_review", "compliance_check", "risk_assessment", "policy_drafting"},
-			Tools:       []string{"file_read", "file_write", "web_search", "memory_save"},
-		},
-		{
-			Name:        "translator",
-			Role:        "Multilingual Translator",
-			Description: "Translates content between languages, localizes marketing materials, and adapts brand messaging for different markets.",
-			Category:    "creative",
-			Source:      "focus",
-			Goals:       []string{"translation", "localization", "cultural_adaptation"},
-			Tools:       []string{"file_read", "file_write", "memory_save"},
-		},
-		{
-			Name:        "writer",
-			Role:        "Technical Writer",
-			Description: "Creates documentation, API guides, README files, user manuals, and technical blog posts with clear structure and accuracy.",
-			Category:    "creative",
-			Source:      "focus",
-			Goals:       []string{"documentation", "api_guides", "tutorials", "technical_blogging"},
-			Tools:       []string{"file_read", "file_write", "grep_search", "web_search", "memory_save"},
-		},
+// agencyAgents is the parsed catalog, loaded once at import time.
+var agencyAgents []FocusAgent
+
+func init() {
+	if err := json.Unmarshal(agencyCatalogJSON, &agencyAgents); err != nil {
+		log.Printf("[seed] WARNING: failed to parse agency_catalog.json: %v", err)
 	}
+}
+
+// GetFocusAgents returns the full catalog of specialized agents.
+// This merges the built-in iTaK agents with the agency-agents catalog.
+func GetFocusAgents() []FocusAgent {
+	all := make([]FocusAgent, 0, len(builtinAgents)+len(agencyAgents))
+	all = append(all, builtinAgents...)
+	all = append(all, agencyAgents...)
+	return all
+}
+
+// GetAgentsByDivision returns agents filtered by division name.
+func GetAgentsByDivision(division string) []FocusAgent {
+	var result []FocusAgent
+	for _, a := range GetFocusAgents() {
+		if a.Division == division {
+			result = append(result, a)
+		}
+	}
+	return result
+}
+
+// GetDivisions returns all unique division names.
+func GetDivisions() []string {
+	seen := map[string]bool{}
+	var divs []string
+	for _, a := range GetFocusAgents() {
+		if !seen[a.Division] {
+			seen[a.Division] = true
+			divs = append(divs, a.Division)
+		}
+	}
+	return divs
+}
+
+// builtinAgents are the original iTaK focus agents (always included).
+var builtinAgents = []FocusAgent{
+	{
+		Name:        "seo-optimizer",
+		Role:        "SEO Specialist",
+		Description: "Analyzes websites for SEO, generates meta tags, keyword strategies, and content optimization plans.",
+		Category:    "marketing",
+		Division:    "Marketing",
+		Source:      "focus",
+		Goals:       []string{"Improve search rankings", "Generate keyword research", "Audit on-page SEO"},
+		Tools:       []string{"http_fetch", "file_write", "web_search", "memory_save"},
+	},
+	{
+		Name:        "social-media-manager",
+		Role:        "Social Media Manager",
+		Description: "Creates social media strategies, content calendars, and engagement plans across platforms.",
+		Category:    "marketing",
+		Division:    "Marketing",
+		Source:      "focus",
+		Goals:       []string{"Build social presence", "Create content calendars", "Analyze engagement metrics"},
+		Tools:       []string{"file_write", "web_search", "memory_save"},
+	},
+	{
+		Name:        "email-marketer",
+		Role:        "Email Marketing Specialist",
+		Description: "Designs email campaigns, drip sequences, and newsletter strategies with A/B testing frameworks.",
+		Category:    "marketing",
+		Division:    "Marketing",
+		Source:      "focus",
+		Goals:       []string{"Increase open rates", "Design drip campaigns", "Segment audiences"},
+		Tools:       []string{"file_write", "web_search", "memory_save"},
+	},
+	{
+		Name:        "ad-manager",
+		Role:        "Advertising Manager",
+		Description: "Plans and optimizes ad campaigns across Google, Facebook, and other platforms. Manages budgets.",
+		Category:    "marketing",
+		Division:    "Paid Media",
+		Source:      "focus",
+		Goals:       []string{"Optimize ROAS", "Create ad copy", "Analyze campaign performance"},
+		Tools:       []string{"http_fetch", "file_write", "web_search", "memory_save"},
+	},
+	{
+		Name:        "copywriter",
+		Role:        "Copywriter",
+		Description: "Writes compelling copy for landing pages, sales pages, product descriptions, and brand messaging.",
+		Category:    "creative",
+		Division:    "Design",
+		Source:      "focus",
+		Goals:       []string{"Write converting copy", "Develop brand voice", "Create CTAs"},
+		Tools:       []string{"file_write", "file_read", "web_search", "memory_save"},
+	},
+	{
+		Name:        "designer",
+		Role:        "UI/UX Designer",
+		Description: "Creates wireframes, mockups, and design systems. Reviews interfaces for usability and accessibility.",
+		Category:    "creative",
+		Division:    "Design",
+		Source:      "focus",
+		Goals:       []string{"Design user interfaces", "Create design systems", "Conduct UX reviews"},
+		Tools:       []string{"file_write", "file_read", "web_search", "memory_save"},
+	},
+	{
+		Name:        "data-analyst",
+		Role:        "Data Analyst",
+		Description: "Analyzes datasets, creates visualizations, builds reports, and extracts insights from structured and unstructured data.",
+		Category:    "data",
+		Division:    "Support",
+		Source:      "focus",
+		Goals:       []string{"Analyze data trends", "Build dashboards", "Generate reports"},
+		Tools:       []string{"shell", "file_read", "file_write", "memory_save", "grep_search"},
+	},
+	{
+		Name:        "devops-engineer",
+		Role:        "DevOps Engineer",
+		Description: "Manages CI/CD pipelines, Docker containers, Kubernetes clusters, and cloud infrastructure.",
+		Category:    "ops",
+		Division:    "Engineering",
+		Source:      "focus",
+		Goals:       []string{"Automate deployments", "Monitor infrastructure", "Optimize pipelines"},
+		Tools:       []string{"shell", "file_read", "file_write", "web_search"},
+	},
+	{
+		Name:        "security-auditor",
+		Role:        "Security Auditor",
+		Description: "Performs security assessments, vulnerability scans, and compliance checks on applications and infrastructure.",
+		Category:    "ops",
+		Division:    "Engineering",
+		Source:      "focus",
+		Goals:       []string{"Identify vulnerabilities", "Review access controls", "Audit compliance"},
+		Tools:       []string{"shell", "file_read", "grep_search", "web_search"},
+	},
+	{
+		Name:        "sales-pipeline",
+		Role:        "Sales Pipeline Manager",
+		Description: "Tracks leads, manages CRM data, creates sales reports, and provides sales forecasting and data analysis.",
+		Category:    "marketing",
+		Division:    "Sales",
+		Source:      "focus",
+		Goals:       []string{"Track pipeline health", "Forecast revenue", "Qualify leads"},
+		Tools:       []string{"http_fetch", "file_write", "memory_save", "memory_recall"},
+	},
+	{
+		Name:        "customer-support",
+		Role:        "Customer Support Agent",
+		Description: "Handles customer inquiries, creates KB articles, and manages support ticket workflows.",
+		Category:    "ops",
+		Division:    "Support",
+		Source:      "focus",
+		Goals:       []string{"Resolve tickets", "Build knowledge base", "Improve CSAT"},
+		Tools:       []string{"file_read", "file_write", "web_search", "memory_save"},
+	},
+	{
+		Name:        "legal-reviewer",
+		Role:        "Legal Reviewer",
+		Description: "Reviews contracts, terms of service, and compliance documents. Identifies legal risks and issues.",
+		Category:    "ops",
+		Division:    "Support",
+		Source:      "focus",
+		Goals:       []string{"Review contracts", "Check compliance", "Identify legal risks"},
+		Tools:       []string{"file_read", "web_search", "memory_save"},
+	},
+	{
+		Name:        "translator",
+		Role:        "Translator & Localizer",
+		Description: "Translates content between languages, localizes marketing materials, and adapts brand messaging for different markets.",
+		Category:    "creative",
+		Division:    "Specialized",
+		Source:      "focus",
+		Goals:       []string{"Translate content", "Localize marketing", "Adapt for markets"},
+		Tools:       []string{"file_read", "file_write", "memory_save"},
+	},
+	{
+		Name:        "technical-writer",
+		Role:        "Technical Writer",
+		Description: "Creates documentation, API guides, README files, user manuals, and technical blog posts with clear structure and accuracy.",
+		Category:    "creative",
+		Division:    "Engineering",
+		Source:      "focus",
+		Goals:       []string{"Write documentation", "Create API guides", "Maintain READMEs"},
+		Tools:       []string{"file_read", "file_write", "grep_search", "web_search", "memory_save"},
+	},
+	{
+		Name:        "workflow-builder",
+		Role:        "Workflow Architect",
+		Description: "Designs and builds visual agent workflows from natural language descriptions. Translates user requests into node graphs with proper node types (prompt, agent, webhook, api_call, condition, etc.), connections, and configurations. Can list, create, update, and execute workflows.",
+		Category:    "ops",
+		Division:    "Engineering",
+		Source:      "focus",
+		Goals:       []string{"Build workflow graphs from descriptions", "Connect nodes with proper logic", "Configure node parameters"},
+		Tools:       []string{"workflow_list", "workflow_get", "workflow_create", "workflow_update", "workflow_execute", "memory_save"},
+	},
+	{
+		Name:        "phone-receptionist",
+		Role:        "Phone Receptionist",
+		Description: "Handles incoming phone calls as an AI receptionist. Greets callers, understands their needs through natural conversation, schedules appointments, answers FAQ from company knowledge, and transfers to humans when needed. Works with FieldRoutes, Odoo, and other business APIs.",
+		Category:    "ops",
+		Division:    "Operations",
+		Source:      "focus",
+		Goals:       []string{"Answer calls professionally", "Schedule work orders and appointments", "Route calls to the right department"},
+		Tools:       []string{"voice_speak", "voice_gather", "voice_transfer", "voice_hold", "voice_hangup", "voice_record", "voice_call_list", "voice_make_call", "nyne_person_enrich", "nyne_company_enrich", "nyne_person_interests", "email_send", "memory_search", "memory_save", "web_search"},
+	},
 }

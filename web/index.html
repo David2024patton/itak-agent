@@ -30,93 +30,204 @@
 
       <!-- Chat -->
       <div class="nav-group">
-        <div class="nav-group-label">Chat</div>
-        <div class="nav-item active" data-page="chat" onclick="navigate('chat')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-          <span class="nav-text">Chat</span>
+        <div class="nav-group-label" onclick="toggleNavGroup(this)"><span>Chat</span><svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="nav-group-items">
+          <div class="nav-item active" data-page="chat" onclick="navigate('chat')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <span class="nav-text">Chat</span>
+          </div>
         </div>
       </div>
 
       <!-- Monitor -->
       <div class="nav-group">
-        <div class="nav-group-label">Monitor</div>
-        <div class="nav-item" data-page="overview" onclick="navigate('overview')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          <span class="nav-text">Overview</span>
-        </div>
-        <div class="nav-item" data-page="analytics" onclick="navigate('analytics')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-          <span class="nav-text">Analytics</span>
-        </div>
-        <div class="nav-item" data-page="logs" onclick="navigate('logs')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          <span class="nav-text">Logs</span>
+        <div class="nav-group-label" onclick="toggleNavGroup(this)"><span>Monitor</span><svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="nav-group-items">
+          <div class="nav-item" data-page="overview" onclick="navigate('overview')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span class="nav-text">Overview</span>
+          </div>
+          <div class="nav-item" data-page="analytics" onclick="navigate('analytics')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <span class="nav-text">Analytics</span>
+          </div>
+          <div class="nav-item" data-page="logs" onclick="navigate('logs')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span class="nav-text">Logs</span>
+          </div>
         </div>
       </div>
 
       <!-- Agents -->
       <div class="nav-group">
-        <div class="nav-group-label">Agents</div>
-        <div class="nav-item" data-page="sessions" onclick="navigate('sessions')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-          <span class="nav-text">Sessions</span>
-        </div>
-        <div class="nav-item" data-page="agents" onclick="navigate('agents')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-          <span class="nav-text">Agents</span>
+        <div class="nav-group-label" onclick="toggleNavGroup(this)"><span>Agents</span><svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="nav-group-items">
+          <div class="nav-item" data-page="sessions" onclick="navigate('sessions')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <span class="nav-text">Sessions</span>
+          </div>
+          <div class="nav-item" data-page="agents" onclick="navigate('agents')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            <span class="nav-text">Agents</span>
+          </div>
+          <div class="nav-item" data-page="voiceAI" onclick="navigate('voiceAI')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            <span class="nav-text">Voice AI</span>
+          </div>
+          <div class="nav-item" data-page="conversationAI" onclick="navigate('conversationAI')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><path d="M8 10h.01"/><path d="M12 10h.01"/><path d="M16 10h.01"/></svg>
+            <span class="nav-text">Conversation AI</span>
+          </div>
+          <div class="nav-item" data-page="contentAI" onclick="navigate('contentAI')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <span class="nav-text">Content AI</span>
+          </div>
+          <div class="nav-item" data-page="agentTemplates" onclick="navigate('agentTemplates')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+            <span class="nav-text">Agent Templates</span>
+          </div>
         </div>
       </div>
 
       <!-- Tasks -->
       <div class="nav-group">
-        <div class="nav-group-label">Tasks</div>
-        <div class="nav-item" data-page="tasks" onclick="navigate('tasks')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-          <span class="nav-text">Task Board</span>
-        </div>
-        <div class="nav-item" data-page="presentations" onclick="navigate('presentations')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 3 21 3 21 17 3 17 3 3"></polygon><line x1="3" y1="21" x2="21" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-          <span class="nav-text">Presentations</span>
+        <div class="nav-group-label" onclick="toggleNavGroup(this)"><span>Tasks</span><svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="nav-group-items">
+          <div class="nav-item" data-page="tasks" onclick="navigate('tasks')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            <span class="nav-text">Task Board</span>
+          </div>
+          <div class="nav-item" data-page="presentations" onclick="navigate('presentations')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 3 21 3 21 17 3 17 3 3"></polygon><line x1="3" y1="21" x2="21" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            <span class="nav-text">Presentations</span>
+          </div>
+          <div class="nav-item" data-page="projects" onclick="navigate('projects')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            <span class="nav-text">Projects</span>
+          </div>
         </div>
       </div>
 
       <!-- Agency -->
       <div class="nav-group">
-        <div class="nav-group-label">Agency</div>
-        <div class="nav-item" data-page="agency" onclick="navigate('agency')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16"/></svg>
-          <span class="nav-text">Agencies</span>
+        <div class="nav-group-label" onclick="toggleNavGroup(this)"><span>Agency</span><svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="nav-group-items">
+          <div class="nav-item" data-page="agencyDashboard" onclick="navigate('agencyDashboard')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+            <span class="nav-text">Dashboard</span>
+          </div>
+          <div class="nav-item" data-page="agencyConversations" onclick="navigate('agencyConversations')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></svg>
+            <span class="nav-text">Conversations</span>
+          </div>
+          <div class="nav-item" data-page="agency" onclick="navigate('agency')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16"/></svg>
+            <span class="nav-text">Agencies</span>
+          </div>
+          <div class="nav-item" data-page="contacts" onclick="navigate('contacts')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span class="nav-text">Contacts</span>
+          </div>
+          <div class="nav-item" data-page="pipelines" onclick="navigate('pipelines')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span class="nav-text">Pipelines</span>
+          </div>
+          <div class="nav-item" data-page="agencyPayments" onclick="navigate('agencyPayments')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            <span class="nav-text">Payments</span>
+          </div>
+          <div class="nav-item" data-page="agencySites" onclick="navigate('agencySites')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+            <span class="nav-text">Sites & Funnels</span>
+          </div>
+          <div class="nav-item" data-page="agencySocial" onclick="navigate('agencySocial')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            <span class="nav-text">Social Planner</span>
+          </div>
+          <div class="nav-item" data-page="agencyReputation" onclick="navigate('agencyReputation')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <span class="nav-text">Reputation</span>
+          </div>
+          <div class="nav-item" data-page="agencyMemberships" onclick="navigate('agencyMemberships')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            <span class="nav-text">Memberships</span>
+          </div>
+          <div class="nav-item" data-page="agencyMedia" onclick="navigate('agencyMedia')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span class="nav-text">Media Library</span>
+          </div>
+          <div class="nav-item" data-page="agencyPhone" onclick="navigate('agencyPhone')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+            <span class="nav-text">Phone System</span>
+          </div>
+          <div class="nav-item" data-page="agencyBrands" onclick="navigate('agencyBrands')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="8" cy="8" r="2"/><circle cx="16" cy="8" r="2"/><circle cx="8" cy="16" r="2"/><circle cx="16" cy="16" r="2"/></svg>
+            <span class="nav-text">Brand Boards</span>
+          </div>
+          <div class="nav-item" data-page="workflows" onclick="navigate('workflows')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 009 9"/></svg>
+            <span class="nav-text">Workflows</span>
+          </div>
+          <div class="nav-item" data-page="credentials" onclick="navigate('credentials')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            <span class="nav-text">Credentials</span>
+          </div>
         </div>
-        <div class="nav-item" data-page="credentials" onclick="navigate('credentials')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          <span class="nav-text">Credentials</span>
+      </div>
+
+      <!-- Marketplace -->
+      <div class="nav-group">
+        <div class="nav-group-label" onclick="toggleNavGroup(this)"><span>Marketplace</span><svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="nav-group-items">
+          <div class="nav-item" data-page="marketplace" onclick="navigate('marketplace')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+            <span class="nav-text">Marketplace</span>
+          </div>
         </div>
       </div>
 
       <!-- Automations -->
       <div class="nav-group">
-        <div class="nav-group-label">Automations</div>
-        <div class="nav-item" data-page="automations" onclick="navigate('automations')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <span class="nav-text">Scheduler</span>
+        <div class="nav-group-label" onclick="toggleNavGroup(this)"><span>Automations</span><svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="nav-group-items">
+          <div class="nav-item" data-page="automations" onclick="navigate('automations')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span class="nav-text">Scheduler</span>
+          </div>
+          <div class="nav-item" data-page="calendar" onclick="navigate('calendar')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span class="nav-text">Calendar</span>
+          </div>
+          <div class="nav-item" data-page="reports" onclick="navigate('reports')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span class="nav-text">Reports</span>
+          </div>
         </div>
       </div>
 
       <!-- Database -->
       <div class="nav-group">
-        <div class="nav-group-label">Database</div>
-        <div class="nav-item" data-page="database" onclick="navigate('database')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-          <span class="nav-text">Explorer</span>
+        <div class="nav-group-label" onclick="toggleNavGroup(this)"><span>Database</span><svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="nav-group-items">
+          <div class="nav-item" data-page="database" onclick="navigate('database')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            <span class="nav-text">Explorer</span>
+          </div>
+          <div class="nav-item" data-page="knowledge" onclick="navigate('knowledge')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+            <span class="nav-text">Knowledge</span>
+          </div>
         </div>
       </div>
 
       <!-- System -->
       <div class="nav-group">
-        <div class="nav-group-label">System</div>
-        <div class="nav-item" data-page="settings" onclick="navigate('settings')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-          <span class="nav-text">Settings</span>
+        <div class="nav-group-label" onclick="toggleNavGroup(this)"><span>System</span><svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="nav-group-items">
+          <div class="nav-item" data-page="settings" onclick="navigate('settings')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            <span class="nav-text">Settings</span>
+          </div>
         </div>
       </div>
 
@@ -146,26 +257,41 @@
     </div>
   </div>
 
-  <!-- Task Modal -->
+  <!-- Task Modal (expanded) -->
   <div id="task-modal" class="modal-overlay" style="display: none;">
-    <div class="modal">
+    <div class="modal" style="max-width:600px;">
       <div class="modal-header">
         <h2 id="task-modal-title">New Task</h2>
         <button class="btn btn-icon" onclick="closeTaskModal()">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
         <form id="task-form">
           <input type="hidden" id="task-id">
+
+          <!-- Title -->
           <div class="form-group">
             <label for="task-title-input">Title</label>
-            <input type="text" id="task-title-input" class="form-control" required placeholder="Task title...">
+            <input type="text" id="task-title-input" class="form-control" required placeholder="What needs to be done?">
           </div>
+
+          <!-- Description -->
           <div class="form-group">
             <label for="task-desc-input">Description</label>
-            <textarea id="task-desc-input" class="form-control" rows="3" placeholder="Task details..."></textarea>
+            <textarea id="task-desc-input" class="form-control" rows="4" placeholder="Describe the task in detail. The more context, the better the AI can execute it."></textarea>
           </div>
+
+          <!-- Auto-Execute Checkbox -->
+          <div class="form-group" id="task-autoexec-group" style="background:rgba(0,200,100,0.08);border:1px solid rgba(0,200,100,0.2);border-radius:var(--radius);padding:10px 12px;display:flex;align-items:center;gap:10px;">
+            <input type="checkbox" id="task-autoexec-input" style="width:18px;height:18px;cursor:pointer;">
+            <div>
+              <label for="task-autoexec-input" style="margin:0;cursor:pointer;font-weight:600;color:var(--text-primary);">Let AI Handle This</label>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">The orchestra agent will automatically pick up and execute this task</div>
+            </div>
+          </div>
+
+          <!-- Priority, Labels, Due Date row -->
           <div class="form-group" id="task-status-group" style="display: none;">
             <label for="task-status-input">Status</label>
             <select id="task-status-input" class="form-control">
@@ -175,15 +301,119 @@
               <option value="Done">Done</option>
             </select>
           </div>
-          <div class="form-group" id="task-agent-group" style="display: none;">
-            <label for="task-agent-input">Assigned Agent</label>
-            <input type="text" id="task-agent-input" class="form-control" placeholder="Agent name...">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+            <div class="form-group" id="task-priority-group">
+              <label for="task-priority-input">Priority</label>
+              <select id="task-priority-input" class="form-control">
+                <option value="0">Low</option>
+                <option value="1">Medium</option>
+                <option value="2">High</option>
+                <option value="3">Urgent</option>
+              </select>
+            </div>
+            <div class="form-group" id="task-labels-group">
+              <label for="task-labels-input">Labels</label>
+              <input type="text" id="task-labels-input" class="form-control" placeholder="Bug, Feature...">
+            </div>
+            <div class="form-group" id="task-due-group">
+              <label for="task-due-input">Due Date</label>
+              <input type="date" id="task-due-input" class="form-control">
+            </div>
+          </div>
+
+          <!-- Project + Agent row -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group" id="task-project-group">
+              <label for="task-project-input">Project</label>
+              <select id="task-project-input" class="form-control">
+                <option value="">No Project</option>
+              </select>
+            </div>
+            <div class="form-group" id="task-agent-group">
+              <label for="task-agent-input">Assign Agent</label>
+              <select id="task-agent-input" class="form-control">
+                <option value="">Auto (Orchestrator decides)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- File Attachments -->
+          <div class="form-group" id="task-files-group">
+            <label>Attachments</label>
+            <div id="task-file-dropzone" style="border:2px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;transition:all 0.2s;"
+                 ondragover="event.preventDefault();this.style.borderColor='var(--blue)';this.style.background='rgba(0,100,200,0.05)'"
+                 ondragleave="this.style.borderColor='var(--border)';this.style.background='transparent'"
+                 ondrop="handleFileDrop(event)"
+                 onclick="document.getElementById('task-file-input').click()">
+              <div style="font-size:24px;margin-bottom:4px;">📎</div>
+              <div style="font-size:12px;color:var(--text-muted);">Drop files here or click to browse</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Images, documents, code files (max 32MB)</div>
+            </div>
+            <input type="file" id="task-file-input" style="display:none" multiple onchange="handleFileSelect(this.files)">
+            <div id="task-file-list" style="margin-top:6px;"></div>
+          </div>
+
+          <!-- AI Settings (collapsible) -->
+          <details id="task-ai-settings" style="margin-bottom:12px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <summary style="cursor:pointer;padding:10px 12px;background:var(--bg-input);font-size:12px;font-weight:600;color:var(--text-primary);user-select:none;">
+              AI Execution Settings
+            </summary>
+            <div style="padding:12px;display:grid;gap:10px;">
+              <div class="form-group" style="margin:0;">
+                <label for="task-systemprompt" style="font-size:11px;">System Prompt</label>
+                <textarea id="task-systemprompt" class="form-control" rows="3" placeholder="Specific instructions for the AI agent (e.g., 'Extract metrics as structured JSON, no conversational filler')"></textarea>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div class="form-group" style="margin:0;">
+                  <label for="task-outputschema" style="font-size:11px;">Expected Output</label>
+                  <input type="text" id="task-outputschema" class="form-control" placeholder="JSON, markdown, file path...">
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label for="task-autonomy" style="font-size:11px;">Autonomy Level</label>
+                  <select id="task-autonomy" class="form-control">
+                    <option value="supervised">Supervised (review after)</option>
+                    <option value="draft_only">Draft Only (must approve)</option>
+                    <option value="autonomous">Autonomous (full control)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                <div class="form-group" style="margin:0;">
+                  <label for="task-maxretries" style="font-size:11px;">Max Retries</label>
+                  <input type="number" id="task-maxretries" class="form-control" value="3" min="0" max="10">
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label for="task-maxtokens" style="font-size:11px;">Max Tokens</label>
+                  <input type="number" id="task-maxtokens" class="form-control" placeholder="4096" min="0">
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label for="task-ttl" style="font-size:11px;">Timeout (sec)</label>
+                  <input type="number" id="task-ttl" class="form-control" placeholder="300" min="0">
+                </div>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label for="task-allowedtools" style="font-size:11px;">Allowed Tools</label>
+                <input type="text" id="task-allowedtools" class="form-control" placeholder="web_search, code_exec, file_read (comma-separated)">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label for="task-contextrefs" style="font-size:11px;">Context References</label>
+                <input type="text" id="task-contextrefs" class="form-control" placeholder="Graph node IDs, document paths (comma-separated)">
+              </div>
+            </div>
+          </details>
+
+          <!-- Checklist sub-items -->
+          <div class="form-group" id="task-subitems-group" style="display:none;">
+            <label>Checklist</label>
+            <div id="task-subitems-list"></div>
+            <button type="button" class="btn" style="font-size:11px;padding:3px 10px;margin-top:4px;" onclick="addSubItem()">+ Add Item</button>
           </div>
         </form>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="display:flex;gap:8px;">
         <button class="btn btn-secondary" onclick="closeTaskModal()">Cancel</button>
         <button class="btn btn-primary" onclick="saveTask()">Save Task</button>
+        <button class="btn" id="task-run-btn" onclick="saveAndRunTask()" style="background:var(--green);color:#000;font-weight:600;" title="Save the task and immediately dispatch it to the AI">Save & Run</button>
       </div>
     </div>
   </div>

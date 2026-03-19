@@ -7,6 +7,7 @@ import (
 	"github.com/David2024patton/iTaKAgent/pkg/llm"
 	"github.com/David2024patton/iTaKAgent/pkg/memory"
 	"github.com/David2024patton/iTaKAgent/pkg/task"
+	"github.com/David2024patton/iTaKAgent/pkg/tasks"
 	"github.com/David2024patton/iTaKAgent/pkg/tool"
 )
 
@@ -46,6 +47,7 @@ type TaskPayload struct {
 	Agent   string `json:"agent"`   // target agent name
 	Task    string `json:"task"`    // concise task description
 	Context string `json:"context"` // only the info the agent needs
+	Swarm   bool   `json:"-"`       // if true, execute in parallel with other swarm tasks
 }
 
 // Delegation is the orchestrator's parsed decision to delegate work.
@@ -91,6 +93,10 @@ type Orchestrator struct {
 	Guard      *guard.InputGuard // prompt injection defense
 	Doctor     *Doctor           // reference for escalation chain
 	StatusFunc func(string)      // callback to display status to user
+
+	// Dashboard task bridge: creates real dashboard tasks from delegations.
+	DashboardTasks  *tasks.Manager
+	ActiveProjectID string // project_id of the current chat session
 }
 
 // FocusedAgent executes tasks using tools and skills.

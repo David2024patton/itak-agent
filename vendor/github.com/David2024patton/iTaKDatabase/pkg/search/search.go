@@ -386,3 +386,433 @@ func (e *Engine) loadStats() {
 		return nil
 	})
 }
+
+// ── Phrase Search ─────────────────────────────────────────────────
+
+// PhraseSearch finds documents containing an exact phrase.
+// Returns results ranked by BM25 of the individual terms, filtered to only
+// include documents where the tokens appear consecutively.
+func (e *Engine) PhraseSearch(phrase string, limit int) ([]Result, error) {
+
+	tokens := tokenize(phrase)
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+
+	if len(tokens) == 1 {
+		return e.Search(phrase, limit)
+	}
+
+	// Get candidate docs that contain ALL tokens.
+	candidates, err := e.Search(phrase, 0) // unlimited
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter candidates: check if tokens appear as a consecutive phrase.
+	var results []Result
+	e.db.View(func(tx *bolt.Tx) error {
+		docBkt := tx.Bucket([]byte("_fts_docs"))
+		if docBkt == nil {
+			return nil
+		}
+		for _, candidate := range candidates {
+			docData := docBkt.Get(uint64ToBytes(candidate.DocID))
+			if docData == nil {
+				continue
+			}
+			// Check if the tokenized document contains the phrase.
+			docTokens := tokenize(string(docData))
+			if containsPhrase(docTokens, tokens) {
+				results = append(results, candidate)
+				if limit > 0 && len(results) >= limit {
+					break
+				}
+			}
+		}
+		return nil
+	})
+
+	return results, nil
+}
+
+// containsPhrase checks if the token sequence appears in the document.
+func containsPhrase(doc, phrase []string) bool {
+	if len(phrase) > len(doc) {
+		return false
+	}
+	for i := 0; i <= len(doc)-len(phrase); i++ {
+		match := true
+		for j := 0; j < len(phrase); j++ {
+			if doc[i+j] != phrase[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+// IndexDocumentWithContent indexes a document and stores its full text for phrase search.
+func (e *Engine) IndexDocumentWithContent(docID uint64, text string) error {
+	// First, do the normal indexing.
+	if err := e.IndexDocument(docID, text); err != nil {
+		return err
+	}
+
+	// Store the full text for phrase search.
+	return e.db.Update(func(tx *bolt.Tx) error {
+		bkt, err := tx.CreateBucketIfNotExists([]byte("_fts_docs"))
+		if err != nil {
+			return err
+		}
+		return bkt.Put(uint64ToBytes(docID), []byte(text))
+	})
+}
+
+// ── Fuzzy Search ──────────────────────────────────────────────────
+
+// FuzzySearch finds documents matching terms within edit distance tolerance.
+// maxDistance is the maximum Levenshtein distance allowed per term (default 2).
+func (e *Engine) FuzzySearch(query string, maxDistance int, limit int) ([]Result, error) {
+
+	if maxDistance <= 0 {
+		maxDistance = 2
+	}
+
+	queryTokens := tokenize(query)
+	if len(queryTokens) == 0 {
+		return nil, nil
+	}
+
+	// Find all index terms within edit distance of query terms.
+	var matchTerms []string
+	err := e.db.View(func(tx *bolt.Tx) error {
+		idx := tx.Bucket([]byte("_fts_index"))
+		if idx == nil {
+			return nil
+		}
+		return idx.ForEach(func(k, _ []byte) error {
+			indexTerm := string(k)
+			for _, qt := range queryTokens {
+				if levenshtein(qt, indexTerm) <= maxDistance {
+					matchTerms = append(matchTerms, indexTerm)
+					break
+				}
+			}
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(matchTerms) == 0 {
+		return nil, nil
+	}
+
+	// Score documents using matched terms.
+	scores := make(map[uint64]float64)
+	err = e.db.View(func(tx *bolt.Tx) error {
+		idx := tx.Bucket([]byte("_fts_index"))
+		lens := tx.Bucket([]byte("_fts_lengths"))
+
+		for _, term := range matchTerms {
+			postingData := idx.Get([]byte(term))
+			if postingData == nil {
+				continue
+			}
+			postings := decodePostings(postingData)
+			df := len(postings)
+
+			for _, p := range postings {
+				docLen := 1.0
+				if lens != nil {
+					if dl := lens.Get(uint64ToBytes(p.DocID)); dl != nil {
+						docLen = float64(bytesToUint64(dl))
+					}
+				}
+				score := bm25(float64(p.TermFreq), float64(df), float64(e.docCount), docLen, e.avgDocLen)
+				scores[p.DocID] += score
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]Result, 0, len(scores))
+	for docID, score := range scores {
+		results = append(results, Result{DocID: docID, Score: score})
+	}
+
+	for i := 0; i < len(results)-1; i++ {
+		maxIdx := i
+		for j := i + 1; j < len(results); j++ {
+			if results[j].Score > results[maxIdx].Score {
+				maxIdx = j
+			}
+		}
+		results[i], results[maxIdx] = results[maxIdx], results[i]
+	}
+
+	if limit > 0 && limit < len(results) {
+		results = results[:limit]
+	}
+
+	return results, nil
+}
+
+// levenshtein computes the edit distance between two strings.
+func levenshtein(a, b string) int {
+	if len(a) == 0 {
+		return len(b)
+	}
+	if len(b) == 0 {
+		return len(a)
+	}
+
+	ra := []rune(a)
+	rb := []rune(b)
+	la := len(ra)
+	lb := len(rb)
+
+	matrix := make([][]int, la+1)
+	for i := range matrix {
+		matrix[i] = make([]int, lb+1)
+		matrix[i][0] = i
+	}
+	for j := 0; j <= lb; j++ {
+		matrix[0][j] = j
+	}
+
+	for i := 1; i <= la; i++ {
+		for j := 1; j <= lb; j++ {
+			cost := 1
+			if ra[i-1] == rb[j-1] {
+				cost = 0
+			}
+			matrix[i][j] = minOf(
+				matrix[i-1][j]+1,      // deletion
+				matrix[i][j-1]+1,      // insertion
+				matrix[i-1][j-1]+cost, // substitution
+			)
+		}
+	}
+
+	return matrix[la][lb]
+}
+
+func minOf(a, b, c int) int {
+	if a < b {
+		if a < c {
+			return a
+		}
+		return c
+	}
+	if b < c {
+		return b
+	}
+	return c
+}
+
+// ── Highlighting ──────────────────────────────────────────────────
+
+// HighlightResult includes surrounding context for matched terms.
+type HighlightResult struct {
+	DocID    uint64   `json:"doc_id"`
+	Score    float64  `json:"score"`
+	Snippets []string `json:"snippets"`
+}
+
+// SearchWithHighlight performs a search and returns context snippets around matches.
+// contextWords controls how many words of context to include around each match.
+func (e *Engine) SearchWithHighlight(query string, contextWords int, limit int) ([]HighlightResult, error) {
+	if contextWords <= 0 {
+		contextWords = 5
+	}
+
+	results, err := e.Search(query, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	queryTokens := tokenize(query)
+
+	var highlighted []HighlightResult
+	e.db.View(func(tx *bolt.Tx) error {
+		docBkt := tx.Bucket([]byte("_fts_docs"))
+		if docBkt == nil {
+			return nil
+		}
+
+		for _, result := range results {
+			docData := docBkt.Get(uint64ToBytes(result.DocID))
+			if docData == nil {
+				highlighted = append(highlighted, HighlightResult{
+					DocID: result.DocID, Score: result.Score,
+				})
+				continue
+			}
+
+			text := string(docData)
+			words := strings.Fields(text)
+			var snippets []string
+
+			for i, word := range words {
+				lower := strings.ToLower(word)
+				for _, qt := range queryTokens {
+					if strings.Contains(lower, qt) {
+						start := i - contextWords
+						if start < 0 {
+							start = 0
+						}
+						end := i + contextWords + 1
+						if end > len(words) {
+							end = len(words)
+						}
+						snippet := strings.Join(words[start:end], " ")
+						if start > 0 {
+							snippet = "..." + snippet
+						}
+						if end < len(words) {
+							snippet = snippet + "..."
+						}
+						snippets = append(snippets, snippet)
+						break
+					}
+				}
+			}
+
+			// Deduplicate overlapping snippets.
+			if len(snippets) > 3 {
+				snippets = snippets[:3]
+			}
+
+			highlighted = append(highlighted, HighlightResult{
+				DocID:    result.DocID,
+				Score:    result.Score,
+				Snippets: snippets,
+			})
+		}
+		return nil
+	})
+
+	return highlighted, nil
+}
+
+// ── Field-Scoped Search ───────────────────────────────────────────
+
+// IndexField indexes a document's text under a specific field name.
+// This allows searching within specific fields (e.g., "title", "body").
+func (e *Engine) IndexField(docID uint64, field, text string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	tokens := tokenize(text)
+	if len(tokens) == 0 {
+		return nil
+	}
+
+	termFreqs := make(map[string]int)
+	for _, token := range tokens {
+		termFreqs[token]++
+	}
+
+	return e.db.Update(func(tx *bolt.Tx) error {
+		bucketName := "_fts_field_" + field
+		idx, err := tx.CreateBucketIfNotExists([]byte(bucketName))
+		if err != nil {
+			return err
+		}
+
+		for term, freq := range termFreqs {
+			termKey := []byte(term)
+
+			var postings []posting
+			if existing := idx.Get(termKey); existing != nil {
+				postings = decodePostings(existing)
+			}
+
+			// Remove existing entry for this doc.
+			filtered := make([]posting, 0, len(postings))
+			for _, p := range postings {
+				if p.DocID != docID {
+					filtered = append(filtered, p)
+				}
+			}
+
+			filtered = append(filtered, posting{DocID: docID, TermFreq: freq})
+			idx.Put(termKey, encodePostings(filtered))
+		}
+		return nil
+	})
+}
+
+// SearchField performs a BM25-ranked search within a specific field.
+func (e *Engine) SearchField(field, query string, limit int) ([]Result, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	queryTokens := tokenize(query)
+	if len(queryTokens) == 0 {
+		return nil, nil
+	}
+
+	scores := make(map[uint64]float64)
+	bucketName := "_fts_field_" + field
+
+	err := e.db.View(func(tx *bolt.Tx) error {
+		idx := tx.Bucket([]byte(bucketName))
+		if idx == nil {
+			return nil
+		}
+
+		for _, term := range queryTokens {
+			postingData := idx.Get([]byte(term))
+			if postingData == nil {
+				continue
+			}
+
+			postings := decodePostings(postingData)
+			df := len(postings)
+
+			for _, p := range postings {
+				// Use approximate doc length (doesn't need to be exact for field search).
+				score := bm25(float64(p.TermFreq), float64(df), float64(e.docCount+1), 10, 10)
+				scores[p.DocID] += score
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]Result, 0, len(scores))
+	for docID, score := range scores {
+		results = append(results, Result{DocID: docID, Score: score})
+	}
+
+	for i := 0; i < len(results)-1; i++ {
+		maxIdx := i
+		for j := i + 1; j < len(results); j++ {
+			if results[j].Score > results[maxIdx].Score {
+				maxIdx = j
+			}
+		}
+		results[i], results[maxIdx] = results[maxIdx], results[i]
+	}
+
+	if limit > 0 && limit < len(results) {
+		results = results[:limit]
+	}
+
+	return results, nil
+}
+

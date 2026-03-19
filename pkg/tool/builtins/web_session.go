@@ -3,42 +3,44 @@ package builtins
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
-
-	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/launcher"
-	"github.com/go-rod/rod/lib/proto"
-	"github.com/go-rod/stealth"
 )
 
 // ──────────────────────────────────────────────────────────────────
-// BrowserSession  -  persistent, stealth, multi-tab browser for AI agents
+// BrowserSession  -  thin wrapper that shells out to gobrowser CLI
 // ──────────────────────────────────────────────────────────────────
 
+// BrowserSession manages the iTaK Browser (gobrowser) via CLI calls.
+// The gobrowser daemon auto-starts on the first command and persists
+// Chrome between calls, eliminating cold-start latency.
 type BrowserSession struct {
-	mu       sync.Mutex
-	browser  *rod.Browser
-	page     *rod.Page   // active tab
-	pages    []*rod.Page // all open tabs
-	activeTab int        // index into pages
-	url      string
-	dataDir  string
-	headed   bool
+	mu            sync.Mutex
+	sessionID     string
+	active        bool
+	headed        bool
+	dataDir       string
+	daemonReady   bool
+	gobrowserPath string // resolved path to gobrowser binary
+	keepaliveOnce sync.Once
 }
 
 // Global singleton session.
 var globalSession = &BrowserSession{}
 
-// InitBrowserDataDir sets the data directory for browser profile and cookie persistence.
+// InitBrowserDataDir sets the data directory for browser profile persistence.
 func InitBrowserDataDir(dataDir string) {
 	globalSession.SetDataDir(dataDir)
 }
 
-// CleanupBrowser saves cookies and kills any browser processes.
-// Called during graceful shutdown to prevent orphan Chrome instances.
+// CleanupBrowser closes the browser session on shutdown.
 func CleanupBrowser() {
 	if globalSession.IsActive() {
 		globalSession.Close()
@@ -54,136 +56,19 @@ func (s *BrowserSession) SetDataDir(dir string) {
 func (s *BrowserSession) SetHeaded(headed bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.browser != nil && s.headed != headed {
-		s.saveCookiesLocked()
-		_ = s.browser.Close()
-		s.browser = nil
-		s.page = nil
-		s.pages = nil
-		s.activeTab = 0
+	if s.active && s.headed != headed {
+		// Close current session, will re-open with new mode on next call.
+		s.mu.Unlock()
+		s.Close()
+		s.mu.Lock()
 	}
 	s.headed = headed
-}
-
-func (s *BrowserSession) profileDir() string {
-	base := s.dataDir
-	if base == "" {
-		base = "."
-	}
-	dir := filepath.Join(base, "browser_profile")
-	os.MkdirAll(dir, 0o755)
-	return dir
-}
-
-func (s *BrowserSession) cookieFile() string {
-	base := s.dataDir
-	if base == "" {
-		base = "."
-	}
-	dir := filepath.Join(base, "browser_data")
-	os.MkdirAll(dir, 0o755)
-	return filepath.Join(dir, "cookies.json")
-}
-
-// GetSession returns the current browser session, creating one if needed.
-func (s *BrowserSession) GetSession() (*rod.Browser, *rod.Page, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.browser != nil && s.page != nil {
-		return s.browser, s.page, nil
-	}
-
-	l := launcher.New().
-		Headless(!s.headed).
-		Leakless(false).
-		UserDataDir(s.profileDir()).
-		Set("disable-blink-features", "AutomationControlled").
-		Set("disable-infobars").
-		Set("no-first-run").
-		Set("no-default-browser-check")
-
-	u, err := l.Launch()
-	if err != nil {
-		return nil, nil, fmt.Errorf("launch browser: %w", err)
-	}
-
-	browser := rod.New().ControlURL(u)
-	if err := browser.Connect(); err != nil {
-		return nil, nil, fmt.Errorf("connect to browser: %w", err)
-	}
-
-	page, err := stealth.Page(browser)
-	if err != nil {
-		_ = browser.Close()
-		return nil, nil, fmt.Errorf("create stealth page: %w", err)
-	}
-
-	page.MustEvalOnNewDocument(antiDetectionJS)
-	page.SetViewport(&proto.EmulationSetDeviceMetricsOverride{
-		Width:  1920,
-		Height: 1080,
-	})
-
-	s.loadCookies(browser)
-	s.browser = browser
-	s.page = page
-	s.pages = []*rod.Page{page}
-	s.activeTab = 0
-	return browser, page, nil
-}
-
-// Navigate goes to a URL in the active tab.
-func (s *BrowserSession) Navigate(url string) (*rod.Page, error) {
-	_, page, err := s.GetSession()
-	if err != nil {
-		return nil, err
-	}
-
-	err = page.Timeout(15 * time.Second).Navigate(url)
-	if err != nil {
-		return nil, fmt.Errorf("navigate to %s: %w", url, err)
-	}
-
-	_ = page.Timeout(5 * time.Second).WaitStable(300 * time.Millisecond)
-
-	s.mu.Lock()
-	s.url = url
-	s.mu.Unlock()
-
-	return page, nil
-}
-
-func (s *BrowserSession) Page() *rod.Page {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.page
-}
-
-func (s *BrowserSession) URL() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.url
-}
-
-func (s *BrowserSession) Close() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.browser != nil {
-		s.saveCookiesLocked()
-		_ = s.browser.Close()
-	}
-	s.browser = nil
-	s.page = nil
-	s.pages = nil
-	s.activeTab = 0
-	s.url = ""
 }
 
 func (s *BrowserSession) IsActive() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.browser != nil
+	return s.active
 }
 
 func (s *BrowserSession) IsHeaded() bool {
@@ -192,248 +77,312 @@ func (s *BrowserSession) IsHeaded() bool {
 	return s.headed
 }
 
-// ── Tab Management ───────────────────────────────────────────────
-
-// NewTab opens a new browser tab. Returns the tab index.
-func (s *BrowserSession) NewTab(url string) (int, *rod.Page, error) {
-	_, _, err := s.GetSession()
-	if err != nil {
-		return -1, nil, err
+// resolveGoBrowserPath finds the gobrowser binary by checking multiple locations.
+// Priority: 1) already resolved, 2) sibling Browser directory, 3) dist/, 4) PATH
+func (s *BrowserSession) resolveGoBrowserPath() (string, error) {
+	if s.gobrowserPath != "" {
+		return s.gobrowserPath, nil
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	page, err := stealth.Page(s.browser)
-	if err != nil {
-		return -1, nil, fmt.Errorf("new tab: %w", err)
+	binaryName := "gobrowser"
+	if runtime.GOOS == "windows" {
+		binaryName = "gobrowser.exe"
 	}
 
-	page.MustEvalOnNewDocument(antiDetectionJS)
-	page.SetViewport(&proto.EmulationSetDeviceMetricsOverride{
-		Width:  1920,
-		Height: 1080,
-	})
+	// Get the executable's directory to find sibling Browser folder.
+	exePath, _ := os.Executable()
+	exeDir := filepath.Dir(exePath)
 
-	s.pages = append(s.pages, page)
-	idx := len(s.pages) - 1
-	s.activeTab = idx
-	s.page = page
+	// Search paths relative to the agent binary location.
+	searchPaths := []string{
+		// Sibling Browser directory (e.g. iTaK Eco/Browser/gobrowser.exe)
+		filepath.Join(exeDir, "..", "Browser", binaryName),
+		filepath.Join(exeDir, "..", "Browser", "dist", binaryName),
+		// Same directory as agent binary.
+		filepath.Join(exeDir, binaryName),
+		// Common iTaK paths.
+		filepath.Join("e:", ".agent", "iTaK Eco", "Browser", binaryName),
+		filepath.Join("e:", ".agent", "iTaK Eco", "Browser", "dist", binaryName),
+	}
 
-	if url != "" {
-		s.mu.Unlock()
-		err = page.Timeout(15 * time.Second).Navigate(url)
-		if err == nil {
-			_ = page.Timeout(5 * time.Second).WaitStable(300 * time.Millisecond)
+	for _, p := range searchPaths {
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			continue
 		}
-		s.mu.Lock()
-		s.url = url
+		if _, err := os.Stat(abs); err == nil {
+			log.Printf("[browser] Found gobrowser at: %s", abs)
+			s.gobrowserPath = abs
+			return abs, nil
+		}
 	}
 
-	return idx, page, nil
+	// Fallback: check PATH.
+	if p, err := exec.LookPath(binaryName); err == nil {
+		log.Printf("[browser] Found gobrowser in PATH: %s", p)
+		s.gobrowserPath = p
+		return p, nil
+	}
+
+	return "", fmt.Errorf("gobrowser binary not found. Searched: %s and PATH", strings.Join(searchPaths, ", "))
 }
 
-// SwitchTab activates a tab by index.
-func (s *BrowserSession) SwitchTab(idx int) (*rod.Page, error) {
+// ensureDaemon starts the gobrowser daemon as a background process if it
+// isn't already running. It retries with backoff and starts a keepalive goroutine.
+func (s *BrowserSession) ensureDaemon() error {
+	if s.daemonReady {
+		// Quick health check.
+		if isDaemonHealthy() {
+			return nil
+		}
+		log.Println("[browser] Daemon health check failed, restarting...")
+		s.daemonReady = false
+	}
+
+	// Already healthy?
+	if isDaemonHealthy() {
+		s.daemonReady = true
+		s.startKeepalive()
+		return nil
+	}
+
+	binPath, err := s.resolveGoBrowserPath()
+	if err != nil {
+		return err
+	}
+
+	// Retry with backoff: 3 attempts (1s, 2s, 4s wait between).
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			wait := time.Duration(1<<uint(attempt-1)) * time.Second
+			log.Printf("[browser] Retrying daemon start (attempt %d/3, waiting %v)...", attempt+1, wait)
+			time.Sleep(wait)
+		}
+
+		log.Printf("[browser] Starting gobrowser daemon (attempt %d/3)...", attempt+1)
+		cmd := exec.Command(binPath, "daemon", "start")
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+
+		if err := cmd.Start(); err != nil {
+			lastErr = fmt.Errorf("start gobrowser daemon: %w", err)
+			continue
+		}
+
+		// Detach so it doesn't die with this process.
+		go func() {
+			_ = cmd.Wait()
+		}()
+
+		// Wait for the daemon to become healthy (up to 20 seconds).
+		deadline := time.Now().Add(20 * time.Second)
+		for time.Now().Before(deadline) {
+			time.Sleep(500 * time.Millisecond)
+			if isDaemonHealthy() {
+				log.Println("[browser] gobrowser daemon is ready")
+				s.daemonReady = true
+				s.startKeepalive()
+				return nil
+			}
+		}
+
+		lastErr = fmt.Errorf("gobrowser daemon did not respond within 20 seconds (attempt %d)", attempt+1)
+	}
+
+	return fmt.Errorf("gobrowser daemon failed after 3 attempts: %w", lastErr)
+}
+
+// startKeepalive launches a background goroutine that checks daemon health
+// every 30 seconds and auto-restarts it if it dies.
+func (s *BrowserSession) startKeepalive() {
+	s.keepaliveOnce.Do(func() {
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for range ticker.C {
+				if !isDaemonHealthy() {
+					log.Println("[browser] Keepalive: daemon is down, restarting...")
+					s.mu.Lock()
+					s.daemonReady = false
+					s.active = false
+					s.sessionID = ""
+					s.mu.Unlock()
+
+					// Force restart.
+					binPath, err := s.resolveGoBrowserPath()
+					if err != nil {
+						log.Printf("[browser] Keepalive: cannot find gobrowser: %v", err)
+						continue
+					}
+					cmd := exec.Command(binPath, "daemon", "start")
+					if err := cmd.Start(); err != nil {
+						log.Printf("[browser] Keepalive: failed to restart daemon: %v", err)
+						continue
+					}
+					go func() { _ = cmd.Wait() }()
+
+					// Wait for it.
+					for i := 0; i < 20; i++ {
+						time.Sleep(time.Second)
+						if isDaemonHealthy() {
+							log.Println("[browser] Keepalive: daemon recovered")
+							s.mu.Lock()
+							s.daemonReady = true
+							s.mu.Unlock()
+							break
+						}
+					}
+				}
+			}
+		}()
+	})
+}
+
+// isDaemonHealthy checks if the gobrowser daemon is responding.
+func isDaemonHealthy() bool {
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get("http://127.0.0.1:43721/health")
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == 200
+}
+
+// EnsureSession starts the daemon and creates a browser session if needed.
+func (s *BrowserSession) EnsureSession() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.browser == nil {
-		return nil, fmt.Errorf("no browser session")
-	}
-	if idx < 0 || idx >= len(s.pages) {
-		return nil, fmt.Errorf("tab index %d out of range (0-%d)", idx, len(s.pages)-1)
+	if s.active {
+		return nil
 	}
 
-	s.activeTab = idx
-	s.page = s.pages[idx]
-
-	// Bring the tab to focus.
-	s.page.Activate()
-
-	return s.page, nil
-}
-
-// CloseTab closes a tab by index. Cannot close the last tab.
-func (s *BrowserSession) CloseTab(idx int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.browser == nil {
-		return fmt.Errorf("no browser session")
-	}
-	if len(s.pages) <= 1 {
-		return fmt.Errorf("cannot close the last tab  -  use web_close to end the session")
-	}
-	if idx < 0 || idx >= len(s.pages) {
-		return fmt.Errorf("tab index %d out of range (0-%d)", idx, len(s.pages)-1)
+	// Step 1: make sure the daemon is running.
+	if err := s.ensureDaemon(); err != nil {
+		return err
 	}
 
-	_ = s.pages[idx].Close()
-
-	// Remove from slice.
-	s.pages = append(s.pages[:idx], s.pages[idx+1:]...)
-
-	// Adjust active tab.
-	if s.activeTab >= len(s.pages) {
-		s.activeTab = len(s.pages) - 1
+	// Step 2: create a new browser session.
+	args := []string{"session", "new", "--json"}
+	if s.headed {
+		args = append(args, "--headed")
 	}
-	if idx == s.activeTab || s.activeTab >= len(s.pages) {
-		s.activeTab = len(s.pages) - 1
-	}
-	s.page = s.pages[s.activeTab]
 
+	out, err := s.runGoBrowserInternal(args...)
+	if err != nil {
+		return fmt.Errorf("start browser session: %w\nOutput: %s", err, out)
+	}
+
+	// Parse session ID from response.
+	// gobrowser returns: {"data": {"session": "ses_..."}, "ok": true}
+	var resp map[string]interface{}
+	if err := json.Unmarshal([]byte(out), &resp); err == nil {
+		if data, ok := resp["data"].(map[string]interface{}); ok {
+			if sid, ok := data["session"].(string); ok {
+				s.sessionID = sid
+			}
+		}
+		// Fallback: check top-level session field.
+		if s.sessionID == "" {
+			if sid, ok := resp["session"].(string); ok {
+				s.sessionID = sid
+			}
+		}
+	}
+
+	if s.sessionID == "" {
+		log.Printf("[browser] WARNING: could not parse session ID from: %s", out)
+	} else {
+		log.Printf("[browser] Session started: %s", s.sessionID)
+	}
+
+	s.active = true
 	return nil
 }
 
-// ListTabs returns info about all open tabs.
-func (s *BrowserSession) ListTabs() []string {
+// Close terminates the gobrowser session.
+func (s *BrowserSession) Close() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	sid := s.sessionID
+	s.active = false
+	s.sessionID = ""
+	s.mu.Unlock()
 
-	if s.browser == nil {
-		return nil
+	args := []string{"session", "close", "--json"}
+	if sid != "" {
+		args = append(args, "-s", sid)
+	}
+	s.runGoBrowserInternal(args...) // best-effort
+}
+
+// Run executes a gobrowser command with the current session and returns the raw JSON output.
+func (s *BrowserSession) Run(args ...string) (string, error) {
+	if err := s.EnsureSession(); err != nil {
+		return "", err
 	}
 
-	tabs := make([]string, 0, len(s.pages))
-	for i, p := range s.pages {
-		info, _ := p.Info()
-		title := "untitled"
-		url := "about:blank"
-		if info != nil {
-			title = info.Title
-			url = info.URL
-		}
-		marker := "  "
-		if i == s.activeTab {
-			marker = "→ "
-		}
-		tabs = append(tabs, fmt.Sprintf("%s[%d] %s (%s)", marker, i, title, url))
-	}
-	return tabs
-}
-
-func (s *BrowserSession) TabCount() int {
+	// Inject session flag if we have one.
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.pages)
-}
+	sid := s.sessionID
+	s.mu.Unlock()
 
-func (s *BrowserSession) ActiveTabIndex() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.activeTab
-}
-
-// ── Cookie Persistence ───────────────────────────────────────────
-
-type savedCookie struct {
-	Name     string  `json:"name"`
-	Value    string  `json:"value"`
-	Domain   string  `json:"domain"`
-	Path     string  `json:"path"`
-	Expires  float64 `json:"expires"`
-	HTTPOnly bool    `json:"httpOnly"`
-	Secure   bool    `json:"secure"`
-	SameSite string  `json:"sameSite,omitempty"`
-}
-
-func (s *BrowserSession) SaveCookies() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.saveCookiesLocked()
-}
-
-func (s *BrowserSession) saveCookiesLocked() error {
-	if s.browser == nil {
-		return nil
+	fullArgs := make([]string, 0, len(args)+3)
+	fullArgs = append(fullArgs, args...)
+	fullArgs = append(fullArgs, "--json")
+	if sid != "" {
+		fullArgs = append(fullArgs, "-s", sid)
 	}
 
-	cookies, err := s.browser.GetCookies()
+	return s.runGoBrowserInternal(fullArgs...)
+}
+
+// RunParsed executes a gobrowser command and returns the parsed JSON response.
+func (s *BrowserSession) RunParsed(args ...string) (map[string]interface{}, error) {
+	out, err := s.Run(args...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	saved := make([]savedCookie, 0, len(cookies))
-	for _, c := range cookies {
-		sc := savedCookie{
-			Name:     c.Name,
-			Value:    c.Value,
-			Domain:   c.Domain,
-			Path:     c.Path,
-			Expires:  float64(c.Expires),
-			HTTPOnly: c.HTTPOnly,
-			Secure:   c.Secure,
-		}
-		if c.SameSite != "" {
-			sc.SameSite = string(c.SameSite)
-		}
-		saved = append(saved, sc)
+	var resp map[string]interface{}
+	if err := json.Unmarshal([]byte(out), &resp); err != nil {
+		// Return non-JSON output as a data field.
+		return map[string]interface{}{"data": out}, nil
 	}
 
-	data, err := json.MarshalIndent(saved, "", "  ")
-	if err != nil {
-		return err
+	// Check for error in response.
+	if errMsg, ok := resp["error"].(string); ok && errMsg != "" {
+		return resp, fmt.Errorf("gobrowser: %s", errMsg)
 	}
 
-	return os.WriteFile(s.cookieFile(), data, 0o644)
+	return resp, nil
 }
 
-func (s *BrowserSession) loadCookies(browser *rod.Browser) {
-	data, err := os.ReadFile(s.cookieFile())
+// ── Internal helpers ─────────────────────────────────────────────
+
+// runGoBrowserInternal executes the gobrowser binary and returns stdout.
+func (s *BrowserSession) runGoBrowserInternal(args ...string) (string, error) {
+	binPath, err := s.resolveGoBrowserPath()
 	if err != nil {
-		return
+		return "", err
 	}
 
-	var cookies []savedCookie
-	if err := json.Unmarshal(data, &cookies); err != nil {
-		return
-	}
+	cmd := exec.Command(binPath, args...)
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
-	for _, c := range cookies {
-		sameSite := proto.NetworkCookieSameSiteNone
-		switch c.SameSite {
-		case "Strict":
-			sameSite = proto.NetworkCookieSameSiteStrict
-		case "Lax":
-			sameSite = proto.NetworkCookieSameSiteLax
+	err = cmd.Run()
+	if err != nil {
+		errOut := stderr.String()
+		if errOut != "" {
+			return stdout.String(), fmt.Errorf("%w: %s", err, errOut)
 		}
-
-		_, _ = proto.NetworkSetCookie{
-			Name:     c.Name,
-			Value:    c.Value,
-			Domain:   c.Domain,
-			Path:     c.Path,
-			Expires:  proto.TimeSinceEpoch(c.Expires),
-			HTTPOnly: c.HTTPOnly,
-			Secure:   c.Secure,
-			SameSite: sameSite,
-		}.Call(browser)
+		return stdout.String(), err
 	}
+
+	return stdout.String(), nil
 }
 
-// ── Anti-Detection JavaScript ────────────────────────────────────
-
-const antiDetectionJS = `() => {
-	Object.defineProperty(navigator, 'webdriver', {
-		get: () => undefined,
-	});
-	if (!window.chrome) {
-		window.chrome = { runtime: {} };
-	}
-	if (window.Notification) {
-		Notification.permission = 'default';
-	}
-	Object.defineProperty(navigator, 'plugins', {
-		get: () => [1, 2, 3, 4, 5],
-	});
-	Object.defineProperty(navigator, 'languages', {
-		get: () => ['en-US', 'en'],
-	});
-	const getParameter = WebGLRenderingContext.prototype.getParameter;
-	WebGLRenderingContext.prototype.getParameter = function(parameter) {
-		if (parameter === 37445) return 'Intel Inc.';
-		if (parameter === 37446) return 'Intel Iris OpenGL Engine';
-		return getParameter.apply(this, arguments);
-	};
-}`

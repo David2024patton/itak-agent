@@ -181,7 +181,7 @@ func (ig *IngestAPI) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 	tmpFile.Close()
 
-	debug.Info("ingest", "Processing ZIP: %s (%d bytes)", header.Filename, header.Size)
+	debug.Info("ingest", "Processing upload: %s (%d bytes)", header.Filename, header.Size)
 
 	// Get raw DB
 	itakBackend, ok := ig.backend.(*memory.ITakDBBackend)
@@ -191,6 +191,18 @@ func (ig *IngestAPI) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	db := itakBackend.DB()
+
+	// Detect if this is a zip archive or a single document.
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	isZip := ext == ".zip"
+
+	if !isZip {
+		// ── Single File Ingest: process as individual document ──
+		ig.handleSingleFileIngest(w, db, tmpFile.Name(), header.Filename, templateName, header.Size)
+		return
+	}
+
+	// ── ZIP Archive Ingest: existing pipeline ──
 
 	// ── ENGINE 2: Table -- ensure ingested_files table exists ──
 	db.Table.CreateTable("ingested_files", []table.Column{
@@ -409,6 +421,127 @@ func (ig *IngestAPI) handleIngest(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// handleSingleFileIngest processes a single uploaded file (not a zip).
+// It writes the file to all four database engines just like zip ingestion.
+func (ig *IngestAPI) handleSingleFileIngest(w http.ResponseWriter, db *itakdb.DB, tmpPath, filename, templateName string, fileSize int64) {
+	ext := strings.ToLower(filepath.Ext(filename))
+	label := labelForExtension(ext)
+
+	// Ensure table exists.
+	db.Table.CreateTable("ingested_files", []table.Column{
+		{Name: "template", Type: table.TypeString},
+		{Name: "path", Type: table.TypeString},
+		{Name: "filename", Type: table.TypeString},
+		{Name: "ext", Type: table.TypeString},
+		{Name: "label", Type: table.TypeString},
+		{Name: "size", Type: table.TypeInt},
+		{Name: "graph_node_id", Type: table.TypeInt},
+		{Name: "has_content", Type: table.TypeBool},
+		{Name: "content_hash", Type: table.TypeString},
+		{Name: "ingested_at", Type: table.TypeTime},
+	})
+
+	// Read file content.
+	var content string
+	var contentStored bool
+	var contentHash string
+
+	if isTextFile(ext) && fileSize <= maxInlineSize {
+		data, err := os.ReadFile(tmpPath)
+		if err == nil {
+			content = string(data)
+			contentStored = true
+			contentHash = fmt.Sprintf("%x", md5.Sum(data))
+		}
+	}
+
+	// Build node properties.
+	props := map[string]interface{}{
+		"path":     filename,
+		"filename": filename,
+		"ext":      ext,
+		"size":     fileSize,
+		"template": templateName,
+	}
+	if contentStored {
+		props["content"] = content
+		props["content_hash"] = contentHash
+	}
+
+	// ENGINE 1: Graph -- create document node.
+	nodeID, err := db.CreateNode([]string{label}, props, nil)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "create node: " + err.Error()})
+		return
+	}
+
+	var tableRows, ftsIndexed, vectorStored int
+
+	// ENGINE 2: Table.
+	_, tblErr := db.Table.Insert("ingested_files", map[string]interface{}{
+		"template":      templateName,
+		"path":          filename,
+		"filename":      filename,
+		"ext":           ext,
+		"label":         label,
+		"size":          fileSize,
+		"graph_node_id": nodeID,
+		"has_content":   contentStored,
+		"content_hash":  contentHash,
+		"ingested_at":   time.Now().Format(time.RFC3339),
+	})
+	if tblErr == nil {
+		tableRows++
+	}
+
+	// ENGINE 3: FTS.
+	if contentStored && content != "" {
+		db.Search.IndexDocument(nodeID, content)
+		ftsIndexed++
+	}
+
+	// ENGINE 4: Vector.
+	if contentStored && content != "" {
+		vec := embedContent(content)
+		if vec == nil && contentHash != "" {
+			vec = contentFingerprint(contentHash)
+		}
+		if vec != nil {
+			db.Vector.Insert(nodeID, vec)
+			vectorStored++
+		}
+	}
+
+	debug.Info("ingest", "Ingested single file %q: node=%d, table=%d, fts=%d, vector=%d",
+		filename, nodeID, tableRows, ftsIndexed, vectorStored)
+
+	result := map[string]interface{}{
+		"status":      "ingested",
+		"template":    templateName,
+		"template_id": nodeID,
+		"files":       1,
+		"engines": map[string]interface{}{
+			"graph": map[string]interface{}{
+				"nodes": 1,
+				"edges": 0,
+			},
+			"table": map[string]interface{}{
+				"rows":  tableRows,
+				"table": "ingested_files",
+			},
+			"fts": map[string]interface{}{
+				"indexed": ftsIndexed,
+			},
+			"vector": map[string]interface{}{
+				"stored": vectorStored,
+			},
+		},
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(result)
+}
 // contentFingerprint generates a 32-dimensional float32 vector from an MD5 hash.
 // This provides basic content similarity grouping without an embedding model.
 // When a real embedding model (e.g., Gemini Embedding) is available, replace this.
@@ -663,6 +796,9 @@ func detectAndCreateEdges(db *itakdb.DB, fromID uint64, fromExt, content string,
 	}
 	return edgesCreated
 }
+
+// processResult is an alias for IngestResult used by ingestZipFile.
+type processResult = IngestResult
 
 // IngestResult is returned from the ingest endpoint for display.
 type IngestResult struct {
