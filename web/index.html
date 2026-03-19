@@ -12,6 +12,10 @@
 </head>
 <body>
   <div id="app">
+    <!-- Mobile hamburger menu -->
+    <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('mobile-open')">&#9776;</button>
+    <div class="sidebar-overlay" onclick="document.getElementById('sidebar').classList.remove('mobile-open')"></div>
+
     <!-- Sidebar -->
     <nav class="sidebar" id="sidebar">
       <div class="sidebar-brand">

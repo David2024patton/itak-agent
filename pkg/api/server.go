@@ -147,6 +147,12 @@ func (s *Server) Start() error {
 	// Agent activity persistence API
 	RegisterActivityRoutes(mux, s.graphBackend)
 
+	// Plugin auto-discovery API
+	RegisterPluginRoutes(mux, s.dataDir)
+
+	// OpenAPI/Swagger documentation
+	RegisterOpenAPIRoutes(mux)
+
 	// Agency multi-tenant management API
 	RegisterAgencyRoutes(mux, s.graphBackend)
 
